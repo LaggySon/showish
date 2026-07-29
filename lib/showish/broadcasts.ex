@@ -1,0 +1,327 @@
+defmodule Showish.Broadcasts do
+  @moduledoc """
+  The broadcast context: shows, their teams, their series of games and the
+  people on air.
+
+  Every write funnels through here so that a single `{:show_updated, show}`
+  message can be pushed to every overlay watching the show. Overlays never poll;
+  they subscribe once at mount and re-render when this module says so.
+  """
+
+  import Ecto.Query, warn: false
+
+  alias Showish.Broadcasts.Game
+  alias Showish.Broadcasts.Show
+  alias Showish.Broadcasts.Talent
+  alias Showish.Broadcasts.Team
+  alias Showish.Repo
+
+  @pubsub Showish.PubSub
+
+  ## Subscriptions
+
+  @doc """
+  Subscribes the calling process to updates for `slug`.
+
+  Subscribers receive `{:show_updated, %Show{}}` with the show fully preloaded.
+  """
+  def subscribe(slug) when is_binary(slug) do
+    Phoenix.PubSub.subscribe(@pubsub, topic(slug))
+  end
+
+  def unsubscribe(slug) when is_binary(slug) do
+    Phoenix.PubSub.unsubscribe(@pubsub, topic(slug))
+  end
+
+  defp topic(slug), do: "show:#{slug}"
+
+  @doc """
+  Pushes `show` to every subscriber and returns it, so it can be piped.
+  """
+  def broadcast_show(%Show{} = show) do
+    Phoenix.PubSub.broadcast(@pubsub, topic(show.slug), {:show_updated, show})
+    show
+  end
+
+  ## Reading
+
+  @doc "All shows, most recently updated first."
+  def list_shows do
+    Show
+    |> order_by(desc: :updated_at)
+    |> Repo.all()
+    |> Repo.preload(preloads())
+  end
+
+  @doc "Fetches a show by id, raising if it is missing."
+  def get_show!(id), do: Show |> Repo.get!(id) |> Repo.preload(preloads())
+
+  @doc "Fetches a show by its URL slug, raising if it is missing."
+  def get_show_by_slug!(slug), do: Show |> Repo.get_by!(slug: slug) |> Repo.preload(preloads())
+
+  @doc "Fetches a show by its URL slug, or `nil`."
+  def get_show_by_slug(slug), do: Show |> Repo.get_by(slug: slug) |> preload_maybe()
+
+  defp preload_maybe(nil), do: nil
+  defp preload_maybe(%Show{} = show), do: Repo.preload(show, preloads())
+
+  defp preloads, do: [:teams, :games, :talents]
+
+  @doc "Reloads a show along with all of its children."
+  def reload(%Show{} = show), do: get_show!(show.id)
+
+  ## Writing
+
+  @doc """
+  Creates a show. Two teams are seeded automatically unless the caller supplies
+  their own, since a show without competitors cannot be put on air.
+  """
+  def create_show(attrs \\ %{}) do
+    attrs =
+      attrs
+      |> stringify_keys()
+      |> Map.put_new("teams", default_teams())
+
+    %Show{}
+    |> Show.changeset(attrs)
+    |> Repo.insert()
+    |> after_write()
+  end
+
+  @doc "Updates a show and everything nested under it."
+  def update_show(%Show{} = show, attrs) do
+    show
+    |> Show.changeset(stringify_keys(attrs))
+    |> Repo.update()
+    |> after_write()
+  end
+
+  @doc "Deletes a show and, by way of the database, its children."
+  def delete_show(%Show{} = show), do: Repo.delete(show)
+
+  @doc "Builds a changeset for the control panel forms."
+  def change_show(%Show{} = show, attrs \\ %{}) do
+    Show.changeset(show, stringify_keys(attrs))
+  end
+
+  ## Operator actions
+  #
+  # These are the buttons an operator hits mid-match, when there is no time to
+  # tab through a form.
+
+  @doc "Adds `delta` to a team's score, clamped at zero."
+  def adjust_score(%Show{} = show, position, delta) when position in [1, 2] do
+    case Show.team(show, position) do
+      %Team{} = team ->
+        team
+        |> Team.changeset(%{"score" => max(team.score + delta, 0)})
+        |> Repo.update()
+        |> after_write(show)
+
+      nil ->
+        {:error, :no_such_team}
+    end
+  end
+
+  @doc "Sets both teams back to zero."
+  def reset_scores(%Show{} = show) do
+    Enum.each(List.wrap(show.teams), fn team ->
+      team |> Team.changeset(%{"score" => 0}) |> Repo.update()
+    end)
+
+    {:ok, show |> reload() |> broadcast_show()}
+  end
+
+  @doc "Flips which team is drawn on the left."
+  def swap_sides(%Show{} = show) do
+    update_show(show, %{"swap_sides" => !show.swap_sides})
+  end
+
+  @doc "Moves the series pointer, clamped to the games that exist."
+  def move_current_game(%Show{} = show, delta) do
+    count = max(length(List.wrap(show.games)), 1)
+    next = show.current_game + delta
+
+    update_show(show, %{"current_game" => next |> max(1) |> min(count)})
+  end
+
+  @doc "Jumps the series pointer to a specific 1-indexed game."
+  def set_current_game(%Show{} = show, number) do
+    update_show(show, %{"current_game" => number})
+  end
+
+  @doc """
+  Records the winner of a game and marks it complete.
+
+  Passing the winner that is already set clears it, so the same button both sets
+  and undoes a call.
+  """
+  def set_game_winner(%Show{} = show, game_id, winner) when winner in ["a", "b", "draw"] do
+    case find_game(show, game_id) do
+      %Game{} = game ->
+        attrs =
+          if game.winner == winner,
+            do: %{"winner" => "", "completed" => false},
+            else: %{"winner" => winner, "completed" => true}
+
+        game
+        |> Game.changeset(attrs)
+        |> Repo.update()
+        |> after_write(show)
+
+      nil ->
+        {:error, :no_such_game}
+    end
+  end
+
+  @doc "Appends an empty game to the series."
+  def add_game(%Show{} = show) do
+    show
+    |> Ecto.build_assoc(:games)
+    |> Game.changeset(%{"position" => length(List.wrap(show.games))})
+    |> Repo.insert()
+    |> after_write(show)
+  end
+
+  @doc "Appends an empty talent row."
+  def add_talent(%Show{} = show) do
+    show
+    |> Ecto.build_assoc(:talents)
+    |> Talent.changeset(%{"position" => length(List.wrap(show.talents))})
+    |> Repo.insert()
+    |> after_write(show)
+  end
+
+  @doc "Removes a game from the series and renumbers what is left."
+  def delete_game(%Show{} = show, game_id) do
+    case find_game(show, game_id) do
+      %Game{} = game ->
+        Repo.delete(game)
+        renumber(Game, show.id)
+        {:ok, show |> reload() |> broadcast_show()}
+
+      nil ->
+        {:error, :no_such_game}
+    end
+  end
+
+  @doc "Removes a talent row and renumbers what is left."
+  def delete_talent(%Show{} = show, talent_id) do
+    case find_talent(show, talent_id) do
+      %Talent{} = talent ->
+        Repo.delete(talent)
+        renumber(Talent, show.id)
+        {:ok, show |> reload() |> broadcast_show()}
+
+      nil ->
+        {:error, :no_such_talent}
+    end
+  end
+
+  @doc """
+  Moves a game up (`-1`) or down (`+1`) the running order.
+
+  Moving past either end is a no-op rather than an error, so an operator can
+  lean on the button without watching for the edge.
+  """
+  def move_game(%Show{} = show, game_id, delta), do: move_child(show, :games, game_id, delta)
+
+  @doc "Moves a talent row up (`-1`) or down (`+1`)."
+  def move_talent(%Show{} = show, talent_id, delta),
+    do: move_child(show, :talents, talent_id, delta)
+
+  defp move_child(%Show{} = show, key, id, delta) do
+    id = to_integer(id)
+    rows = show |> Map.fetch!(key) |> List.wrap()
+    index = Enum.find_index(rows, &(&1.id == id))
+    target_index = index && index + delta
+
+    cond do
+      is_nil(index) ->
+        {:error, :not_found}
+
+      target_index < 0 or target_index >= length(rows) ->
+        {:ok, show}
+
+      true ->
+        moved = Enum.at(rows, index)
+        displaced = Enum.at(rows, target_index)
+
+        Repo.transaction(fn ->
+          moved |> Ecto.Changeset.change(position: target_index) |> Repo.update!()
+          displaced |> Ecto.Changeset.change(position: index) |> Repo.update!()
+        end)
+
+        {:ok, show |> reload() |> broadcast_show()}
+    end
+  end
+
+  defp find_game(%Show{} = show, id) do
+    id = to_integer(id)
+    show.games |> List.wrap() |> Enum.find(&(&1.id == id))
+  end
+
+  defp find_talent(%Show{} = show, id) do
+    id = to_integer(id)
+    show.talents |> List.wrap() |> Enum.find(&(&1.id == id))
+  end
+
+  defp to_integer(id) when is_integer(id), do: id
+
+  defp to_integer(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, _rest} -> int
+      :error -> nil
+    end
+  end
+
+  defp renumber(schema, show_id) do
+    schema
+    |> where(show_id: ^show_id)
+    |> order_by(asc: :position, asc: :id)
+    |> Repo.all()
+    |> Enum.with_index()
+    |> Enum.each(fn {row, index} ->
+      row |> Ecto.Changeset.change(position: index) |> Repo.update()
+    end)
+  end
+
+  # A show write returns the reloaded, fully preloaded show so callers and
+  # subscribers always see the same shape.
+  defp after_write({:ok, %Show{} = show}), do: {:ok, show |> reload() |> broadcast_show()}
+  defp after_write({:error, _changeset} = error), do: error
+
+  defp after_write({:ok, _child}, %Show{} = show),
+    do: {:ok, show |> reload() |> broadcast_show()}
+
+  defp after_write({:error, _changeset} = error, %Show{}), do: error
+
+  defp default_teams do
+    [
+      %{
+        "position" => 1,
+        "name" => "Team One",
+        "short_name" => "ONE",
+        "code" => "ONE",
+        "primary_color" => "#2563eb",
+        "secondary_color" => "#f8fafc"
+      },
+      %{
+        "position" => 2,
+        "name" => "Team Two",
+        "short_name" => "TWO",
+        "code" => "TWO",
+        "primary_color" => "#dc2626",
+        "secondary_color" => "#f8fafc"
+      }
+    ]
+  end
+
+  # Forms hand us string keys and tests hand us atoms; Ecto insists on one or
+  # the other, so normalise the top level (nested maps are cast on their own).
+  defp stringify_keys(attrs) when is_map(attrs) and not is_struct(attrs) do
+    Map.new(attrs, fn {key, value} -> {to_string(key), value} end)
+  end
+
+  defp stringify_keys(attrs), do: attrs
+end
