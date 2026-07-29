@@ -25,11 +25,55 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/showish"
 import topbar from "../vendor/topbar"
 
+// Overlays are authored on a fixed 1920x1080 canvas so that what the operator
+// sees in the preview is pixel-identical to what the broadcast software
+// composites. In a 1920x1080 browser source the scale is exactly 1; anywhere
+// smaller (the control room preview, a phone) it shrinks to fit.
+const OverlayScale = {
+  mounted() {
+    this.fit = () => {
+      const scale = Math.min(1, window.innerWidth / 1920, window.innerHeight / 1080)
+      this.el.style.transform = `scale(${scale})`
+    }
+    this.fit()
+    window.addEventListener("resize", this.fit)
+  },
+  updated() { this.fit() },
+  destroyed() { window.removeEventListener("resize", this.fit) }
+}
+
+// Copies the overlay URL next to it, so an operator can paste straight into a
+// browser source without leaving the page.
+const ClipboardCopy = {
+  mounted() {
+    this.el.addEventListener("click", async () => {
+      const text = this.el.dataset.clipboardText
+      if (!text) { return }
+      try {
+        await navigator.clipboard.writeText(text)
+      } catch (_error) {
+        const scratch = document.createElement("textarea")
+        scratch.value = text
+        document.body.appendChild(scratch)
+        scratch.select()
+        document.execCommand("copy")
+        scratch.remove()
+      }
+      const original = this.el.dataset.originalLabel || this.el.textContent
+      this.el.dataset.originalLabel = original
+      this.el.textContent = "Copied"
+      clearTimeout(this.resetTimer)
+      this.resetTimer = setTimeout(() => { this.el.textContent = original }, 1200)
+    })
+  },
+  destroyed() { clearTimeout(this.resetTimer) }
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, OverlayScale, ClipboardCopy},
 })
 
 // Show progress bar on live navigation and form submits

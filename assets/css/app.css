@@ -103,3 +103,129 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+
+/* ---------------------------------------------------------------------------
+   Overlays
+   ---------------------------------------------------------------------------
+   Overlay pages are composited on top of live video by broadcast software, so
+   the document itself must be fully transparent and must never scroll. The
+   stage is a fixed 1920x1080 canvas; the OverlayScale hook shrinks it to fit
+   smaller viewports (the control room preview) but never blows it up. */
+
+html.overlay-root,
+body.overlay-root {
+  background: transparent !important;
+  background-color: transparent !important;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.overlay-stage {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: top left;
+  overflow: hidden;
+  font-feature-settings: "tnum" 1;
+  color: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+}
+
+.overlay-stage * {
+  box-sizing: border-box;
+}
+
+/* Numbers that change every few seconds should not reflow their container. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Panels share one recipe so every scene reads as the same broadcast package. */
+.overlay-panel {
+  background: linear-gradient(180deg, rgba(9, 12, 18, 0.94) 0%, rgba(9, 12, 18, 0.86) 100%);
+  border: 1px solid rgba(248, 250, 252, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+}
+
+.overlay-shear {
+  clip-path: polygon(18px 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
+}
+
+.overlay-shear-left {
+  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
+}
+
+.overlay-shear-right {
+  clip-path: polygon(18px 0, 100% 0, 100% 100%, 0 100%);
+}
+
+/* Entrances are deliberately short: an overlay that animates for a second is an
+   overlay the director cannot cut to. */
+@keyframes overlay-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.overlay-rise {
+  animation: overlay-rise 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes overlay-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.overlay-marquee {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: overlay-marquee 28s linear infinite;
+}
+
+@keyframes overlay-credits {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(-100%);
+  }
+}
+
+.overlay-credits {
+  animation: overlay-credits 40s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay-rise,
+  .overlay-marquee,
+  .overlay-credits {
+    animation: none;
+  }
+}
+
+/* The control room preview shows transparency the way an editor would. */
+.checkerboard {
+  background-color: #0b0f14;
+  background-image: linear-gradient(45deg, #161c26 25%, transparent 25%),
+    linear-gradient(-45deg, #161c26 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #161c26 75%),
+    linear-gradient(-45deg, transparent 75%, #161c26 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}

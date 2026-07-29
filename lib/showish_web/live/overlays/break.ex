@@ -1,0 +1,89 @@
+defmodule ShowishWeb.Overlays.Break do
+  @moduledoc """
+  The interval card: a message, a clock back to air, and the series score so
+  viewers who join during the break know where things stand.
+  """
+
+  use ShowishWeb.OverlayLive
+
+  alias Showish.Broadcasts.Show
+
+  @impl Phoenix.LiveView
+  def render(assigns) do
+    {left, right} = Show.sides(assigns.show)
+
+    assigns =
+      assigns
+      |> assign(:left, left)
+      |> assign(:right, right)
+
+    ~H"""
+    <.stage>
+      <div class="absolute inset-0 bg-slate-950/88"></div>
+
+      <div class="absolute inset-0 flex flex-col items-center justify-center gap-14 overlay-rise">
+        <div class="flex flex-col items-center gap-5">
+          <.eyebrow color={@show.accent_color}>Intermission</.eyebrow>
+          <h1 class="max-w-[1400px] text-center text-[64px] font-black uppercase leading-[1.05]">
+            {display(@show.break_message, "We'll be right back")}
+          </h1>
+        </div>
+
+        <div
+          :if={@show.starts_at}
+          class="flex flex-col items-center gap-2"
+        >
+          <span class="text-[16px] font-semibold uppercase tracking-[0.28em] text-slate-400">
+            Back in
+          </span>
+          <div class="tabular text-[104px] font-black leading-none" style={"color: #{@show.accent_color}"}>
+            <.countdown target={@show.starts_at} now={@now} />
+          </div>
+        </div>
+
+        <div class="overlay-panel flex items-center gap-12 rounded-xl px-16 py-8">
+          <.break_side team={@left} align="right" />
+          <div class="tabular flex items-center gap-6 text-[64px] font-black leading-none">
+            <span style={"color: #{primary(@left)}"}>{score(@left)}</span>
+            <span class="text-[32px] text-slate-500">–</span>
+            <span style={"color: #{primary(@right)}"}>{score(@right)}</span>
+          </div>
+          <.break_side team={@right} align="left" />
+        </div>
+      </div>
+
+      <div
+        :if={@show.ticker not in [nil, ""]}
+        class="absolute inset-x-0 bottom-0 overflow-hidden border-t border-white/10 bg-slate-950/90 py-5"
+      >
+        <div class="overlay-marquee text-[22px] font-medium uppercase tracking-[0.2em] text-slate-300">
+          <span class="px-12">{@show.ticker}</span>
+          <span class="px-12">{@show.ticker}</span>
+        </div>
+      </div>
+    </.stage>
+    """
+  end
+
+  attr :team, :any, required: true
+  attr :align, :string, required: true
+
+  @doc false
+  def break_side(assigns) do
+    ~H"""
+    <div class={["flex w-[300px] items-center gap-5", @align == "right" && "flex-row-reverse"]}>
+      <.team_logo team={@team} size={80} />
+      <div class="truncate text-[30px] font-black uppercase leading-none">
+        {full_name(@team)}
+      </div>
+    </div>
+    """
+  end
+
+  defp display(value, fallback) do
+    case String.trim(to_string(value || "")) do
+      "" -> fallback
+      text -> text
+    end
+  end
+end
