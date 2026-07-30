@@ -21,6 +21,10 @@ config :showish, ShowishWeb.Endpoint,
   secret_key_base: "AonVEwlykGRrqkaRTi7CMZPjzja9iCDrQEuvpslJeKeBX6pjEBpLllHVARK9nc29",
   server: false
 
+# Key derivation is meant to be slow. The suite hashes a lot of throwaway
+# passwords, so it pays a token cost instead of the production one.
+config :showish, Showish.Accounts.Password, iterations: 1_000
+
 # In test we don't send emails
 config :showish, Showish.Mailer, adapter: Swoosh.Adapters.Test
 

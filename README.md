@@ -8,6 +8,7 @@ change in the control room is on air a moment later — no polling, no refresh, 
 spreadsheet in the middle.
 
 - [Quick start](#quick-start)
+- [Accounts](#accounts)
 - [Your first show](#your-first-show)
 - [Wiring overlays into OBS](#wiring-overlays-into-obs)
 - [The control room](#the-control-room)
@@ -28,15 +29,54 @@ mix run priv/repo/seeds.exs   # optional: a demo show to poke at
 mix phx.server
 ```
 
-Open [`localhost:4000`](http://localhost:4000). If you ran the seeds, there is a
-show called **Showish Invitational** waiting, with two teams, a five-game series
-and a crew already filled in — open its control room and drag the scorebug URL
-into OBS to see the whole loop working in about a minute.
+Open [`localhost:4000`](http://localhost:4000) and create an account — shows
+belong to whoever made them, so the first thing you see is a login page.
+
+If you ran the seeds, they created an account for you (`operator@example.com`,
+password `showish-demo-account`, both overridable with `SEED_EMAIL` and
+`SEED_PASSWORD`) and a show called **Showish Invitational**, with two teams, a
+five-game series and a crew already filled in — log in, open its control room and
+drag the scorebug URL into OBS to see the whole loop working in about a minute.
 
 The seeds also point at placeholder artwork in `priv/static/images` — two team
 crests and five map cards, all SVG — so the scenes that draw logos and map images
 show something real out of the box. Replace the URLs in the control room with
 your own; nothing depends on these files existing.
+
+## Accounts
+
+Everything that can *change* a show is behind a login: the shelf of shows, the
+control room, the overlay URL list. Sign up at `/users/register`, and from then
+on you only see your own shows — someone else's control room answers exactly the
+way a show that does not exist would.
+
+Overlay URLs are deliberately **not** behind the login. A browser source in OBS
+cannot fill in a login form, so anyone with the URL can watch a show; only its
+owner can change it. Treat an overlay URL like an unlisted link — the slug is the
+only thing guarding it. The same goes for the JSON snapshot at `/api/shows/:slug`.
+
+Slugs are unique across the whole server, not per account, because an overlay URL
+is just a URL: if someone else already has `grand-finals`, you need a different
+one.
+
+Manage your email and password at `/users/settings`. Changing your password logs
+out every other browser you are signed in on.
+
+### Shows created before accounts existed
+
+If you are upgrading an installation that ran without accounts, its shows have no
+owner and appear on nobody's shelf. Their overlay URLs keep working the whole
+time. Register the account that should have them, then:
+
+```bash
+mix showish.claim_shows operator@example.com
+```
+
+or, in a release:
+
+```bash
+bin/showish eval 'Showish.Release.claim_shows("operator@example.com")'
+```
 
 ## Your first show
 
@@ -298,12 +338,10 @@ so overlays render correctly on a venue machine with no internet.
 
 ## Things worth knowing
 
-**There is no authentication.** Anyone who can reach the server can open the
-control room and change what is on air. That is fine on a laptop or a private
-network, which is what this is built for. Before putting it on a public host,
-put the `/shows` routes behind something — `Plug.BasicAuth` in the `:browser`
-pipeline is the ten-minute version. The `/overlay` routes need to stay open, or
-your broadcast software cannot load them.
+**The control room needs a login; overlays do not.** Shows belong to the account
+that created them, and only that account can see or change them. The `/overlay`
+routes stay open on purpose — broadcast software cannot log in — so anyone with a
+slug can watch a show go out. See [Accounts](#accounts).
 
 **Times are UTC.** *Countdown target* is a UTC datetime and both countdowns read
 from it. A target in the past reads `00:00` rather than counting up, which is
@@ -350,6 +388,11 @@ control room ──▶ Showish.Broadcasts ──▶ Phoenix.PubSub "show:<slug>"
                                        overlay LiveViews (one per scene)
 ```
 
+Reads and writes that belong to an operator take a `Showish.Accounts.Scope`, so
+"whose show is this?" is answered in one place; the overlay LiveViews use the one
+call that deliberately skips that check, because they are loaded by software that
+cannot log in.
+
 Every write goes through `Showish.Broadcasts`, which reloads the show and pushes
 it to the `show:<slug>` topic. Overlays subscribe once at mount and re-render on
 `{:show_updated, show}`. A LiveView diff over an open websocket is the whole
@@ -358,6 +401,9 @@ update path, so a score bump lands on air in milliseconds.
 ### Layout
 
 ```
+lib/showish/accounts.ex                registration, login, session tokens
+lib/showish/accounts/scope.ex          who a request is being served for
+lib/showish_web/user_auth.ex           the login plugs and LiveView hooks
 lib/showish/broadcasts.ex              the context: every write and the fan-out
 lib/showish/broadcasts/                show, team, game, talent schemas
 lib/showish/broadcasts/preset.ex       the catalogue of visual presets

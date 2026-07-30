@@ -18,7 +18,7 @@ defmodule ShowishWeb.ShowLive.Control do
   def mount(%{"slug" => slug}, _session, socket) do
     if connected?(socket), do: Broadcasts.subscribe(slug)
 
-    show = Broadcasts.get_show_by_slug!(slug)
+    show = Broadcasts.get_show_by_slug!(socket.assigns.current_scope, slug)
 
     {:ok,
      socket
@@ -30,7 +30,7 @@ defmodule ShowishWeb.ShowLive.Control do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} max_width="max-w-[1600px]">
+    <Layouts.app flash={@flash} current_scope={@current_scope} max_width="max-w-[1600px]">
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p class="text-sm text-base-content/60">Control room · /{@show.slug}</p>
@@ -356,7 +356,7 @@ defmodule ShowishWeb.ShowLive.Control do
   def handle_event("save", %{"show" => params}, socket) do
     previous_slug = socket.assigns.show.slug
 
-    case Broadcasts.update_show(socket.assigns.show, params) do
+    case Broadcasts.update_show(socket.assigns.current_scope, socket.assigns.show, params) do
       # The slug is in every overlay URL, so a rename moves this page too rather
       # than leaving the operator on a stale address.
       {:ok, %Show{slug: slug} = show} when slug != previous_slug ->

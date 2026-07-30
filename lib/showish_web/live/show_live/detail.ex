@@ -13,7 +13,7 @@ defmodule ShowishWeb.ShowLive.Detail do
   def mount(%{"slug" => slug}, _session, socket) do
     if connected?(socket), do: Broadcasts.subscribe(slug)
 
-    show = Broadcasts.get_show_by_slug!(slug)
+    show = Broadcasts.get_show_by_slug!(socket.assigns.current_scope, slug)
 
     {:ok,
      socket
@@ -24,7 +24,7 @@ defmodule ShowishWeb.ShowLive.Detail do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p class="text-sm text-base-content/60">/{@show.slug}</p>

@@ -48,10 +48,23 @@ defmodule ShowishWeb.Layouts do
           <span class="text-lg font-black tracking-tight">Showish</span>
         </.link>
 
-        <span class="text-sm text-base-content/60">Web overlays for live broadcasts</span>
+        <span class="hidden text-sm text-base-content/60 sm:inline">
+          Web overlays for live broadcasts
+        </span>
 
         <div class="ml-auto flex items-center gap-2">
-          <.link navigate={~p"/"} class="btn btn-ghost btn-sm">Shows</.link>
+          <%= if @current_scope do %>
+            <.link navigate={~p"/"} class="btn btn-ghost btn-sm">Shows</.link>
+            <.link navigate={~p"/users/settings"} class="btn btn-ghost btn-sm">
+              <span class="max-w-[16ch] truncate">{@current_scope.user.email}</span>
+            </.link>
+            <.link href={~p"/users/log-out"} method="delete" class="btn btn-ghost btn-sm">
+              Log out
+            </.link>
+          <% else %>
+            <.link navigate={~p"/users/log-in"} class="btn btn-ghost btn-sm">Log in</.link>
+            <.link navigate={~p"/users/register"} class="btn btn-sm btn-primary">Sign up</.link>
+          <% end %>
           <.theme_toggle />
         </div>
       </div>

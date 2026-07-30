@@ -6,11 +6,30 @@ defmodule Showish.Broadcasts do
   Every write funnels through here so that a single `{:show_updated, show}`
   message can be pushed to every overlay watching the show. Overlays never poll;
   they subscribe once at mount and re-render when this module says so.
+
+  ## Who can see what
+
+  A show belongs to the account that created it, and there are exactly two ways
+  to get hold of one:
+
+    * the scoped reads — `list_shows/1`, `get_show!/2`, `get_show_by_slug!/2` —
+      which only ever return that scope's own shows, and the scoped writes,
+      which refuse a show belonging to anyone else; and
+    * `get_public_show_by_slug!/1`, which deliberately checks nothing.
+
+  The second exists because an overlay is loaded as a browser source inside
+  broadcast software, which cannot log in. Anyone with the slug can *watch* a
+  show — that is the point of an overlay URL — but only its owner can change it.
+  So the operator actions further down take a `%Show{}` that one of the calls
+  above has already vouched for.
   """
 
   import Ecto.Query, warn: false
 
+  alias Showish.Accounts.Scope
+  alias Showish.Accounts.User
   alias Showish.Broadcasts.Game
+  alias Showish.Broadcasts.NotOwnerError
   alias Showish.Broadcasts.Show
   alias Showish.Broadcasts.Talent
   alias Showish.Broadcasts.Team
@@ -45,22 +64,44 @@ defmodule Showish.Broadcasts do
 
   ## Reading
 
-  @doc "All shows, most recently updated first."
-  def list_shows do
+  @doc "The scope's own shows, most recently updated first."
+  def list_shows(%Scope{user: %User{id: user_id}}) do
     Show
+    |> where(user_id: ^user_id)
     |> order_by(desc: :updated_at)
     |> Repo.all()
     |> Repo.preload(preloads())
   end
 
-  @doc "Fetches a show by id, raising if it is missing."
-  def get_show!(id), do: Show |> Repo.get!(id) |> Repo.preload(preloads())
+  @doc "Fetches one of the scope's shows by id, raising if there is no such show."
+  def get_show!(%Scope{user: %User{id: user_id}}, id) do
+    Show |> Repo.get_by!(id: id, user_id: user_id) |> Repo.preload(preloads())
+  end
 
-  @doc "Fetches a show by its URL slug, raising if it is missing."
-  def get_show_by_slug!(slug), do: Show |> Repo.get_by!(slug: slug) |> Repo.preload(preloads())
+  @doc """
+  Fetches one of the scope's shows by its URL slug.
 
-  @doc "Fetches a show by its URL slug, or `nil`."
-  def get_show_by_slug(slug), do: Show |> Repo.get_by(slug: slug) |> preload_maybe()
+  Raises `Ecto.NoResultsError` for a slug that belongs to somebody else, which
+  is deliberate: a stranger's control room should look exactly like a control
+  room that does not exist.
+  """
+  def get_show_by_slug!(%Scope{user: %User{id: user_id}}, slug) do
+    Show |> Repo.get_by!(slug: slug, user_id: user_id) |> Repo.preload(preloads())
+  end
+
+  @doc """
+  Fetches any show by its URL slug, with no owner check, raising if missing.
+
+  For overlays and the JSON snapshot only — see "Who can see what" above.
+  """
+  def get_public_show_by_slug!(slug) when is_binary(slug) do
+    Show |> Repo.get_by!(slug: slug) |> Repo.preload(preloads())
+  end
+
+  @doc "Like `get_public_show_by_slug!/1`, but `nil` rather than raising."
+  def get_public_show_by_slug(slug) when is_binary(slug) do
+    Show |> Repo.get_by(slug: slug) |> preload_maybe()
+  end
 
   defp preload_maybe(nil), do: nil
   defp preload_maybe(%Show{} = show), do: Repo.preload(show, preloads())
@@ -68,36 +109,75 @@ defmodule Showish.Broadcasts do
   defp preloads, do: [:teams, :games, :talents]
 
   @doc "Reloads a show along with all of its children."
-  def reload(%Show{} = show), do: get_show!(show.id)
+  def reload(%Show{} = show) do
+    Show |> Repo.get!(show.id) |> Repo.preload(preloads())
+  end
 
   ## Writing
 
   @doc """
-  Creates a show. Two teams are seeded automatically unless the caller supplies
-  their own, since a show without competitors cannot be put on air.
+  Creates a show owned by the scope's user.
+
+  Two teams are seeded automatically unless the caller supplies their own, since
+  a show without competitors cannot be put on air.
   """
-  def create_show(attrs \\ %{}) do
+  def create_show(scope, attrs \\ %{})
+
+  def create_show(%Scope{user: %User{id: user_id}}, attrs) do
     attrs =
       attrs
       |> stringify_keys()
       |> Map.put_new("teams", default_teams())
 
-    %Show{}
+    %Show{user_id: user_id}
     |> Show.changeset(attrs)
     |> Repo.insert()
     |> after_write()
   end
 
   @doc "Updates a show and everything nested under it."
-  def update_show(%Show{} = show, attrs) do
+  def update_show(%Scope{} = scope, %Show{} = show, attrs) do
+    show
+    |> owned!(scope)
+    |> write_show(attrs)
+  end
+
+  @doc "Deletes a show and, by way of the database, its children."
+  def delete_show(%Scope{} = scope, %Show{} = show) do
+    show
+    |> owned!(scope)
+    |> Repo.delete()
+  end
+
+  # The unguarded write. Private on purpose: the operator actions below reach it
+  # with a show that a scoped read already vouched for.
+  defp write_show(%Show{} = show, attrs) do
     show
     |> Show.changeset(stringify_keys(attrs))
     |> Repo.update()
     |> after_write()
   end
 
-  @doc "Deletes a show and, by way of the database, its children."
-  def delete_show(%Show{} = show), do: Repo.delete(show)
+  defp owned!(%Show{user_id: user_id} = show, %Scope{user: %User{id: user_id}}), do: show
+  defp owned!(%Show{} = show, %Scope{}), do: raise(NotOwnerError, slug: show.slug)
+
+  @doc """
+  Hands every ownerless show to the scope's user, returning how many moved.
+
+  Shows created before accounts existed have no owner, which makes them
+  invisible to everybody. This is the one-time migration for them; see
+  `mix showish.claim_shows`.
+  """
+  def claim_unowned_shows(%Scope{user: %User{id: user_id}}) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {count, _returned} =
+      Show
+      |> where([show], is_nil(show.user_id))
+      |> Repo.update_all(set: [user_id: user_id, updated_at: now])
+
+    count
+  end
 
   @doc "Builds a changeset for the control panel forms."
   def change_show(%Show{} = show, attrs \\ %{}) do
@@ -134,7 +214,7 @@ defmodule Showish.Broadcasts do
 
   @doc "Flips which team is drawn on the left."
   def swap_sides(%Show{} = show) do
-    update_show(show, %{"swap_sides" => !show.swap_sides})
+    write_show(show, %{"swap_sides" => !show.swap_sides})
   end
 
   @doc "Moves the series pointer, clamped to the games that exist."
@@ -142,12 +222,12 @@ defmodule Showish.Broadcasts do
     count = max(length(List.wrap(show.games)), 1)
     next = show.current_game + delta
 
-    update_show(show, %{"current_game" => next |> max(1) |> min(count)})
+    write_show(show, %{"current_game" => next |> max(1) |> min(count)})
   end
 
   @doc "Jumps the series pointer to a specific 1-indexed game."
   def set_current_game(%Show{} = show, number) do
-    update_show(show, %{"current_game" => number})
+    write_show(show, %{"current_game" => number})
   end
 
   @doc """

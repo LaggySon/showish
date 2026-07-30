@@ -5,12 +5,17 @@ defmodule Showish.Broadcasts.Show do
 
   Everything an overlay renders hangs off this struct, so a show is loaded once
   and pushed to every connected overlay whenever it changes.
+
+  A show belongs to the account that created it. `user_id` is set by
+  `Showish.Broadcasts.create_show/2` and never cast from form params, so no
+  amount of poking at a form can move a show between accounts.
   """
 
   use Ecto.Schema
 
   import Ecto.Changeset
 
+  alias Showish.Accounts.User
   alias Showish.Broadcasts.Game
   alias Showish.Broadcasts.Preset
   alias Showish.Broadcasts.Talent
@@ -39,6 +44,8 @@ defmodule Showish.Broadcasts.Show do
     field :accent_color, :string, default: "#22d3ee"
     field :preset, :string, default: "broadcast"
 
+    belongs_to :user, User
+
     has_many :teams, Team, on_replace: :delete, preload_order: [asc: :position]
     has_many :games, Game, on_replace: :delete, preload_order: [asc: :position]
     has_many :talents, Talent, on_replace: :delete, preload_order: [asc: :position]
@@ -63,6 +70,8 @@ defmodule Showish.Broadcasts.Show do
     |> validate_number(:best_of, greater_than_or_equal_to: 1)
     |> validate_inclusion(:preset, Preset.keys())
     |> Showish.Colors.validate_hex(:accent_color)
+    # Overlay URLs live in one namespace across every account, because a
+    # browser source is just a URL — so slugs are unique globally, not per user.
     |> unique_constraint(:slug)
     |> cast_assoc(:teams, with: &Team.changeset/2)
     |> cast_assoc(:games,
