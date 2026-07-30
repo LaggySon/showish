@@ -21,14 +21,24 @@ defmodule ShowishWeb.Overlays.Scorebug do
       |> assign(:right, right)
       |> assign(:center_line, Show.center_line(assigns.show))
 
-    ~H"""
-    <.stage>
-      <div class="absolute left-1/2 top-0 -translate-x-1/2 overlay-rise">
-        <div class="flex h-[92px] items-stretch">
-          <.team_plate team={@left} align="right" show_sides={@show.show_sides} />
-          <.score_box team={@left} />
+    render_preset(assigns)
+  end
 
-          <div class="overlay-panel flex w-[210px] flex-col items-center justify-center gap-1.5 border-x-0">
+  # The scorebug is the one scene whose geometry actually changes between
+  # presets, so it dispatches on the show's preset rather than leaning on
+  # scoped CSS the way the other six do.
+  defp render_preset(%{show: %{preset: "tranquility"}} = assigns), do: tranquility(assigns)
+  defp render_preset(assigns), do: broadcast(assigns)
+
+  defp broadcast(assigns) do
+    ~H"""
+    <.stage preset={@show.preset} accent={@show.accent_color}>
+      <div class="absolute left-1/2 top-0 -translate-x-1/2">
+        <div class="flex h-[92px] items-stretch">
+          <.team_plate team={@left} align="right" show_sides={@show.show_sides} enter="overlay-in-left" />
+          <.score_box team={@left} delay={140} />
+
+          <div class="overlay-panel overlay-in-down flex w-[210px] flex-col items-center justify-center gap-1.5 border-x-0">
             <.eyebrow color={@show.accent_color}>
               {stage_label(@show)}
             </.eyebrow>
@@ -37,12 +47,15 @@ defmodule ShowishWeb.Overlays.Scorebug do
             </div>
           </div>
 
-          <.score_box team={@right} />
-          <.team_plate team={@right} align="left" show_sides={@show.show_sides} />
+          <.score_box team={@right} delay={140} />
+          <.team_plate team={@right} align="left" show_sides={@show.show_sides} enter="overlay-in-right" />
         </div>
 
         <div :if={@center_line != ""} class="flex justify-center">
-          <div class="overlay-panel overlay-shear -mt-px flex h-[42px] min-w-[420px] max-w-[820px] items-center justify-center px-10">
+          <div
+            class="overlay-panel overlay-shear overlay-in-down -mt-px flex h-[42px] min-w-[420px] max-w-[820px] items-center justify-center px-10"
+            style="--overlay-delay: 220ms"
+          >
             <span class="truncate text-[17px] font-medium uppercase tracking-[0.18em] text-slate-100/90">
               {@center_line}
             </span>
@@ -50,20 +63,124 @@ defmodule ShowishWeb.Overlays.Scorebug do
         </div>
       </div>
 
-      <div :if={@show.show_status_left and @show.status_left != ""} class="absolute left-16 top-8">
+      <div
+        :if={@show.show_status_left and @show.status_left != ""}
+        class="absolute left-16 top-8 overlay-in-left"
+        style="--overlay-delay: 300ms"
+      >
         <.status_pill accent={@show.accent_color}>{@show.status_left}</.status_pill>
       </div>
 
-      <div :if={@show.show_status_right and @show.status_right != ""} class="absolute right-16 top-8">
+      <div
+        :if={@show.show_status_right and @show.status_right != ""}
+        class="absolute right-16 top-8 overlay-in-right"
+        style="--overlay-delay: 300ms"
+      >
         <.status_pill accent={@show.accent_color}>{@show.status_right}</.status_pill>
       </div>
     </.stage>
     """
   end
 
+  # Each team gets a flat plate in its own top corner, mirrored, with the scores
+  # facing the middle of the frame. The centred slugs replace the broadcast
+  # preset's middle panel, which has nowhere to live once the teams move apart.
+  defp tranquility(assigns) do
+    ~H"""
+    <.stage preset={@show.preset} accent={@show.accent_color}>
+      <div class="tranq-teams">
+        <.tranq_team
+          team={@left}
+          side="left"
+          stats={stat_line(@show, :left)}
+          show_sides={@show.show_sides}
+          enter="overlay-in-left"
+        />
+        <.tranq_team
+          team={@right}
+          side="right"
+          stats={stat_line(@show, :right)}
+          show_sides={@show.show_sides}
+          enter="overlay-in-right"
+        />
+      </div>
+
+      <div
+        :if={@center_line != ""}
+        class="tranq-info overlay-in-down"
+        style="--overlay-delay: 220ms"
+      >
+        {@center_line}
+      </div>
+
+      <div
+        :if={stage_label(@show) != ""}
+        class="tranq-tag overlay-in-up"
+        style="--overlay-delay: 300ms"
+      >
+        {stage_label(@show)}
+      </div>
+    </.stage>
+    """
+  end
+
+  attr :team, :any, required: true
+  attr :side, :string, required: true
+  attr :stats, :string, default: ""
+  attr :show_sides, :boolean, default: false
+  attr :enter, :string, default: nil
+
+  defp tranq_team(assigns) do
+    ~H"""
+    <div class={["tranq-team", @side == "right" && "tranq-team-right", @enter]}>
+      <div class="tranq-team-col">
+        <div :if={@stats != ""} class="tranq-stats">{@stats}</div>
+
+        <div class="tranq-bar" style={"background: #{primary(@team)};"}>
+          <div
+            :if={@team && @team.record not in [nil, ""]}
+            class="tranq-record"
+            style={"color: #{secondary(@team)};"}
+          >
+            {@team.record}
+          </div>
+
+          <div class="tranq-name" style={"color: #{secondary(@team)};"}>
+            {short_name(@team)}
+          </div>
+
+          <div class="tranq-logo" style={"background-color: #{primary(@team)};"}>
+            <img :if={logo?(@team)} src={@team.logo_url} alt={full_name(@team)} />
+            <span :if={!logo?(@team)} class="text-[20px]" style={"color: #{secondary(@team)};"}>
+              {initials(@team)}
+            </span>
+          </div>
+
+          <div class="tranq-score tabular">{score(@team)}</div>
+        </div>
+      </div>
+
+      <div :if={@show_sides and @team && @team.side not in [nil, ""]} class="tranq-side">
+        {@team.side}
+      </div>
+    </div>
+    """
+  end
+
+  # The status slots become the small caption above each team's plate, which is
+  # where this look puts per-team copy.
+  defp stat_line(show, :left) do
+    if show.show_status_left, do: String.trim(show.status_left || ""), else: ""
+  end
+
+  defp stat_line(show, :right) do
+    if show.show_status_right, do: String.trim(show.status_right || ""), else: ""
+  end
+
   attr :team, :any, required: true
   attr :align, :string, required: true
   attr :show_sides, :boolean, default: false
+  attr :enter, :string, default: nil
 
   @doc false
   def team_plate(assigns) do
@@ -71,6 +188,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
     <div
       class={[
         "overlay-panel flex w-[440px] items-center gap-5 px-8",
+        @enter,
         @align == "right" && "justify-end overlay-shear-left",
         @align == "left" && "flex-row-reverse justify-end overlay-shear-right"
       ]}
@@ -103,13 +221,14 @@ defmodule ShowishWeb.Overlays.Scorebug do
   end
 
   attr :team, :any, required: true
+  attr :delay, :integer, default: 0
 
   @doc false
   def score_box(assigns) do
     ~H"""
     <div
-      class="tabular flex w-[104px] items-center justify-center text-[54px] font-black leading-none"
-      style={"background: #{primary(@team)}; color: #{contrast(@team)};"}
+      class="tabular overlay-in-pop flex w-[104px] items-center justify-center text-[54px] font-black leading-none"
+      style={"background: #{primary(@team)}; color: #{contrast(@team)}; --overlay-delay: #{@delay}ms;"}
     >
       {score(@team)}
     </div>

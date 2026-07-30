@@ -18,11 +18,11 @@ defmodule ShowishWeb.Overlays.Break do
       |> assign(:right, right)
 
     ~H"""
-    <.stage>
-      <div class="absolute inset-0 bg-slate-950/88"></div>
+    <.stage preset={@show.preset} accent={@show.accent_color}>
+      <div class="absolute inset-0 bg-slate-950/88 overlay-in-fade"></div>
 
-      <div class="absolute inset-0 flex flex-col items-center justify-center gap-14 overlay-rise">
-        <div class="flex flex-col items-center gap-5">
+      <div class="absolute inset-0 flex flex-col items-center justify-center gap-14">
+        <div class="flex flex-col items-center gap-5 overlay-in-down" style="--overlay-delay: 120ms">
           <.eyebrow color={@show.accent_color}>Intermission</.eyebrow>
           <h1 class="max-w-[1400px] text-center text-[64px] font-black uppercase leading-[1.05]">
             {display(@show.break_message, "We'll be right back")}
@@ -31,22 +31,26 @@ defmodule ShowishWeb.Overlays.Break do
 
         <div
           :if={@show.starts_at}
-          class="flex flex-col items-center gap-2"
+          class="flex flex-col items-center gap-2 overlay-in-pop"
+          style="--overlay-delay: 240ms"
         >
           <span class="text-[16px] font-semibold uppercase tracking-[0.28em] text-slate-400">
             Back in
           </span>
-          <div class="tabular text-[104px] font-black leading-none" style={"color: #{@show.accent_color}"}>
+          <div class="tabular overlay-clock text-[104px] font-black leading-none">
             <.countdown target={@show.starts_at} now={@now} />
           </div>
         </div>
 
-        <div class="overlay-panel flex items-center gap-12 rounded-xl px-16 py-8">
+        <div
+          class="overlay-panel overlay-in-up flex items-center gap-12 rounded-xl px-16 py-8"
+          style="--overlay-delay: 360ms"
+        >
           <.break_side team={@left} align="right" />
           <div class="tabular flex items-center gap-6 text-[64px] font-black leading-none">
-            <span style={"color: #{primary(@left)}"}>{score(@left)}</span>
-            <span class="text-[32px] text-slate-500">–</span>
-            <span style={"color: #{primary(@right)}"}>{score(@right)}</span>
+            <span class="overlay-scoreplate" style={"--score-color: #{primary(@left)}"}>{score(@left)}</span>
+            <span class="overlay-vs text-[32px] text-slate-500">–</span>
+            <span class="overlay-scoreplate" style={"--score-color: #{primary(@right)}"}>{score(@right)}</span>
           </div>
           <.break_side team={@right} align="left" />
         </div>
@@ -54,7 +58,8 @@ defmodule ShowishWeb.Overlays.Break do
 
       <div
         :if={@show.ticker not in [nil, ""]}
-        class="absolute inset-x-0 bottom-0 overflow-hidden border-t border-white/10 bg-slate-950/90 py-5"
+        class="absolute inset-x-0 bottom-0 overflow-hidden border-t border-white/10 bg-slate-950/90 py-5 overlay-in-up"
+        style="--overlay-delay: 480ms"
       >
         <div class="overlay-marquee text-[22px] font-medium uppercase tracking-[0.2em] text-slate-300">
           <span class="px-12">{@show.ticker}</span>
@@ -71,9 +76,12 @@ defmodule ShowishWeb.Overlays.Break do
   @doc false
   def break_side(assigns) do
     ~H"""
-    <div class={["flex w-[300px] items-center gap-5", @align == "right" && "flex-row-reverse"]}>
+    <div
+      class={["flex w-[300px] items-center gap-5", @align == "right" && "flex-row-reverse"]}
+      style={team_vars(@team)}
+    >
       <.team_logo team={@team} size={80} />
-      <div class="truncate text-[30px] font-black uppercase leading-none">
+      <div class="overlay-teamname truncate text-[30px] font-black uppercase leading-none">
         {full_name(@team)}
       </div>
     </div>

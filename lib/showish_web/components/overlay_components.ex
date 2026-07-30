@@ -9,6 +9,7 @@ defmodule ShowishWeb.OverlayComponents do
 
   use Phoenix.Component
 
+  alias Showish.Broadcasts.Preset
   alias Showish.Broadcasts.Team
   alias Showish.Colors
 
@@ -20,15 +21,33 @@ defmodule ShowishWeb.OverlayComponents do
   """
   attr :class, :any, default: nil
   attr :id, :string, default: "overlay-stage"
+  attr :preset, :string, default: nil
+  attr :accent, :string, default: nil
   slot :inner_block, required: true
 
   def stage(assigns) do
     ~H"""
-    <div id={@id} phx-hook="OverlayScale" class={["overlay-stage", @class]}>
+    <div
+      id={@id}
+      phx-hook="OverlayScale"
+      class={["overlay-stage", stage_class(@preset), @class]}
+      style={@accent && "--overlay-accent: #{@accent};"}
+    >
       {render_slot(@inner_block)}
     </div>
     """
   end
+
+  @doc """
+  The class that scopes a preset's styles to this stage.
+
+      iex> ShowishWeb.OverlayComponents.stage_class("tranquility")
+      "preset-tranquility"
+
+      iex> ShowishWeb.OverlayComponents.stage_class(nil)
+      "preset-broadcast"
+  """
+  def stage_class(key), do: "preset-" <> Preset.fetch(key).key
 
   @doc """
   A team's logo, or a colored plate with its code when no logo is configured.
@@ -40,8 +59,13 @@ defmodule ShowishWeb.OverlayComponents do
   def team_logo(assigns) do
     ~H"""
     <div
-      class={["flex shrink-0 items-center justify-center overflow-hidden rounded-md", @class]}
-      style={"width: #{@size}px; height: #{@size}px; #{logo_plate_style(@team)}"}
+      class={[
+        "overlay-logo flex shrink-0 items-center justify-center overflow-hidden rounded-md",
+        logo?(@team) && "overlay-logo-image",
+        !logo?(@team) && "overlay-logo-plate",
+        @class
+      ]}
+      style={"width: #{@size}px; height: #{@size}px; #{team_vars(@team)}"}
     >
       <img
         :if={logo?(@team)}
@@ -115,7 +139,7 @@ defmodule ShowishWeb.OverlayComponents do
     ~H"""
     <span
       class={[
-        "text-[13px] font-semibold uppercase leading-none tracking-[0.22em] opacity-90",
+        "overlay-eyebrow text-[13px] font-semibold uppercase leading-none tracking-[0.22em] opacity-90",
         @class
       ]}
       style={@color && "color: #{@color}"}
@@ -148,13 +172,26 @@ defmodule ShowishWeb.OverlayComponents do
     team |> Map.get(field) |> Colors.normalize(fallback)
   end
 
-  defp logo?(nil), do: false
-  defp logo?(team), do: String.trim(team.logo_url || "") != ""
+  @doc """
+  Whether a team has a logo configured, so a scene can decide between drawing it
+  and falling back to the team's initials.
 
-  defp logo_plate_style(team) do
-    if logo?(team),
-      do: "background: rgba(255, 255, 255, 0.06);",
-      else: "background: #{primary(team)};"
+      iex> ShowishWeb.OverlayComponents.logo?(%{logo_url: "  "})
+      false
+  """
+  def logo?(nil), do: false
+  def logo?(team), do: String.trim(team.logo_url || "") != ""
+
+  @doc """
+  A team's colors as CSS custom properties.
+
+  The plate background itself lives in `app.css` rather than inline, so a preset
+  can restyle it — Tranquility draws a primary-to-secondary gradient where the
+  default package uses a flat fill — without having to out-specify an inline
+  style.
+  """
+  def team_vars(team) do
+    "--team-primary: #{primary(team)}; --team-secondary: #{secondary(team)};"
   end
 
   @doc """

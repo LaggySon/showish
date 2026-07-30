@@ -13,39 +13,42 @@ defmodule ShowishWeb.Overlays.Talent do
     assigns = assign(assigns, :talents, List.wrap(assigns.show.talents))
 
     ~H"""
-    <.stage>
-      <div class="absolute inset-x-0 bottom-[96px] flex justify-center gap-6 px-24 overlay-rise">
+    <.stage preset={@show.preset} accent={@show.accent_color}>
+      <div class="absolute inset-x-0 bottom-[96px] flex justify-center gap-6 px-24">
         <div
-          :for={talent <- @talents}
-          class="overlay-panel flex min-w-[320px] max-w-[460px] flex-col gap-2 rounded-lg px-8 py-6"
-          style={"border-bottom: 4px solid #{@show.accent_color};"}
+          :for={{talent, index} <- Enum.with_index(@talents)}
+          class="overlay-panel overlay-talent overlay-in-up flex min-w-[320px] max-w-[460px] flex-col gap-2 rounded-lg px-8 py-6"
+          style={"--talent-accent: #{@show.accent_color}; --overlay-delay: #{index * 90}ms;"}
         >
           <.eyebrow color={@show.accent_color}>{display(talent.role, "Talent")}</.eyebrow>
 
-          <div class="flex items-baseline gap-3">
-            <span class="truncate text-[38px] font-black uppercase leading-none">
-              {display(talent.name, "TBD")}
-            </span>
-            <span
-              :if={talent.pronouns not in [nil, ""]}
-              class="text-[16px] font-medium lowercase text-slate-400"
-            >
-              {talent.pronouns}
-            </span>
+          <div class="overlay-talent-name truncate text-[38px] font-black uppercase leading-none">
+            {display(talent.name, "TBD")}
           </div>
 
           <div
-            :if={talent.social not in [nil, ""]}
-            class="text-[18px] font-semibold tracking-wide text-slate-300/90"
+            :if={talent.pronouns not in [nil, ""] or talent.social not in [nil, ""]}
+            class="overlay-talent-sub flex items-baseline gap-3"
           >
-            {talent.social}
+            <span
+              :if={talent.pronouns not in [nil, ""]}
+              class="overlay-pronouns text-[16px] font-medium lowercase text-slate-400"
+            >
+              {talent.pronouns}
+            </span>
+            <span
+              :if={talent.social not in [nil, ""]}
+              class="text-[18px] font-semibold tracking-wide text-slate-300/90"
+            >
+              {talent.social}
+            </span>
           </div>
         </div>
       </div>
 
       <div
         :if={@talents == []}
-        class="absolute inset-x-0 bottom-[96px] flex justify-center text-[22px] text-slate-300"
+        class="absolute inset-x-0 bottom-[96px] flex justify-center text-[22px] text-slate-300 overlay-in-up"
       >
         <div class="overlay-panel rounded-lg px-12 py-8">No talent has been added to this show.</div>
       </div>

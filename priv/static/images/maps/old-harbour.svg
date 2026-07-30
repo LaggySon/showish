@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Old Harbour">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1f33"/>
+      <stop offset="0.62" stop-color="#245b7d"/>
+      <stop offset="1" stop-color="#4b8ba6"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#123047"/>
+      <stop offset="1" stop-color="#071722"/>
+    </linearGradient>
+    <linearGradient id="haze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fc4d8" stop-opacity="0"/>
+      <stop offset="1" stop-color="#8fc4d8" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#sky)"/>
+  <circle cx="946" cy="392" r="46" fill="#ffd9a3" opacity="0.85"/>
+  <rect y="300" width="1280" height="140" fill="url(#haze)"/>
+
+  <!-- far shoreline -->
+  <path d="M0 432 L150 418 L280 428 L430 412 L610 426 L780 414 L960 428 L1120 418 L1280 430 L1280 440 L0 440 Z" fill="#12384f" opacity="0.9"/>
+
+  <!-- gantry cranes -->
+  <g fill="#0d2434">
+    <path d="M150 440 L150 250 L166 250 L166 440 Z"/>
+    <path d="M96 262 L330 240 L330 262 L96 284 Z"/>
+    <path d="M300 262 L316 262 L316 330 L300 330 Z"/>
+    <path d="M430 440 L430 214 L448 214 L448 440 Z"/>
+    <path d="M372 228 L616 204 L616 228 L372 252 Z"/>
+    <path d="M584 228 L600 228 L600 306 L584 306 Z"/>
+  </g>
+
+  <!-- warehouses -->
+  <g fill="#0a1e2c">
+    <rect x="660" y="352" width="220" height="88"/>
+    <path d="M660 352 L770 320 L880 352 Z"/>
+    <rect x="900" y="374" width="150" height="66"/>
+    <path d="M900 374 L975 348 L1050 374 Z"/>
+    <rect x="1080" y="360" width="170" height="80"/>
+  </g>
+
+  <!-- containers -->
+  <g opacity="0.9">
+    <rect x="80" y="404" width="86" height="36" fill="#1d5a72"/>
+    <rect x="176" y="404" width="86" height="36" fill="#7a3b2e"/>
+    <rect x="272" y="404" width="86" height="36" fill="#2b6b52"/>
+    <rect x="128" y="366" width="86" height="36" fill="#6b5a2a"/>
+    <rect x="224" y="366" width="86" height="36" fill="#1d5a72"/>
+  </g>
+
+  <rect y="440" width="1280" height="280" fill="url(#water)"/>
+  <g fill="#5f9fba" opacity="0.28">
+    <rect x="900" y="470" width="92" height="5"/>
+    <rect x="912" y="504" width="68" height="5"/>
+    <rect x="892" y="540" width="108" height="5"/>
+    <rect x="920" y="580" width="52" height="5"/>
+    <rect x="150" y="492" width="120" height="4"/>
+    <rect x="430" y="528" width="160" height="4"/>
+  </g>
+
+  <!-- moored hull -->
+  <path d="M300 470 L720 470 L688 528 L338 528 Z" fill="#08161f"/>
+  <rect x="470" y="432" width="120" height="38" fill="#0c2231"/>
+</svg>

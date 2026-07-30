@@ -115,6 +115,12 @@ defmodule ShowishWeb.ShowLive.Control do
                 <.input field={@form[:best_of]} type="number" min="1" label="Best of" />
                 <.input field={@form[:accent_color]} type="color" label="Accent color" />
                 <.input
+                  field={@form[:preset]}
+                  type="select"
+                  label="Look"
+                  options={Showish.Broadcasts.Preset.options()}
+                />
+                <.input
                   field={@form[:break_message]}
                   label="Break message"
                   phx-debounce="500"
@@ -287,6 +293,7 @@ defmodule ShowishWeb.ShowLive.Control do
                     <.input field={pf[:name]} label="Name" phx-debounce="500" />
                     <.input field={pf[:pronouns]} label="Pronouns" phx-debounce="500" />
                     <.input field={pf[:social]} label="Social" placeholder="@handle" phx-debounce="500" />
+                    <.input field={pf[:on_cam]} type="checkbox" label="On camera" />
                   </div>
                 </div>
               </.inputs_for>

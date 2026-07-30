@@ -33,7 +33,8 @@ end
         "score" => 2,
         "side" => "Attack",
         "primary_color" => "#2563eb",
-        "secondary_color" => "#f8fafc"
+        "secondary_color" => "#f8fafc",
+        "logo_url" => "/images/teams/harbour-kings.svg"
       },
       %{
         "position" => 2,
@@ -44,13 +45,15 @@ end
         "score" => 1,
         "side" => "Defense",
         "primary_color" => "#e11d48",
-        "secondary_color" => "#fff7ed"
+        "secondary_color" => "#fff7ed",
+        "logo_url" => "/images/teams/ridgeline-foxes.svg"
       }
     ],
     "games" => [
       %{
         "name" => "Old Harbour",
         "mode" => "Control",
+        "image_url" => "/images/maps/old-harbour.svg",
         "winner" => "a",
         "completed" => true,
         "score_a" => 2,
@@ -59,6 +62,7 @@ end
       %{
         "name" => "Sable Flats",
         "mode" => "Escort",
+        "image_url" => "/images/maps/sable-flats.svg",
         "winner" => "b",
         "completed" => true,
         "score_a" => 1,
@@ -67,18 +71,43 @@ end
       %{
         "name" => "Ninth Ward",
         "mode" => "Hybrid",
+        "image_url" => "/images/maps/ninth-ward.svg",
         "winner" => "a",
         "completed" => true,
         "score_a" => 3,
         "score_b" => 2
       },
-      %{"name" => "Cinder Bay", "mode" => "Push"},
-      %{"name" => "Glass Quarter", "mode" => "Control"}
+      %{"name" => "Cinder Bay", "mode" => "Push", "image_url" => "/images/maps/cinder-bay.svg"},
+      %{
+        "name" => "Glass Quarter",
+        "mode" => "Control",
+        "image_url" => "/images/maps/glass-quarter.svg"
+      }
     ],
+    # The host and casters are on camera; the observer and producer are on the
+    # crew but not on the desk, which is what `on_cam` is for.
     "talents" => [
-      %{"role" => "Host", "name" => "Ada Whitlock", "pronouns" => "she/her", "social" => "@adawhit"},
-      %{"role" => "Caster", "name" => "Bo Ferreira", "pronouns" => "he/him", "social" => "@bocasts"},
-      %{"role" => "Caster", "name" => "Sam Okoye", "pronouns" => "they/them", "social" => "@samok"},
+      %{
+        "role" => "Host",
+        "name" => "Ada Whitlock",
+        "pronouns" => "she/her",
+        "social" => "@adawhit",
+        "on_cam" => true
+      },
+      %{
+        "role" => "Caster",
+        "name" => "Bo Ferreira",
+        "pronouns" => "he/him",
+        "social" => "@bocasts",
+        "on_cam" => true
+      },
+      %{
+        "role" => "Caster",
+        "name" => "Sam Okoye",
+        "pronouns" => "they/them",
+        "social" => "@samok",
+        "on_cam" => true
+      },
       %{
         "role" => "Observer",
         "name" => "Nina Alvarez",

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Sable Flats">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a1410"/>
+      <stop offset="0.5" stop-color="#8c3f22"/>
+      <stop offset="1" stop-color="#e0894a"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a2603a"/>
+      <stop offset="1" stop-color="#3a1d13"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffc477" stop-opacity="0"/>
+      <stop offset="1" stop-color="#ffc477" stop-opacity="0.45"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#sky)"/>
+  <circle cx="640" cy="452" r="76" fill="#ffd79a" opacity="0.95"/>
+  <rect y="300" width="1280" height="160" fill="url(#glow)"/>
+
+  <!-- far mesas -->
+  <g fill="#5e2f1e" opacity="0.75">
+    <path d="M0 460 L90 396 L210 396 L256 460 Z"/>
+    <path d="M300 460 L352 420 L470 420 L510 460 Z"/>
+    <path d="M820 460 L878 408 L1010 408 L1058 460 Z"/>
+    <path d="M1100 460 L1150 428 L1240 428 L1280 460 L1280 460 Z"/>
+  </g>
+
+  <!-- mid mesas -->
+  <g fill="#41200f">
+    <path d="M120 470 L180 402 L340 402 L392 470 Z"/>
+    <path d="M900 470 L952 414 L1120 414 L1170 470 Z"/>
+  </g>
+
+  <rect y="460" width="1280" height="260" fill="url(#ground)"/>
+
+  <!-- ridge lines -->
+  <g stroke="#c9834f" stroke-opacity="0.3" fill="none" stroke-width="3">
+    <path d="M0 512 Q 320 496 640 512 T 1280 506"/>
+    <path d="M0 566 Q 380 546 720 568 T 1280 558"/>
+    <path d="M0 630 Q 300 610 660 634 T 1280 620"/>
+  </g>
+
+  <!-- foreground rocks -->
+  <g fill="#2a1409">
+    <path d="M60 720 L120 636 L210 636 L268 720 Z"/>
+    <path d="M980 720 L1042 648 L1150 648 L1220 720 Z"/>
+    <path d="M540 720 L586 672 L654 672 L700 720 Z"/>
+  </g>
+</svg>

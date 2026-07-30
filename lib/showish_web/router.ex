@@ -40,6 +40,7 @@ defmodule ShowishWeb.Router do
     live "/:slug/scorebug", Scorebug
     live "/:slug/series", Series
     live "/:slug/talent", Talent
+    live "/:slug/cams", Cams
     live "/:slug/standby", Standby
     live "/:slug/break", Break
     live "/:slug/credits", Credits

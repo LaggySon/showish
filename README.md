@@ -13,6 +13,7 @@ spreadsheet in the middle.
 - [The control room](#the-control-room)
 - [Running a match](#running-a-match)
 - [Scene reference](#scene-reference)
+- [Looks](#looks)
 - [Things worth knowing](#things-worth-knowing)
 - [Reading a show from somewhere else](#reading-a-show-from-somewhere-else)
 - [For developers](#for-developers)
@@ -31,6 +32,11 @@ Open [`localhost:4000`](http://localhost:4000). If you ran the seeds, there is a
 show called **Showish Invitational** waiting, with two teams, a five-game series
 and a crew already filled in — open its control room and drag the scorebug URL
 into OBS to see the whole loop working in about a minute.
+
+The seeds also point at placeholder artwork in `priv/static/images` — two team
+crests and five map cards, all SVG — so the scenes that draw logos and map images
+show something real out of the box. Replace the URLs in the control room with
+your own; nothing depends on these files existing.
 
 ## Your first show
 
@@ -115,6 +121,7 @@ the screen they are currently drawn on.
 | **Countdown target (UTC)** | The clock on both standby and break |
 | **Best of** | Series header; scorebug centre if no games exist yet |
 | **Accent color** | Eyebrows, status pills, current-game outline, ticker block |
+| **Look** | Which visual preset every scene is drawn in — see [Looks](#looks) |
 | **Break message** | The headline on the break card |
 | **Ticker** | Scrolling copy on standby, break and ticker |
 | **Status — left / centre / right** | Free-text slots, each with its own on-air toggle |
@@ -157,7 +164,13 @@ Per-game scores are separate from the series scores at the top. Series score is
 
 ### Talent
 
-Role, name, pronouns, social handle. The arrows reorder.
+Role, name, pronouns, social handle, and an **On camera** tick. The arrows
+reorder.
+
+*On camera* is what the caster cams scene reads. Roles are free text, so Showish
+cannot guess that your producer and observer are on the crew but not on the desk
+— tick the people who have a camera and only they get a window. It changes
+nothing on the talent or credits scenes, which still list everyone.
 
 Order matters on the credits scene: it groups **consecutive** people who share a
 role under one heading, so keep all your casters together and you get one
@@ -206,6 +219,7 @@ changes.
 | **Scorebug** | `/overlay/:slug/scorebug` | Clear | Top bar: both teams, series score, current game, status pills |
 | **Series** | `/overlay/:slug/series` | Clear | Every game, its result and what is next |
 | **Talent** | `/overlay/:slug/talent` | Clear | Lower thirds — role, name, pronouns, social |
+| **Caster cams** | `/overlay/:slug/cams` | Clear | Frames and name plates for a desk of camera sources |
 | **Standby** | `/overlay/:slug/standby` | Full | Pre-show card: title, countdown, matchup, ticker |
 | **Break** | `/overlay/:slug/break` | Full | Intermission: message, clock back to air, score, ticker |
 | **Credits** | `/overlay/:slug/credits` | Full | Scrolling roll of the crew, grouped by role |
@@ -213,6 +227,74 @@ changes.
 
 The talent scene is built for a desk of up to about five people at once; for the
 whole crew, use credits.
+
+**Caster cams draws nothing inside its windows, on purpose.** It is the furniture
+around your camera sources, not the sources themselves: put your cams in the OBS
+scene *underneath* this browser source and they show through, framed, with each
+person's plate on them.
+
+It draws only the people ticked **On camera** in the Talent panel, so your
+producer and observer stay off the desk while still appearing in credits. Up to
+four sit in a row; past that it wraps to a second row rather than shaving every
+window down to a letterbox. With nobody ticked it says so rather than drawing an
+empty frame.
+
+## Looks
+
+*Look* in the Match panel picks the visual preset the whole package is drawn in.
+It applies to every scene at once, so a broadcast never mixes two, and it
+switches live like everything else — flip it mid-show and every browser source
+redraws without a reload.
+
+| Look | Character |
+| --- | --- |
+| **Broadcast** | The default. Sheared panels, soft shadows, rounded corners, wide-tracked labels. |
+| **Tranquility** | Flat rectangles, hard edges, condensed uppercase type. |
+
+**Tranquility** moves the scorebug as well as restyling it. Instead of one bar
+across the middle, each team gets a flat plate pinned to its own top corner with
+the scores facing the centre, the current game sits in a slug at the top of the
+frame and the stage name in one at the bottom. The plate is filled with the
+team's primary color and the name and record are drawn in their *secondary*
+color rather than auto-contrasted — so on this look, pick a secondary that reads
+against the primary or the name will disappear into the plate.
+
+The per-team status slots move too: *Status — left* and *Status — right* become
+the small caption above each team's plate rather than pills in the frame corners.
+
+**Series is rebuilt too.** Under Tranquility it becomes a map board: each team
+takes a fixed column at its edge of the frame — logo plate above a white code
+block above a very large white score block — and the games stack between them,
+one full-width row each. The row for the game on air grows to fill whatever
+vertical room the other rows leave, so a best-of-three and a best-of-seven both
+fill the frame with no per-show tuning, and it carries an **Up next** banner.
+Finished rows desaturate their artwork, sit under a wash of the winning team's
+color and take that color as a thick strip along the bottom. The right-hand
+column shows the winner's code once a game is called, an ellipsis on the game
+being played and a dash on anything still to come.
+
+The remaining five scenes follow the same package rather than a new geometry:
+
+| Scene | Under Tranquility |
+| --- | --- |
+| **Series** | Laid out as a map board — a team column pinned to each edge, the series stacked down the middle |
+| **Talent** | Narrow centred plates modelled on the caster lower third — name large, a small condensed sub-line under it, pronouns bracketed |
+| **Caster cams** | Same plates, and each window gets a thick near-black matte instead of a hairline border |
+| **Standby** | Team names in their own color, the countdown and the *vs* in the accent |
+| **Break** | Same treatment, with the score as white blocks |
+| **Credits** | Crew names roll in the accent |
+| **Ticker** | A near-black tray with a black copy strip rather than a translucent bar |
+
+Two details worth knowing, because they are the look rather than an accident:
+panels are opaque `#101010` with a hard offset shadow instead of a soft ambient
+one, and anything the original picked out in its brand yellow uses your show's
+**Accent color** instead — so the highlight is yours, not a borrowed one.
+
+Both looks use the same URLs, the same fields and the same control room. Nothing
+about your OBS setup changes when you switch.
+
+Typography is self-hosted from `priv/static/fonts` rather than pulled from a CDN,
+so overlays render correctly on a venue machine with no internet.
 
 ## Things worth knowing
 
@@ -278,6 +360,7 @@ update path, so a score bump lands on air in milliseconds.
 ```
 lib/showish/broadcasts.ex              the context: every write and the fan-out
 lib/showish/broadcasts/                show, team, game, talent schemas
+lib/showish/broadcasts/preset.ex       the catalogue of visual presets
 lib/showish/colors.ex                  contrast and rgba helpers for operator colors
 lib/showish_web/live/overlay_live.ex   shared mount/subscribe/tick for scenes
 lib/showish_web/live/overlays/         one LiveView per scene
@@ -299,6 +382,22 @@ Three steps:
 Shared pieces live in `ShowishWeb.OverlayComponents`: `<.stage>` (the 1920×1080
 canvas), `<.team_logo>`, `<.countdown>`, `<.eyebrow>`, and the color helpers
 (`primary/1`, `contrast/1`, `wash/2`) that keep scenes looking like one package.
+
+### Adding a preset
+
+The show carries a preset; `<.stage>` puts it on the canvas as a `preset-<key>`
+class, and everything is scoped to that class so two looks cannot leak into each
+other. Three steps:
+
+1. An entry in `Showish.Broadcasts.Preset`. The control room dropdown and the
+   changeset's `validate_inclusion` both read from that list.
+2. A `.preset-<key>` block in `assets/css/app.css`. Restyling the shared
+   primitives — `.overlay-panel`, the shear clip-paths, radius, type — is enough
+   for most scenes, because they are all built from the same pieces.
+3. Only for a scene whose *geometry* differs: a `render/1` clause matching on the
+   preset. `ShowishWeb.Overlays.Scorebug` is the one that needs this, because
+   Tranquility moves the teams to opposite corners rather than restyling a bar
+   that stays put. Everything else is CSS.
 
 ### Tests
 

@@ -12,6 +12,7 @@ defmodule Showish.Broadcasts.Show do
   import Ecto.Changeset
 
   alias Showish.Broadcasts.Game
+  alias Showish.Broadcasts.Preset
   alias Showish.Broadcasts.Talent
   alias Showish.Broadcasts.Team
 
@@ -36,6 +37,7 @@ defmodule Showish.Broadcasts.Show do
     field :swap_sides, :boolean, default: false
     field :break_message, :string, default: "We'll be right back"
     field :accent_color, :string, default: "#22d3ee"
+    field :preset, :string, default: "broadcast"
 
     has_many :teams, Team, on_replace: :delete, preload_order: [asc: :position]
     has_many :games, Game, on_replace: :delete, preload_order: [asc: :position]
@@ -46,7 +48,8 @@ defmodule Showish.Broadcasts.Show do
 
   @castable ~w(slug title subtitle stage starts_at ticker status_left status_center
                status_right show_status_left show_status_center show_status_right
-               current_game best_of show_sides swap_sides break_message accent_color)a
+               current_game best_of show_sides swap_sides break_message accent_color
+               preset)a
 
   def changeset(show, attrs) do
     show
@@ -58,6 +61,7 @@ defmodule Showish.Broadcasts.Show do
     )
     |> validate_number(:current_game, greater_than_or_equal_to: 1)
     |> validate_number(:best_of, greater_than_or_equal_to: 1)
+    |> validate_inclusion(:preset, Preset.keys())
     |> Showish.Colors.validate_hex(:accent_color)
     |> unique_constraint(:slug)
     |> cast_assoc(:teams, with: &Team.changeset/2)

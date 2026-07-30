@@ -24,6 +24,11 @@ defmodule ShowishWeb.Scenes do
       summary: "Lower thirds for the casters, hosts and analysts on air."
     },
     %{
+      key: "cams",
+      name: "Caster cams",
+      summary: "Frames and name plates for a desk of camera sources composited behind."
+    },
+    %{
       key: "standby",
       name: "Standby",
       summary: "Full-frame pre-show card with the countdown and the matchup."

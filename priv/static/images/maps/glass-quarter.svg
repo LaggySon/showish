@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Glass Quarter">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d0b1e"/>
+      <stop offset="0.58" stop-color="#2f2559"/>
+      <stop offset="1" stop-color="#6b5aa8"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a6f9c"/>
+      <stop offset="1" stop-color="#101a2c"/>
+    </linearGradient>
+    <linearGradient id="glassAlt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5b8fa8"/>
+      <stop offset="1" stop-color="#0e1824"/>
+    </linearGradient>
+    <linearGradient id="plaza" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b1a30"/>
+      <stop offset="1" stop-color="#07060e"/>
+    </linearGradient>
+    <pattern id="grid" width="30" height="34" patternUnits="userSpaceOnUse">
+      <rect width="30" height="34" fill="none"/>
+      <rect x="3" y="3" width="24" height="28" fill="#9fd4e8" opacity="0.1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#sky)"/>
+  <circle cx="1040" cy="168" r="52" fill="#d8cffa" opacity="0.35"/>
+
+  <!-- towers, back to front -->
+  <g>
+    <rect x="70" y="238" width="130" height="352" fill="url(#glass)"/>
+    <rect x="70" y="238" width="130" height="352" fill="url(#grid)"/>
+
+    <rect x="220" y="150" width="110" height="440" fill="url(#glassAlt)"/>
+    <rect x="220" y="150" width="110" height="440" fill="url(#grid)"/>
+
+    <rect x="352" y="286" width="140" height="304" fill="url(#glass)"/>
+    <rect x="352" y="286" width="140" height="304" fill="url(#grid)"/>
+
+    <rect x="516" y="112" width="126" height="478" fill="url(#glassAlt)"/>
+    <rect x="516" y="112" width="126" height="478" fill="url(#grid)"/>
+
+    <rect x="664" y="222" width="150" height="368" fill="url(#glass)"/>
+    <rect x="664" y="222" width="150" height="368" fill="url(#grid)"/>
+
+    <rect x="838" y="300" width="118" height="290" fill="url(#glassAlt)"/>
+    <rect x="838" y="300" width="118" height="290" fill="url(#grid)"/>
+
+    <rect x="978" y="196" width="136" height="394" fill="url(#glass)"/>
+    <rect x="978" y="196" width="136" height="394" fill="url(#grid)"/>
+
+    <rect x="1136" y="270" width="118" height="320" fill="url(#glassAlt)"/>
+    <rect x="1136" y="270" width="118" height="320" fill="url(#grid)"/>
+  </g>
+
+  <!-- highlight edges, the reflection this quarter is named for -->
+  <g fill="#bfe6f5" opacity="0.24">
+    <rect x="220" y="150" width="5" height="440"/>
+    <rect x="516" y="112" width="5" height="478"/>
+    <rect x="664" y="222" width="5" height="368"/>
+    <rect x="978" y="196" width="5" height="394"/>
+  </g>
+
+  <rect y="590" width="1280" height="130" fill="url(#plaza)"/>
+
+  <!-- wet plaza reflections -->
+  <g fill="#8fbfd8" opacity="0.16">
+    <rect x="222" y="600" width="106" height="98"/>
+    <rect x="518" y="600" width="122" height="110"/>
+    <rect x="666" y="600" width="146" height="86"/>
+    <rect x="980" y="600" width="132" height="94"/>
+  </g>
+  <g fill="#07060e" opacity="0.55">
+    <rect y="618" width="1280" height="5"/>
+    <rect y="650" width="1280" height="5"/>
+    <rect y="686" width="1280" height="5"/>
+  </g>
+</svg>

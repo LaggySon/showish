@@ -10,8 +10,8 @@ defmodule ShowishWeb.Overlays.Credits do
     assigns = assign(assigns, :groups, group_by_role(assigns.show.talents))
 
     ~H"""
-    <.stage>
-      <div class="absolute inset-0 bg-slate-950/90"></div>
+    <.stage preset={@show.preset} accent={@show.accent_color}>
+      <div class="overlay-in-fade absolute inset-0 bg-slate-950/90"></div>
 
       <div class="absolute inset-0 overflow-hidden">
         <div class="overlay-credits flex flex-col items-center gap-16 py-24">
@@ -25,8 +25,13 @@ defmodule ShowishWeb.Overlays.Credits do
           <div :for={{role, people} <- @groups} class="flex flex-col items-center gap-4">
             <.eyebrow color={@show.accent_color}>{role}</.eyebrow>
             <div :for={person <- people} class="flex items-baseline gap-3">
-              <span class="text-[34px] font-bold uppercase leading-tight">{person.name}</span>
-              <span :if={person.pronouns not in [nil, ""]} class="text-[18px] text-slate-400">
+              <span class="overlay-credit-name text-[34px] font-bold uppercase leading-tight">
+                {person.name}
+              </span>
+              <span
+                :if={person.pronouns not in [nil, ""]}
+                class="overlay-pronouns text-[18px] text-slate-400"
+              >
                 {person.pronouns}
               </span>
               <span :if={person.social not in [nil, ""]} class="text-[18px] text-slate-500">
