@@ -54,6 +54,13 @@ defmodule ShowishWeb.Router do
     get "/shows/:slug", ShowJSONController, :show
   end
 
+  # Liveness probe for the deployment platform (see railway.json healthcheck).
+  scope "/", ShowishWeb do
+    pipe_through :api
+
+    get "/health", HealthController, :show
+  end
+
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:showish, :dev_routes) do
     # If you want to use the LiveDashboard in production, you should put
