@@ -103,3 +103,41 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+
+/* Overlay package
+   ---------------------------------------------------------------------------
+   The overlay CSS is split so a preset is a self-contained thing to reason
+   about. `overlays/base.css` is the preset-agnostic foundation (canvas,
+   animations, fonts, cam geometry, and the token contract). Each look lives in
+   its own folder under `presets/<key>/`, split one file per scene with an
+   `_index.css` that stitches them together (the matrix layout: preset owns the
+   folder, scene owns the file).
+
+   Two cascade layers carry the whole override contract. They are declared here,
+   AFTER Tailwind's own `@layer theme, base, components, utilities`, so both sort
+   above `utilities`: a rule in `overlays` or `presets` beats any Tailwind
+   utility (`rounded-lg`, `tracking-*`) with a plain, unprefixed selector — no
+   `!important` and no specificity hacks. `presets` is declared last, so a
+   preset always wins over the base look it overrides. This is why preset files
+   need no `.preset-<key>` prefix just to take effect: the layer wins for them.
+   (A descendant selector like `.preset-tranquility .overlay-scoreplate` still
+   appears where a rule must apply *only* under one preset — that is scoping, a
+   different job from winning the cascade.)
+
+     - overlays: the base look. base.css sets token defaults + preset-agnostic
+       structure; broadcast is the default skin that reads those tokens.
+     - presets: per-look token overrides and any structural preset CSS.
+
+   To add a preset:
+     1. add an entry to Showish.Broadcasts.Preset (@presets);
+     2. create presets/<key>/, override the --overlay-* tokens under
+        `.preset-<key>`, and add its `_index.css` to the presets-layer @imports;
+     3. only if a scene's geometry genuinely differs, add a render/1 clause in
+        that scene matching on the preset.
+   To remove one, reverse those steps: delete its folder, its @import and its
+   catalogue entry. Nothing else references it. */
+@layer overlays, presets;
+
+@import "./overlays/base.css" layer(overlays);
+@import "./presets/broadcast/_index.css" layer(overlays);
+@import "./presets/tranquility/_index.css" layer(presets);

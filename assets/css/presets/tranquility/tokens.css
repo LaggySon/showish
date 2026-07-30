@@ -1,0 +1,85 @@
+/* Tranquility: tokens and stage-wide treatment
+   ---------------------------------------------------------------------------
+   The custom properties every scene reads, plus the overrides that apply across
+   the whole stage rather than to one scene: the display type and the tracking
+   reset. This file establishes the baseline the scene files build on, so
+   _index.css imports it first.
+
+   The panel recipe and every corner radius are set by overriding the
+   `--overlay-*` token contract (see overlays/base.css). Because the contract
+   already drives `.overlay-panel` and the `.overlay-round-*` utilities, this
+   preset restyles every card and flattens every corner across the whole package
+   without a single `.preset-tranquility .overlay-*` rule — the token block
+   below is the entire panel treatment. */
+
+.preset-tranquility {
+  /* Two fills, used for different jobs: opaque near-black for cards that carry
+     content, and a translucent black for the small slugs that sit over the
+     game. Mixing them up is the quickest way to stop looking like this package. */
+  --tranq-card: #101010;
+  --tranq-panel: rgba(0, 0, 0, 0.7);
+  --tranq-radius: 0rem;
+  /* A hard offset shadow rather than a soft ambient one. This is the single
+     most recognisable thing about the look after the typography. */
+  --tranq-shadow: 5px 5px 10px rgba(0, 0, 0, 0.95);
+  --tranq-ink: drop-shadow(-2px 2px 1px rgba(0, 0, 0, 0.95));
+  --tranq-score: #101010;
+  --tranq-bar-height: 54px;
+  --tranq-bar-width: 525px;
+  --tranq-edge: 2.7rem;
+  --tranq-condensed: "Oswald", "Arial Narrow", sans-serif;
+
+  /* The panel + radius contract. Flat near-black cards on a hard offset shadow,
+     no blur, square everywhere — the whole look, in overrides of the shared
+     tokens. Every `.overlay-panel` and every `.overlay-round-*` corner follows
+     from these, so there is nothing per-scene to flatten by hand. */
+  --overlay-panel-bg: var(--tranq-card);
+  --overlay-panel-border: 0;
+  --overlay-panel-shadow: var(--tranq-shadow);
+  --overlay-panel-blur: none;
+  --overlay-radius-pill: var(--tranq-radius);
+  --overlay-radius-logo: var(--tranq-radius);
+  --overlay-radius-card: var(--tranq-radius);
+  --overlay-radius-hero: var(--tranq-radius);
+
+  font-family: "Heebo", "Segoe UI", Roboto, sans-serif;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+/* Display type sits on a hard shadow rather than relying on the panel behind it. */
+.preset-tranquility h1,
+.preset-tranquility .overlay-display {
+  filter: var(--tranq-ink);
+}
+
+/* Logo plates run the team's primary into its secondary. Their square corners
+   come from the radius token above; the gradient fill and the offset shadow are
+   structural, so they stay here. The colours arrive as custom properties from
+   `team_vars/1`. */
+.preset-tranquility .overlay-logo {
+  background: linear-gradient(180deg, var(--team-primary) 0%, var(--team-secondary) 100%);
+  box-shadow: var(--tranq-shadow);
+}
+
+/* Small type is condensed rather than wide-tracked. The default package leans on
+   generous tracking to feel airy; this one gets its texture from the condensed
+   face instead, so the tracking utilities are neutralised across the stage. */
+.preset-tranquility .overlay-eyebrow,
+.preset-tranquility .overlay-talent-sub,
+.preset-tranquility .overlay-ticker-copy {
+  font-family: var(--tranq-condensed);
+  font-weight: 500;
+}
+
+/* The default package's wide tracking fights a condensed face, so it is reset
+   across the stage and a single small value put back on the condensed labels —
+   enough to keep uppercase legible at slug sizes without going airy. */
+.preset-tranquility [class*="tracking-"] {
+  letter-spacing: normal;
+}
+
+.preset-tranquility .overlay-eyebrow {
+  letter-spacing: 0.04em;
+}

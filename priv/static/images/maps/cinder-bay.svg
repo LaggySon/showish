@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="Cinder Bay">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#180a0c"/>
+      <stop offset="0.58" stop-color="#5d1b16"/>
+      <stop offset="1" stop-color="#b84520"/>
+    </linearGradient>
+    <linearGradient id="bay" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a120e"/>
+      <stop offset="1" stop-color="#0c0404"/>
+    </linearGradient>
+    <radialGradient id="ember" cx="0.5" cy="1" r="0.9">
+      <stop offset="0" stop-color="#ff8a3c" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ff8a3c" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#sky)"/>
+
+  <!-- caldera glow -->
+  <ellipse cx="700" cy="430" rx="420" ry="180" fill="url(#ember)"/>
+
+  <!-- far volcano -->
+  <path d="M420 440 L640 196 L700 254 L760 208 L1000 440 Z" fill="#2a0f0d"/>
+  <path d="M640 196 L700 254 L760 208 L724 226 L688 210 Z" fill="#ff7a30" opacity="0.75"/>
+  <path d="M652 226 L700 274 L748 232 L742 300 L664 300 Z" fill="#ff9b48" opacity="0.35"/>
+
+  <!-- ridges -->
+  <g fill="#1d0908">
+    <path d="M0 440 L170 344 L330 440 Z"/>
+    <path d="M980 440 L1130 356 L1280 440 Z"/>
+  </g>
+
+  <rect y="440" width="1280" height="280" fill="url(#bay)"/>
+
+  <!-- lava reflections on the water -->
+  <g fill="#ff7a30" opacity="0.3">
+    <rect x="620" y="470" width="160" height="6"/>
+    <rect x="646" y="504" width="110" height="6"/>
+    <rect x="608" y="540" width="186" height="6"/>
+    <rect x="656" y="578" width="92" height="6"/>
+    <rect x="600" y="620" width="204" height="6"/>
+  </g>
+
+  <!-- foreground cinder rocks -->
+  <g fill="#120505">
+    <path d="M0 720 L74 606 L204 606 L286 720 Z"/>
+    <path d="M1010 720 L1084 622 L1210 622 L1280 720 Z"/>
+    <path d="M340 720 L392 664 L470 664 L520 720 Z"/>
+  </g>
+  <g fill="#ff8a3c" opacity="0.35">
+    <path d="M74 606 L120 636 L60 646 Z"/>
+    <path d="M1084 622 L1128 650 L1070 660 Z"/>
+  </g>
+</svg>

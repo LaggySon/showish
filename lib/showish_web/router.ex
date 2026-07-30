@@ -10,6 +10,17 @@ defmodule ShowishWeb.Router do
     plug :put_secure_browser_headers
   end
 
+  # Overlays are loaded as browser sources inside broadcast software. They get a
+  # bare, transparent document with no chrome, no theme switcher and no flashes.
+  pipeline :overlay do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {ShowishWeb.Layouts, :overlay_root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
   end
@@ -17,13 +28,38 @@ defmodule ShowishWeb.Router do
   scope "/", ShowishWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", ShowLive.Index, :index
+    live "/shows/new", ShowLive.Index, :new
+    live "/shows/:slug", ShowLive.Detail, :show
+    live "/shows/:slug/control", ShowLive.Control, :control
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", ShowishWeb do
-  #   pipe_through :api
-  # end
+  scope "/overlay", ShowishWeb.Overlays do
+    pipe_through :overlay
+
+    live "/:slug/scorebug", Scorebug
+    live "/:slug/series", Series
+    live "/:slug/talent", Talent
+    live "/:slug/cams", Cams
+    live "/:slug/standby", Standby
+    live "/:slug/break", Break
+    live "/:slug/credits", Credits
+    live "/:slug/ticker", Ticker
+  end
+
+  # A read-only snapshot of a show, for anything that cannot speak websockets.
+  scope "/api", ShowishWeb do
+    pipe_through :api
+
+    get "/shows/:slug", ShowJSONController, :show
+  end
+
+  # Liveness probe for the deployment platform (see railway.json healthcheck).
+  scope "/", ShowishWeb do
+    pipe_through :api
+
+    get "/health", HealthController, :show
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:showish, :dev_routes) do

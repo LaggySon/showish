@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Ridgeline Foxes">
+  <defs>
+    <linearGradient id="rfField" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5c1122"/>
+      <stop offset="1" stop-color="#280811"/>
+    </linearGradient>
+  </defs>
+
+  <!-- roundel: a self-contained badge, so the mark reads on any plate colour -->
+  <circle cx="128" cy="128" r="120" fill="url(#rfField)"/>
+  <circle cx="128" cy="128" r="120" fill="none" stroke="#ffeef1" stroke-width="8"/>
+  <circle cx="128" cy="128" r="104" fill="none" stroke="#f08098" stroke-width="3" opacity="0.5"/>
+
+  <!-- ridge behind the head -->
+  <path d="M32 186 L78 128 L108 164 L150 104 L190 156 L224 186 Z" fill="#8d2033" opacity="0.85"/>
+  <path d="M78 128 L96 151 L60 151 Z" fill="#ffeef1" opacity="0.5"/>
+  <path d="M150 104 L172 132 L128 132 Z" fill="#ffeef1" opacity="0.5"/>
+
+  <!-- fox head -->
+  <g>
+    <path d="M76 84 L98 122 L72 126 Z" fill="#e8622f"/>
+    <path d="M180 84 L158 122 L184 126 Z" fill="#e8622f"/>
+    <path d="M128 78 L176 112 L166 162 L128 190 L90 162 L80 112 Z" fill="#f07434"/>
+    <path d="M128 78 L176 112 L166 162 L128 190 Z" fill="#e8622f"/>
+    <path d="M104 150 L128 190 L152 150 L128 162 Z" fill="#ffeef1"/>
+    <circle cx="106" cy="130" r="9" fill="#280811"/>
+    <circle cx="150" cy="130" r="9" fill="#280811"/>
+    <path d="M128 166 L120 156 L136 156 Z" fill="#280811"/>
+  </g>
+</svg>

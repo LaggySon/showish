@@ -1,0 +1,27 @@
+/* Preset: Tranquility — index
+   ---------------------------------------------------------------------------
+   Flat rectangles, hard edges and condensed uppercase type. This whole folder
+   imports into `@layer presets` (see app.css), which sorts above `@layer
+   overlays` where the base look lives — so its rules win on layer order, not
+   specificity. Rules are still scoped under `.preset-tranquility` (or a
+   `.tranq-*` class only this look emits) so they apply *only* under this preset
+   and cannot leak into another; that scoping is a separate job from winning the
+   cascade.
+
+   `tokens.css` MUST import first: it overrides the `--overlay-*` token contract
+   (which restyles every panel and flattens every corner package-wide) and
+   defines the `--tranq-*` properties plus the stage-wide type/tracking overrides
+   that the scene files below read. The scene files target disjoint class sets,
+   so their order among themselves does not matter.
+
+   The scorebug and series scenes change geometry under this preset, not just
+   skin. They dispatch on `@show.preset` in their `render/1` and emit the
+   `.tranq-*` classes; the `.preset-tranquility .overlay-*` rules that remain are
+   the genuinely structural ones (shear removal, scoreplate invert, pronoun
+   brackets) for scenes that keep their default geometry. */
+@import "./tokens.css";
+@import "./scorebug.css";
+@import "./talent.css";
+@import "./ticker.css";
+@import "./series.css";
+@import "./cams.css";
