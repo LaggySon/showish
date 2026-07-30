@@ -55,15 +55,23 @@ defmodule ShowishWeb.Layouts do
         <div class="ml-auto flex items-center gap-2">
           <%= if @current_scope do %>
             <.link navigate={~p"/"} class="btn btn-ghost btn-sm">Shows</.link>
-            <.link navigate={~p"/users/settings"} class="btn btn-ghost btn-sm">
-              <span class="max-w-[16ch] truncate">{@current_scope.user.email}</span>
-            </.link>
+            <span class="flex items-center gap-2 pl-1 text-sm text-base-content/70">
+              <img
+                :if={@current_scope.user.avatar_url != ""}
+                src={@current_scope.user.avatar_url}
+                alt=""
+                referrerpolicy="no-referrer"
+                class="size-6 rounded-full"
+              />
+              <span class="max-w-[18ch] truncate">
+                {Showish.Accounts.User.display_name(@current_scope.user)}
+              </span>
+            </span>
             <.link href={~p"/users/log-out"} method="delete" class="btn btn-ghost btn-sm">
-              Log out
+              Sign out
             </.link>
           <% else %>
-            <.link navigate={~p"/users/log-in"} class="btn btn-ghost btn-sm">Log in</.link>
-            <.link navigate={~p"/users/register"} class="btn btn-sm btn-primary">Sign up</.link>
+            <.link navigate={~p"/users/log-in"} class="btn btn-sm btn-primary">Sign in</.link>
           <% end %>
           <.theme_toggle />
         </div>

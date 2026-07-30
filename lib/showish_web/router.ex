@@ -38,8 +38,6 @@ defmodule ShowishWeb.Router do
       live "/shows/new", ShowLive.Index, :new
       live "/shows/:slug", ShowLive.Detail, :show
       live "/shows/:slug/control", ShowLive.Control, :control
-
-      live "/users/settings", UserLive.Settings, :edit
     end
   end
 
@@ -48,15 +46,21 @@ defmodule ShowishWeb.Router do
 
     live_session :redirect_if_user_is_authenticated,
       on_mount: [{ShowishWeb.UserAuth, :mount_current_scope}] do
-      live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
     end
+  end
+
+  # Identity comes from Google; these two are the round trip.
+  scope "/auth", ShowishWeb do
+    pipe_through :browser
+
+    get "/google", GoogleAuthController, :request
+    get "/google/callback", GoogleAuthController, :callback
   end
 
   scope "/", ShowishWeb do
     pipe_through :browser
 
-    post "/users/log-in", UserSessionController, :create
     delete "/users/log-out", UserSessionController, :delete
   end
 

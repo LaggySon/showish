@@ -7,14 +7,15 @@ alias Showish.Accounts
 alias Showish.Accounts.Scope
 alias Showish.Broadcasts
 
-# Shows belong to an account now, so the demo needs someone to own it.
+# Shows belong to an account now, so the demo needs someone to own it. Sign-in
+# is Google's job, so the account is provisioned by address: the first time you
+# sign in with that Google address, this row — and the demo show — become yours.
 email = System.get_env("SEED_EMAIL") || "operator@example.com"
-password = System.get_env("SEED_PASSWORD") || "showish-demo-account"
 
 user =
   case Accounts.get_user_by_email(email) do
     nil ->
-      {:ok, user} = Accounts.register_user(%{"email" => email, "password" => password})
+      {:ok, user} = Accounts.provision_user(%{"email" => email})
       user
 
     user ->
@@ -147,7 +148,8 @@ IO.puts("""
 
 Seeded the "#{slug}" show, owned by #{user.email}.
 
-  Log in with:  #{user.email} / #{password}
+  Sign in with Google as #{user.email} to claim it.
+
   Control room: #{ShowishWeb.Endpoint.url()}/shows/#{slug}/control
   Scorebug:     #{ShowishWeb.Endpoint.url()}/overlay/#{slug}/scorebug
 """)

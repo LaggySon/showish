@@ -29,13 +29,16 @@ mix run priv/repo/seeds.exs   # optional: a demo show to poke at
 mix phx.server
 ```
 
-Open [`localhost:4000`](http://localhost:4000) and create an account — shows
-belong to whoever made them, so the first thing you see is a login page.
+You will also need Google credentials to sign in — see [Accounts](#accounts);
+it is a five-minute detour, once.
 
-If you ran the seeds, they created an account for you (`operator@example.com`,
-password `showish-demo-account`, both overridable with `SEED_EMAIL` and
-`SEED_PASSWORD`) and a show called **Showish Invitational**, with two teams, a
-five-game series and a crew already filled in — log in, open its control room and
+Open [`localhost:4000`](http://localhost:4000) and sign in with Google. Shows
+belong to whoever made them, so the sign-in page is the first thing you see.
+
+If you ran the seeds, they left an account waiting for `operator@example.com`
+(override with `SEED_EMAIL` — use your own Google address and it is yours on
+first sign-in) holding a show called **Showish Invitational**, with two teams, a
+five-game series and a crew already filled in. Sign in, open its control room and
 drag the scorebug URL into OBS to see the whole loop working in about a minute.
 
 The seeds also point at placeholder artwork in `priv/static/images` — two team
@@ -45,10 +48,48 @@ your own; nothing depends on these files existing.
 
 ## Accounts
 
-Everything that can *change* a show is behind a login: the shelf of shows, the
-control room, the overlay URL list. Sign up at `/users/register`, and from then
-on you only see your own shows — someone else's control room answers exactly the
-way a show that does not exist would.
+Everything that can *change* a show is behind a sign-in: the shelf of shows, the
+control room, the overlay URL list. From then on you only see your own shows —
+someone else's control room answers exactly the way a show that does not exist
+would.
+
+Identity comes from Google, so Showish stores no passwords and there is nothing
+to reset. Signing in for the first time creates your account.
+
+### Setting up Google sign-in
+
+1. In the [Google Cloud console](https://console.cloud.google.com/apis/credentials),
+   create an **OAuth client ID** of type *Web application*.
+2. Add an **authorized redirect URI** for every host you run on — exactly, with
+   the scheme and port:
+
+   ```
+   http://localhost:4000/auth/google/callback
+   https://your-host.example.com/auth/google/callback
+   ```
+
+3. Set the credentials in the environment and restart:
+
+   ```bash
+   export GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+   export GOOGLE_CLIENT_SECRET=...
+   ```
+
+Without them the sign-in page says so plainly rather than sending you to a
+broken Google URL. Only addresses Google reports as verified are accepted.
+
+Nothing about the flow needs an extra dependency: it is the standard
+authorization-code exchange over `Req`, which Showish already had.
+
+### Handing someone a show before they have signed in
+
+An account can be created by address, ahead of its owner's first sign-in — that
+is what the seeds do. The first Google sign-in with a matching verified address
+claims the account and everything on it:
+
+```elixir
+Showish.Accounts.provision_user(%{email: "colleague@example.com"})
+```
 
 Overlay URLs are deliberately **not** behind the login. A browser source in OBS
 cannot fill in a login form, so anyone with the URL can watch a show; only its
@@ -58,9 +99,6 @@ only thing guarding it. The same goes for the JSON snapshot at `/api/shows/:slug
 Slugs are unique across the whole server, not per account, because an overlay URL
 is just a URL: if someone else already has `grand-finals`, you need a different
 one.
-
-Manage your email and password at `/users/settings`. Changing your password logs
-out every other browser you are signed in on.
 
 ### Shows created before accounts existed
 
@@ -338,7 +376,7 @@ so overlays render correctly on a venue machine with no internet.
 
 ## Things worth knowing
 
-**The control room needs a login; overlays do not.** Shows belong to the account
+**The control room needs a sign-in; overlays do not.** Shows belong to the account
 that created them, and only that account can see or change them. The `/overlay`
 routes stay open on purpose — broadcast software cannot log in — so anyone with a
 slug can watch a show go out. See [Accounts](#accounts).
@@ -401,9 +439,10 @@ update path, so a score bump lands on air in milliseconds.
 ### Layout
 
 ```
-lib/showish/accounts.ex                registration, login, session tokens
+lib/showish/accounts.ex                accounts and session tokens
+lib/showish/accounts/google.ex         the OAuth flow, by hand, over Req
 lib/showish/accounts/scope.ex          who a request is being served for
-lib/showish_web/user_auth.ex           the login plugs and LiveView hooks
+lib/showish_web/user_auth.ex           the sign-in plugs and LiveView hooks
 lib/showish/broadcasts.ex              the context: every write and the fan-out
 lib/showish/broadcasts/                show, team, game, talent schemas
 lib/showish/broadcasts/preset.ex       the catalogue of visual presets

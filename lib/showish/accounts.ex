@@ -1,11 +1,14 @@
 defmodule Showish.Accounts do
   @moduledoc """
-  Registration, login and account settings.
+  Accounts and the sessions they sign in with.
 
-  Everything here deals in `Showish.Accounts.User` structs and session tokens.
-  Who is allowed to see which show is a question for `Showish.Broadcasts`,
-  which takes a `Showish.Accounts.Scope` built from the user this module hands
-  back.
+  Identity comes from Google — see `Showish.Accounts.Google` — so there is no
+  password here to store, reset or leak. This module turns a Google profile into
+  a `Showish.Accounts.User`, and a user into the session token the browser
+  carries.
+
+  Who is allowed to see which show is a question for `Showish.Broadcasts`, which
+  takes a `Showish.Accounts.Scope` built from the user this module hands back.
   """
 
   import Ecto.Query, warn: false
@@ -19,83 +22,61 @@ defmodule Showish.Accounts do
   @doc "Fetches a user by email, or `nil`."
   def get_user_by_email(email) when is_binary(email), do: Repo.get_by(User, email: email)
 
-  @doc """
-  Fetches a user by email and password, or `nil`.
-
-  Costs the same whether the address is unknown or the password is wrong.
-  """
-  def get_user_by_email_and_password(email, password)
-      when is_binary(email) and is_binary(password) do
-    user = get_user_by_email(email)
-    if User.valid_password?(user, password), do: user
-  end
+  @doc "Fetches a user by their Google subject id, or `nil`."
+  def get_user_by_google_id(google_id) when is_binary(google_id),
+    do: Repo.get_by(User, google_id: google_id)
 
   @doc "Fetches a user by id, raising if they are missing."
   def get_user!(id), do: Repo.get!(User, id)
 
-  ## Registration
-
-  @doc "Registers a user."
-  def register_user(attrs) do
-    %User{}
-    |> User.registration_changeset(attrs)
-    |> Repo.insert()
-  end
+  ## Signing in
 
   @doc """
-  Changeset for the registration form.
+  Finds or creates the account a Google profile belongs to.
 
-  Hashing is skipped: this runs on every keystroke and key derivation is meant
-  to be slow.
+  In order:
+
+    * the subject id is known — sign them in, refreshing the name and picture in
+      case they have changed them at Google, and the address in case they have
+      changed that too;
+    * the address belongs to an account that has never signed in — a
+      provisioned account, claimed here;
+    * the address belongs to an account that signs in with a *different* Google
+      account — refused. Google does not hand the same verified address to two
+      live accounts, so this is not a person who changed their mind; handing the
+      shows over on the strength of a matching address would be a way in.
+    * otherwise — a new account.
+
+  Only ever called with a profile `Showish.Accounts.Google` has already checked,
+  including that Google considers the address verified.
   """
-  def change_user_registration(%User{} = user \\ %User{}, attrs \\ %{}) do
-    User.registration_changeset(user, attrs, hash_password: false, validate_email: false)
-  end
-
-  ## Settings
-
-  @doc "Changeset for the email form."
-  def change_user_email(%User{} = user, attrs \\ %{}) do
-    User.email_changeset(user, attrs, validate_email: false)
-  end
-
-  @doc """
-  Updates a user's email address, once they have proved they know the current
-  password.
-  """
-  def update_user_email(%User{} = user, password, attrs) do
-    user
-    |> User.email_changeset(attrs)
-    |> User.validate_current_password(password)
-    |> Repo.update()
-  end
-
-  @doc "Changeset for the password form."
-  def change_user_password(%User{} = user, attrs \\ %{}, opts \\ [hash_password: false]) do
-    User.password_changeset(user, attrs, opts)
-  end
-
-  @doc """
-  Updates a user's password and logs every other session out.
-
-  Returns `{:ok, user}` or `{:error, changeset}`. The tokens go in the same
-  transaction as the new password, so a half-applied change cannot leave an old
-  session alive.
-  """
-  def update_user_password(%User{} = user, password, attrs) do
-    changeset =
-      user
-      |> User.password_changeset(attrs)
-      |> User.validate_current_password(password)
-
-    Ecto.Multi.new()
-    |> Ecto.Multi.update(:user, changeset)
-    |> Ecto.Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{user: user}} -> {:ok, user}
-      {:error, :user, changeset, _changes} -> {:error, changeset}
+  def sign_in_with_google(%{google_id: google_id, email: email} = profile)
+      when is_binary(google_id) and is_binary(email) do
+    case get_user_by_google_id(google_id) || get_user_by_email(email) do
+      %User{google_id: ^google_id} = user -> update_from_google(user, profile)
+      %User{google_id: nil} = user -> update_from_google(user, profile)
+      %User{} -> {:error, :email_taken}
+      nil -> update_from_google(%User{}, profile)
     end
+  end
+
+  defp update_from_google(user, profile) do
+    user
+    |> User.google_changeset(profile)
+    |> Repo.insert_or_update()
+  end
+
+  @doc """
+  Creates an account for someone who has not signed in yet.
+
+  Their first sign-in with a matching verified Google address claims the row,
+  shows and all. Used by the seeds, and handy for handing a colleague a show
+  before they have ever opened Showish.
+  """
+  def provision_user(attrs) do
+    %User{}
+    |> User.provision_changeset(attrs)
+    |> Repo.insert()
   end
 
   ## Session tokens
@@ -121,6 +102,15 @@ defmodule Showish.Accounts do
     :sha256
     |> :crypto.hash(token)
     |> UserToken.by_token_and_context_query("session")
+    |> Repo.delete_all()
+
+    :ok
+  end
+
+  @doc "Revokes every session a user holds, signing them out everywhere."
+  def delete_all_user_session_tokens(%User{} = user) do
+    user
+    |> UserToken.by_user_and_contexts_query(:all)
     |> Repo.delete_all()
 
     :ok

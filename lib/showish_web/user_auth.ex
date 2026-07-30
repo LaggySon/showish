@@ -15,8 +15,7 @@ defmodule ShowishWeb.UserAuth do
   alias Showish.Accounts
   alias Showish.Accounts.Scope
 
-  # Renewing the session on login is what stops session fixation, and it also
-  # means the remember-me cookie is the only thing that survives a login.
+  # Renewing the session on login is what stops session fixation.
   @remember_me_cookie "_showish_web_user_remember_me"
   @max_age 60 * 60 * 24 * 60
   @remember_me_options [sign: true, max_age: @max_age, same_site: "Lax"]
@@ -24,25 +23,20 @@ defmodule ShowishWeb.UserAuth do
   @doc """
   Logs `user` in and sends them on their way.
 
-  `params` may carry `"remember_me" => "true"`, which is what keeps an operator
-  logged in on the machine in the truck between shows.
+  The session is remembered across browser restarts. Signing in is a trip to
+  Google and back, and an operator setting up in a truck should not have to make
+  it again because they closed the lid.
   """
-  def log_in_user(conn, user, params \\ %{}) do
+  def log_in_user(conn, user) do
     token = Accounts.generate_user_session_token(user)
     user_return_to = get_session(conn, :user_return_to)
 
     conn
     |> renew_session()
     |> put_token_in_session(token)
-    |> maybe_write_remember_me_cookie(token, params)
+    |> put_resp_cookie(@remember_me_cookie, token, @remember_me_options)
     |> redirect(to: user_return_to || signed_in_path(conn))
   end
-
-  defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}) do
-    put_resp_cookie(conn, @remember_me_cookie, token, @remember_me_options)
-  end
-
-  defp maybe_write_remember_me_cookie(conn, _token, _params), do: conn
 
   defp renew_session(conn) do
     delete_csrf_token()

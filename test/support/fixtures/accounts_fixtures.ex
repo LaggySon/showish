@@ -9,20 +9,46 @@ defmodule Showish.AccountsFixtures do
 
   def unique_user_email, do: "operator#{System.unique_integer([:positive])}@example.com"
 
-  def valid_user_password, do: "hello world!"
+  def unique_google_id, do: "google-#{System.unique_integer([:positive])}"
 
-  def valid_user_attributes(attrs \\ %{}) do
+  @doc "A Google profile of the shape `Showish.Accounts.Google` hands back."
+  def google_profile(attrs \\ %{}) do
     Enum.into(attrs, %{
+      google_id: unique_google_id(),
       email: unique_user_email(),
-      password: valid_user_password()
+      name: "Bo Ferreira",
+      avatar_url: "https://example.com/avatar.png"
     })
+  end
+
+  @doc "The claims Google's userinfo endpoint returns for that profile."
+  def google_claims(attrs \\ %{}) do
+    profile = google_profile(attrs)
+
+    %{
+      "sub" => profile.google_id,
+      "email" => profile.email,
+      "email_verified" => true,
+      "name" => profile.name,
+      "picture" => profile.avatar_url
+    }
   end
 
   def user_fixture(attrs \\ %{}) do
     {:ok, user} =
       attrs
-      |> valid_user_attributes()
-      |> Accounts.register_user()
+      |> google_profile()
+      |> Accounts.sign_in_with_google()
+
+    user
+  end
+
+  @doc "An account that exists but has never signed in."
+  def provisioned_user_fixture(attrs \\ %{}) do
+    {:ok, user} =
+      attrs
+      |> Enum.into(%{email: unique_user_email()})
+      |> Accounts.provision_user()
 
     user
   end
