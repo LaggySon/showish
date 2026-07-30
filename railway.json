@@ -4,6 +4,7 @@
     "builder": "RAILPACK"
   },
   "deploy": {
+    "startCommand": "sh /app/_build/prod/rel/showish/bin/server",
     "preDeployCommand": "sh /app/_build/prod/rel/showish/bin/migrate",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 120,
