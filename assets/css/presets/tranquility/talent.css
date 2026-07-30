@@ -1,0 +1,38 @@
+/* Tranquility: talent
+   ---------------------------------------------------------------------------
+   Modelled on the caster plate: a narrow opaque block, the name large and
+   centred, and a small sub-line underneath carrying role, pronouns and social.
+   Pronouns are bracketed in CSS so the schema keeps storing them bare. */
+
+.preset-tranquility .overlay-talent {
+  width: 20rem;
+  min-width: 0;
+  max-width: 20rem;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  text-align: center;
+  border-bottom: 0;
+}
+
+.preset-tranquility .overlay-talent-name {
+  font-size: 1.8rem;
+  line-height: 1.1;
+}
+
+.preset-tranquility .overlay-talent-sub {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  font-family: var(--tranq-condensed);
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.preset-tranquility .overlay-pronouns::before {
+  content: "(";
+}
+
+.preset-tranquility .overlay-pronouns::after {
+  content: ")";
+}

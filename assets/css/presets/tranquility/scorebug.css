@@ -1,0 +1,166 @@
+/* Tranquility: scorebug
+   ---------------------------------------------------------------------------
+   The one scene whose geometry actually changes: instead of a single bar across
+   the middle, each team gets a flat plate pinned to its own top corner, and the
+   two mirror each other. Scores face the centre of the frame.
+
+   The score plate override is here too — Tranquility inverts it into a white
+   block with black numerals, the reverse of the broadcast plate. */
+
+/* Scores read as white blocks with black numerals, the inverse of the cards.
+   The team colour arrives as `--score-color` rather than an inline `color`, so
+   this can win normally instead of needing !important. */
+.preset-tranquility .overlay-scoreplate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5em;
+  padding: 0.05em 0.2em;
+  background: #ffffff;
+  color: #000000;
+  border-radius: var(--tranq-radius);
+  box-shadow: var(--tranq-shadow);
+  filter: none;
+}
+
+/* The angled cuts belong to the default package only. */
+.preset-tranquility .overlay-shear,
+.preset-tranquility .overlay-shear-left,
+.preset-tranquility .overlay-shear-right {
+  clip-path: none;
+}
+
+.tranq-teams {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.tranq-team {
+  display: flex;
+  align-items: flex-end;
+  margin-inline: var(--tranq-edge);
+}
+
+.tranq-team-right {
+  flex-direction: row-reverse;
+}
+
+.tranq-team-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.tranq-team-right .tranq-team-col {
+  align-items: flex-end;
+}
+
+/* One recipe for every small slug on this scene — the caption above a plate, the
+   side indicator, and the two centred labels. They only differ in where they
+   sit, so keeping the treatment in a single rule is what stops them drifting. */
+.tranq-stats,
+.tranq-side,
+.tranq-info,
+.tranq-tag {
+  background: var(--tranq-panel);
+  padding: 0.25rem 0.75rem;
+  font-family: var(--tranq-condensed);
+  font-weight: 500;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+}
+
+.tranq-stats {
+  margin-block: 6px;
+}
+
+.tranq-bar {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  height: var(--tranq-bar-height);
+  width: var(--tranq-bar-width);
+  overflow: hidden;
+}
+
+.tranq-team-right .tranq-bar {
+  flex-direction: row-reverse;
+}
+
+.tranq-record {
+  display: flex;
+  align-items: center;
+  padding-inline: 0.5rem;
+  font-size: 20px;
+}
+
+.tranq-name {
+  display: flex;
+  align-items: center;
+  max-width: 320px;
+  padding-inline: 0.5rem;
+  font-size: 34px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Square logo cell, darkened over the team's own colour. */
+.tranq-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  height: 100%;
+  padding-inline: 0.5rem;
+  background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3));
+}
+
+.tranq-logo img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.tranq-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  background: var(--tranq-score);
+  color: #ffffff;
+  font-size: 40px;
+}
+
+/* The side indicator sits beside the plate, not inside it. */
+.tranq-side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--tranq-bar-height);
+  min-width: var(--tranq-bar-height);
+  margin-inline: 0.5rem;
+}
+
+/* Centred slugs, top and bottom. */
+.tranq-info,
+.tranq-tag {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.tranq-info {
+  top: 0.75rem;
+  min-width: 200px;
+}
+
+.tranq-tag {
+  bottom: 1rem;
+}

@@ -1,0 +1,12 @@
+/* Broadcast: caster cams
+   ---------------------------------------------------------------------------
+   The default treatment of the caster-cam frame — a hairline and a soft ambient
+   shadow. The window geometry lives in overlays/base.css; this is only the
+   paint. See _index.css for why this selector stays unscoped. */
+
+.overlay-cam-window {
+  flex: 1 1 auto;
+  border: 3px solid rgba(248, 250, 252, 0.35);
+  border-radius: 0.75rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}

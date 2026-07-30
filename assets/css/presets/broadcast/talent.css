@@ -1,0 +1,9 @@
+/* Broadcast: talent
+   ---------------------------------------------------------------------------
+   The default talent lower-third: an underline in the show's accent. The accent
+   arrives as a custom property so a preset can restyle it. See _index.css for
+   why this selector stays unscoped. */
+
+.overlay-talent {
+  border-bottom: 4px solid var(--talent-accent, transparent);
+}

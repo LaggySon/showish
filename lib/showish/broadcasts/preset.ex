@@ -7,9 +7,23 @@ defmodule Showish.Broadcasts.Preset do
   The show carries one preset and every scene honours it, so a broadcast never
   mixes two looks across its browser sources.
 
-  Adding a preset means an entry here, a `preset-<key>` block in
-  `assets/css/app.css`, and — only for scenes whose geometry actually differs —
-  a `render/1` clause that matches on it.
+  Adding a preset means three steps, and no more:
+
+    1. add an entry to `@presets` below;
+    2. create `assets/css/presets/<key>/tokens.css` overriding the `--overlay-*`
+       token contract under `.preset-<key>`, give it an `_index.css`, and import
+       that into `@layer presets` in `assets/css/app.css`;
+    3. only for scenes whose geometry actually differs, add a `render/1` clause
+       that matches on it and a scene CSS file the `_index.css` imports.
+
+  A reskin preset (colour, radius, shadow, type) needs only steps 1 and 2 — the
+  token overrides restyle every scene, and the `presets` cascade layer lets those
+  plain selectors win, so no `.preset-<key> .overlay-*` rules are needed.
+
+  Removing one reverses those steps. The shared, preset-agnostic styling and the
+  token defaults (which are themselves the broadcast look) live in
+  `assets/css/overlays/base.css` and belong to no single look. See
+  `docs/overlays.md` for the full guide.
   """
 
   @presets [

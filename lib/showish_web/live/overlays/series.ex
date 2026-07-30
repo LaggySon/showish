@@ -53,7 +53,7 @@ defmodule ShowishWeb.Overlays.Series do
         <div class="flex flex-wrap items-stretch justify-center gap-6 px-24">
           <div
             :for={{game, index} <- Enum.with_index(@games)}
-            class="overlay-panel overlay-in-up flex w-[288px] flex-col overflow-hidden rounded-lg"
+            class="overlay-panel overlay-round-card overlay-in-up flex w-[288px] flex-col overflow-hidden"
             style={"--overlay-delay: #{160 + index * 70}ms; #{current_outline(index, @show)}"}
           >
             <div
@@ -93,7 +93,7 @@ defmodule ShowishWeb.Overlays.Series do
 
         <div
           :if={@games == []}
-          class="overlay-panel overlay-in-up rounded-lg px-12 py-8 text-[22px] text-slate-300"
+          class="overlay-panel overlay-round-card overlay-in-up px-12 py-8 text-[22px] text-slate-300"
           style="--overlay-delay: 160ms"
         >
           No games have been added to this series yet.

@@ -20,7 +20,7 @@ defmodule ShowishWeb.Overlays.Standby do
 
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
-      <div class="absolute inset-0 bg-slate-950/85 overlay-in-fade"></div>
+      <div class="absolute inset-0 overlay-in-fade"></div>
 
       <div class="absolute inset-0 flex flex-col items-center justify-center gap-12">
         <div class="flex flex-col items-center gap-4 overlay-in-down" style="--overlay-delay: 120ms">
@@ -78,7 +78,7 @@ defmodule ShowishWeb.Overlays.Standby do
       class={["flex w-[420px] flex-col items-center gap-5", @enter]}
       style={"--overlay-delay: #{@delay}ms; #{team_vars(@team)}"}
     >
-      <.team_logo team={@team} size={140} class="rounded-xl" />
+      <.team_logo team={@team} size={140} radius="hero" />
       <div class="flex flex-col items-center gap-2">
         <div class="overlay-teamname text-center text-[38px] font-black uppercase leading-tight">
           {full_name(@team)}

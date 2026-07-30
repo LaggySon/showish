@@ -1,0 +1,11 @@
+/* Tranquility: caster cams
+   ---------------------------------------------------------------------------
+   A matte rather than a hairline: the frame has to read against whatever the
+   camera behind it happens to be showing, which is usually a lit face. The
+   window geometry lives in overlays/base.css. */
+
+.preset-tranquility .overlay-cam-window {
+  border: 10px solid var(--tranq-card);
+  border-radius: var(--tranq-radius);
+  box-shadow: var(--tranq-shadow);
+}

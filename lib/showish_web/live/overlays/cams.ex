@@ -32,7 +32,7 @@ defmodule ShowishWeb.Overlays.Cams do
         >
           <div class="overlay-cam-window"></div>
 
-          <div class="overlay-panel overlay-talent overlay-cam-plate flex flex-col rounded-lg">
+          <div class="overlay-panel overlay-round-card overlay-talent overlay-cam-plate flex flex-col">
             <.eyebrow color={@show.accent_color}>{display(talent.role, "Talent")}</.eyebrow>
 
             <div class="overlay-talent-name truncate text-[32px] font-black uppercase leading-none">
@@ -64,7 +64,7 @@ defmodule ShowishWeb.Overlays.Cams do
         :if={@talents == []}
         class="overlay-in-up absolute inset-0 flex items-center justify-center text-[22px] text-slate-300"
       >
-        <div class="overlay-panel rounded-lg px-12 py-8">
+        <div class="overlay-panel overlay-round-card px-12 py-8">
           Nobody on the crew is marked as on camera.
         </div>
       </div>

@@ -1,0 +1,17 @@
+/* Tranquility: ticker
+   ---------------------------------------------------------------------------
+   A near-black tray with a black strip inside it, the way the starting-soon
+   ticker is built, rather than a translucent bar. */
+
+.preset-tranquility .overlay-ticker {
+  background: var(--tranq-card);
+  border-radius: var(--tranq-radius);
+  box-shadow: var(--tranq-shadow);
+  overflow: hidden;
+}
+
+.preset-tranquility .overlay-ticker-copy {
+  background: #000000;
+  font-family: var(--tranq-condensed);
+  font-weight: 500;
+}

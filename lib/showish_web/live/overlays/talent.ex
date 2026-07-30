@@ -17,7 +17,7 @@ defmodule ShowishWeb.Overlays.Talent do
       <div class="absolute inset-x-0 bottom-[96px] flex justify-center gap-6 px-24">
         <div
           :for={{talent, index} <- Enum.with_index(@talents)}
-          class="overlay-panel overlay-talent overlay-in-up flex min-w-[320px] max-w-[460px] flex-col gap-2 rounded-lg px-8 py-6"
+          class="overlay-panel overlay-round-card overlay-talent overlay-in-up flex min-w-[320px] max-w-[460px] flex-col gap-2 px-8 py-6"
           style={"--talent-accent: #{@show.accent_color}; --overlay-delay: #{index * 90}ms;"}
         >
           <.eyebrow color={@show.accent_color}>{display(talent.role, "Talent")}</.eyebrow>
@@ -50,7 +50,7 @@ defmodule ShowishWeb.Overlays.Talent do
         :if={@talents == []}
         class="absolute inset-x-0 bottom-[96px] flex justify-center text-[22px] text-slate-300 overlay-in-up"
       >
-        <div class="overlay-panel rounded-lg px-12 py-8">No talent has been added to this show.</div>
+        <div class="overlay-panel overlay-round-card px-12 py-8">No talent has been added to this show.</div>
       </div>
     </.stage>
     """

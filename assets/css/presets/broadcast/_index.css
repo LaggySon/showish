@@ -1,0 +1,21 @@
+/* Preset: Broadcast (default) — index
+   ---------------------------------------------------------------------------
+   The look new shows start on: sheared panels, soft shadows, rounded corners and
+   wide-tracked type. It is the baseline the whole package draws in — so much so
+   that the token defaults in overlays/base.css *are* this look, and broadcast
+   adds no token overrides of its own. What lives here is only the structural
+   furniture that has no default: the logo plate, the scorebug's shears, the
+   talent underline, the cam-window frame.
+
+   Its rules are intentionally *unscoped* — `.overlay-panel`, not
+   `.preset-broadcast .overlay-panel`. Both this file and base.css import into
+   `@layer overlays`; a preset overrides them from `@layer presets`, which wins
+   on layer order rather than selector specificity, so there is no reason to
+   raise specificity here. Keep these selectors bare.
+
+   `furniture.css` holds the primitives more than one scene reuses; the rest are
+   named for the one scene that emits them. */
+@import "./furniture.css";
+@import "./scorebug.css";
+@import "./talent.css";
+@import "./cams.css";

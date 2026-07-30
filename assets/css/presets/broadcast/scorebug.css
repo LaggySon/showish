@@ -1,0 +1,23 @@
+/* Broadcast: scorebug
+   ---------------------------------------------------------------------------
+   The score plate and the angled shears that give the default scorebug its
+   shape. See _index.css for why these selectors stay unscoped. */
+
+/* Values that arrive from operator input come in as custom properties: an inline
+   `color` cannot be restyled by a preset without !important, but a custom
+   property can. */
+.overlay-scoreplate {
+  color: var(--score-color, inherit);
+}
+
+.overlay-shear {
+  clip-path: polygon(18px 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
+}
+
+.overlay-shear-left {
+  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
+}
+
+.overlay-shear-right {
+  clip-path: polygon(18px 0, 100% 0, 100% 100%, 0 100%);
+}

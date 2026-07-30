@@ -51,16 +51,21 @@ defmodule ShowishWeb.OverlayComponents do
 
   @doc """
   A team's logo, or a colored plate with its code when no logo is configured.
+
+  `radius` names a corner-radius token rather than a pixel size, so a preset
+  controls it: `"logo"` (default) or `"hero"` for the larger standby plate.
   """
   attr :team, :any, required: true
   attr :size, :integer, default: 64
+  attr :radius, :string, default: "logo", values: ~w(pill logo card hero)
   attr :class, :any, default: nil
 
   def team_logo(assigns) do
     ~H"""
     <div
       class={[
-        "overlay-logo flex shrink-0 items-center justify-center overflow-hidden rounded-md",
+        "overlay-logo flex shrink-0 items-center justify-center overflow-hidden",
+        "overlay-round-#{@radius}",
         logo?(@team) && "overlay-logo-image",
         !logo?(@team) && "overlay-logo-plate",
         @class
