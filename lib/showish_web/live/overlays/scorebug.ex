@@ -189,8 +189,8 @@ defmodule ShowishWeb.Overlays.Scorebug do
       class={[
         "overlay-panel flex w-[440px] items-center gap-5 px-8",
         @enter,
-        @align == "right" && "justify-end overlay-shear-left",
-        @align == "left" && "flex-row-reverse justify-end overlay-shear-right"
+        @align == "right" && "justify-end ",
+        @align == "left" && "flex-row-reverse justify-end "
       ]}
       style={"background: linear-gradient(#{gradient_angle(@align)}, #{wash(@team, 0.9)} 0%, rgba(9, 12, 18, 0.92) 78%);"}
     >
@@ -207,7 +207,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
           </span>
           <span
             :if={@show_sides and @team && @team.side not in [nil, ""]}
-            class="rounded-sm px-2 py-0.5 text-[12px] font-bold uppercase tracking-[0.14em]"
+            class="overlay-round-pill px-2 py-0.5 text-[12px] font-bold uppercase tracking-[0.14em]"
             style={"background: #{primary(@team)}; color: #{contrast(@team)};"}
           >
             {@team.side}
@@ -242,7 +242,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
   def status_pill(assigns) do
     ~H"""
     <div
-      class="overlay-panel flex h-[46px] items-center rounded-sm px-6 text-[16px] font-semibold uppercase tracking-[0.18em]"
+      class="overlay-panel overlay-round-pill flex h-[46px] items-center px-6 text-[16px] font-semibold uppercase tracking-[0.18em]"
       style={"border-left: 4px solid #{@accent};"}
     >
       {render_slot(@inner_block)}

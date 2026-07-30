@@ -43,7 +43,7 @@ defmodule ShowishWeb.Overlays.Break do
         </div>
 
         <div
-          class="overlay-panel overlay-in-up flex items-center gap-12 rounded-xl px-16 py-8"
+          class="overlay-panel overlay-round-hero overlay-in-up flex items-center gap-12 px-16 py-8"
           style="--overlay-delay: 360ms"
         >
           <.break_side team={@left} align="right" />

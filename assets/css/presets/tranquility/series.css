@@ -1,0 +1,315 @@
+/* Tranquility: series and the full-frame cards
+   ---------------------------------------------------------------------------
+   Two parts. First, the shared full-frame treatment: team names take the team's
+   own colour instead of white, and the joining word between two teams takes the
+   show's accent — the role tranqYellow plays in the original, but driven by the
+   operator rather than hard-coded to a brand. Then the map board itself, whose
+   geometry differs enough that the scene rebuilds its markup with `.tranq-map*`
+   classes. */
+
+.preset-tranquility .overlay-teamname {
+  color: var(--team-primary);
+}
+
+.preset-tranquility .overlay-vs {
+  color: var(--overlay-accent, #ffffff);
+}
+
+.preset-tranquility .overlay-clock {
+  filter: var(--tranq-ink);
+}
+
+/* Credits name the crew in the accent, the way the roll does. */
+.preset-tranquility .overlay-credit-name {
+  color: var(--overlay-accent, #ffffff);
+}
+
+/* The map board
+   ---------------------------------------------------------------------------
+   A team column pinned to each edge and the series stacked down the middle.
+   410 + 1100 + 410 is exactly the 1920 canvas, which is why the columns are
+   fixed rather than fluid.
+
+   The row on air grows to eat whatever vertical room the others leave, so a
+   best-of-three and a best-of-seven both fill the frame without any per-show
+   tuning. Finished rows desaturate and sit under a wash of their winner's
+   colour; the winner column carries that team's mark. */
+
+.tranq-mapinfo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+.tranq-mapteam {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  width: 410px;
+  flex: 0 0 410px;
+}
+
+.tranq-maplogo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 250px;
+  height: 250px;
+  overflow: hidden;
+  border-radius: var(--tranq-radius);
+  box-shadow: var(--tranq-shadow);
+  background: linear-gradient(180deg, var(--team-primary) 0%, var(--team-secondary) 100%);
+}
+
+.tranq-maplogo img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(-2px 2px 1px rgba(0, 0, 0, 0.95));
+}
+
+.tranq-maplogo-code {
+  font-size: 5rem;
+  color: #ffffff;
+  filter: var(--tranq-ink);
+}
+
+/* Code and score invert the cards: white blocks, black numerals. */
+.tranq-mapcode,
+.tranq-mapscore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 250px;
+  background: #ffffff;
+  color: #000000;
+  border-radius: var(--tranq-radius);
+  box-shadow: var(--tranq-shadow);
+}
+
+.tranq-mapcode {
+  font-size: 3rem;
+  padding-block: 0.25rem;
+}
+
+/* Sized so the line box fits inside the block. The original ran 16rem in a 250px
+   box and clawed it back with `line-height: 1px` and a nudge; keeping the glyph
+   inside its own box means the numeral stays centred at any digit count. */
+.tranq-mapscore {
+  height: 250px;
+  font-size: 14rem;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.tranq-mapbox {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  padding-block: 4rem;
+}
+
+.tranq-map {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 1100px;
+  /* A row that is not on air is a fixed, compact strip. Its artwork can only
+     ever be a sliver at this height, so any extra height spent on it is height
+     taken from the one row anyone is actually reading. `flex-shrink: 1` lets a
+     long series squeeze them further rather than overflowing the frame. */
+  flex: 0 1 auto;
+  height: 5.5rem;
+  min-height: 3rem;
+  overflow: hidden;
+  border-radius: var(--tranq-radius);
+  box-shadow: var(--tranq-shadow);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 1) 0%, rgba(59, 59, 59, 1) 100%);
+}
+
+/* Everything except the artwork sits above it. The banner is excluded because it
+   positions itself — leaving it in would reset it to `relative` and drop it back
+   into the flex row alongside the mode and the name. */
+.tranq-map > :not(.tranq-map-media):not(.tranq-map-banner) {
+  position: relative;
+  z-index: 1;
+}
+
+/* The row on air takes everything the others leave, so it scales with the
+   length of the series without any per-show tuning. */
+.tranq-map-active {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 15rem;
+  max-height: 620px;
+  /* Padding keeps the content optically centred under the banner rather than
+     sitting behind it. */
+  padding-top: 2.4rem;
+}
+
+/* The row on air earns its height from the artwork behind it. With no image
+   there is nothing to fill that space, so a bare row stays modest — still
+   clearly the one on air, without leaving a void down the middle. */
+.tranq-map-active.tranq-map-bare {
+  min-height: 0;
+  max-height: 15rem;
+}
+
+/* Given the room, the name grows into it. */
+.tranq-map-active .tranq-map-name {
+  font-size: 4rem;
+}
+
+.tranq-map-active .tranq-map-mode,
+.tranq-map-active .tranq-map-winner {
+  font-size: 1.6rem;
+}
+
+.tranq-map-media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* The artwork is a band down the middle rather than a full bleed, cut hard at
+   both edges the way the original does. */
+.tranq-map-mask,
+.tranq-map-wash {
+  clip-path: polygon(10% 0%, 90% 0%, 90% 100%, 10% 100%);
+}
+
+.tranq-map-mask {
+  position: absolute;
+  inset: 0;
+}
+
+/* A short row can only ever show a sliver of a 16:9 card, so aim that sliver at
+   the horizon — where these compositions put their subject — instead of letting
+   `cover` centre it on whatever happens to be in the middle. */
+.tranq-map-img {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 60%;
+}
+
+.tranq-map-active .tranq-map-img {
+  background-position: center center;
+}
+
+.tranq-map-done .tranq-map-img {
+  filter: grayscale(100%);
+}
+
+/* A scrim over the artwork so the name reads at the same weight on every map,
+   whatever that map's artwork happens to be doing behind it. A row with no
+   artwork has nothing to scrim, so it keeps its plain gradient. */
+.tranq-map:not(.tranq-map-bare) .tranq-map-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.5) 0%,
+    rgba(0, 0, 0, 0.3) 45%,
+    rgba(0, 0, 0, 0.65) 100%
+  );
+}
+
+/* The row on air has the room to show its art, so it gets a lighter scrim. */
+.tranq-map-active:not(.tranq-map-bare) .tranq-map-media::after {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.45) 0%,
+    rgba(0, 0, 0, 0.12) 40%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+/* The winner's colour washes the artwork band only — the flanks stay dark, so a
+   called game still reads as a map card rather than a slab of colour. */
+.tranq-map-wash {
+  position: absolute;
+  inset: 0;
+  background: var(--winner, #222222);
+  opacity: 0.5;
+}
+
+.tranq-map-done {
+  border-bottom: 1rem solid var(--winner, #222222);
+}
+
+/* The banner is the one place the accent appears on this board, which is what
+   ties "what is happening now" to the same colour the other scenes use for it. */
+.tranq-map-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  padding-block: 0.3rem;
+  background: #000000;
+  border-bottom: 3px solid var(--overlay-accent, #ffffff);
+  color: var(--overlay-accent, #ffffff);
+  font-family: var(--tranq-condensed);
+  font-weight: 600;
+  font-size: 1.5rem;
+  letter-spacing: 0.16em;
+  text-align: center;
+}
+
+/* Both flanks are the same width so the name stays optically centred in the row
+   whatever the mode is called. The mode wraps rather than overflowing, because
+   `Flashpoint` does not fit on one line at this width. */
+.tranq-map-mode,
+.tranq-map-winner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 10%;
+  flex: 0 0 10%;
+  padding-inline: 0.25rem;
+  font-family: var(--tranq-condensed);
+  font-weight: 500;
+  font-size: 1.4rem;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-align: center;
+  overflow-wrap: anywhere;
+  filter: var(--tranq-ink);
+}
+
+.tranq-map-winner {
+  font-family: inherit;
+  font-size: 2.25rem;
+  letter-spacing: normal;
+}
+
+.tranq-map-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-inline: 1rem;
+  font-size: 3rem;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  filter: var(--tranq-ink);
+}
+
+.tranq-map-empty {
+  padding: 2rem 3rem;
+  background: var(--tranq-card);
+  border-radius: var(--tranq-radius);
+  box-shadow: var(--tranq-shadow);
+  font-size: 1.5rem;
+}

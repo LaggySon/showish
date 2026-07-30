@@ -1,0 +1,23 @@
+/* Broadcast: shared furniture
+   ---------------------------------------------------------------------------
+   The team logo plate — the one primitive more than one scene reuses that is
+   specific to the broadcast skin. Scene-specific broadcast rules live in their
+   own files alongside this one.
+
+   The panel recipe itself now lives in overlays/base.css: it reads only
+   `--overlay-*` tokens whose defaults ARE the broadcast look, so there is
+   nothing preset-specific left to keep here. A preset restyles every panel by
+   overriding those tokens.
+
+   To restyle a value from a preset without touching this file, feed it in as a
+   custom property here (as with --team-primary) and read it in the preset. */
+
+/* Logo plates. The team's colours arrive as custom properties on the element so
+   the fill can be swapped per preset from CSS instead of inline. */
+.overlay-logo-plate {
+  background: var(--team-primary);
+}
+
+.overlay-logo-image {
+  background: rgba(255, 255, 255, 0.06);
+}
