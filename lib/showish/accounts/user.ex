@@ -1,0 +1,73 @@
+defmodule Showish.Accounts.User do
+  @moduledoc """
+  Someone who runs broadcasts.
+
+  Showish does not keep passwords: identity comes from Google, and the only
+  things stored here are what Google tells us about the person — their address,
+  their subject id, and the name and picture we put in the header.
+
+  `google_id` is null for an account that has been provisioned by email but
+  never signed in; the first sign-in with a matching verified address claims it.
+  """
+
+  use Ecto.Schema
+
+  import Ecto.Changeset
+
+  @type t :: %__MODULE__{}
+
+  schema "users" do
+    field :email, :string
+    field :google_id, :string
+    field :name, :string, default: ""
+    field :avatar_url, :string, default: ""
+
+    timestamps(type: :utc_datetime)
+  end
+
+  @doc """
+  Changeset for a sign-in with Google.
+
+  The attributes come from `Showish.Accounts.Google`, never from a form, which
+  is why `google_id` is cast here at all.
+  """
+  def google_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:email, :google_id, :name, :avatar_url])
+    |> validate_required([:email, :google_id])
+    |> validate_email()
+    |> unique_constraint(:google_id)
+  end
+
+  @doc """
+  Changeset for an account created ahead of its owner's first sign-in.
+
+  Used by the seeds, and by anyone who wants a show to be waiting for a
+  colleague when they first log in.
+  """
+  def provision_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:email, :name])
+    |> validate_required([:email])
+    |> validate_email()
+  end
+
+  defp validate_email(changeset) do
+    changeset
+    |> update_change(:email, &String.trim/1)
+    |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")
+    |> validate_length(:email, max: 160)
+    |> unique_constraint(:email)
+  end
+
+  @doc """
+  What to call this person on screen: their name, or their address if Google
+  did not give us one.
+  """
+  def display_name(%__MODULE__{} = user) do
+    case String.trim(user.name || "") do
+      "" -> user.email
+      name -> name
+    end
+  end
+end

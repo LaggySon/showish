@@ -3,7 +3,7 @@ defmodule ShowishWeb.ShowJSONControllerTest do
 
   import Showish.BroadcastsFixtures
 
-  test "returns a snapshot of the show", %{conn: conn} do
+  test "returns a snapshot of the show without a login", %{conn: conn} do
     show = show_fixture(%{title: "Autumn Cup", stage: "Grand Finals"})
 
     body =

@@ -30,7 +30,7 @@ defmodule ShowishWeb.OverlayLive do
           :timer.send_interval(1000, self(), :tick)
         end
 
-        show = Broadcasts.get_show_by_slug!(slug)
+        show = Broadcasts.get_public_show_by_slug!(slug)
 
         {:ok,
          socket

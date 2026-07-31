@@ -14,8 +14,8 @@ defmodule ShowishWeb.ShowLive.Index do
     {:ok,
      socket
      |> assign(:page_title, "Shows")
-     |> assign(:form, new_form())
-     |> stream(:shows, Broadcasts.list_shows())}
+     |> assign(:form, new_form(socket))
+     |> stream(:shows, Broadcasts.list_shows(socket.assigns.current_scope))}
   end
 
   @impl true
@@ -26,7 +26,7 @@ defmodule ShowishWeb.ShowLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 class="text-3xl font-black tracking-tight">Shows</h1>
@@ -59,7 +59,7 @@ defmodule ShowishWeb.ShowLive.Index do
       </div>
 
       <div id="shows" phx-update="stream" class="grid gap-4 sm:grid-cols-2">
-        <div class="hidden text-base-content/60 only:block">
+        <div id="shows-empty" class="hidden text-base-content/60 only:block">
           No shows yet. Create one to get your first overlay URL.
         </div>
 
@@ -111,7 +111,8 @@ defmodule ShowishWeb.ShowLive.Index do
   @impl true
   def handle_event("validate", %{"show" => params}, socket) do
     form =
-      %Show{}
+      socket
+      |> blank_show()
       |> Broadcasts.change_show(fill_slug(params))
       |> to_form(action: :validate)
 
@@ -119,7 +120,7 @@ defmodule ShowishWeb.ShowLive.Index do
   end
 
   def handle_event("create", %{"show" => params}, socket) do
-    case Broadcasts.create_show(fill_slug(params)) do
+    case Broadcasts.create_show(socket.assigns.current_scope, fill_slug(params)) do
       {:ok, show} ->
         {:noreply,
          socket
@@ -132,8 +133,9 @@ defmodule ShowishWeb.ShowLive.Index do
   end
 
   def handle_event("delete", %{"id" => id}, socket) do
-    show = Broadcasts.get_show!(id)
-    {:ok, _show} = Broadcasts.delete_show(show)
+    scope = socket.assigns.current_scope
+    show = Broadcasts.get_show!(scope, id)
+    {:ok, _show} = Broadcasts.delete_show(scope, show)
 
     {:noreply,
      socket
@@ -141,8 +143,14 @@ defmodule ShowishWeb.ShowLive.Index do
      |> stream_delete(:shows, show)}
   end
 
-  defp new_form do
-    %Show{} |> Broadcasts.change_show() |> to_form()
+  defp new_form(socket) do
+    socket |> blank_show() |> Broadcasts.change_show() |> to_form()
+  end
+
+  # The show being built already knows whose it is, so the form and the insert
+  # agree about the owner.
+  defp blank_show(socket) do
+    %Show{user_id: socket.assigns.current_scope.user.id}
   end
 
   # An operator should not have to think about slugs, but should be able to
