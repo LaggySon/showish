@@ -86,6 +86,17 @@ defmodule ShowishWeb.ShowLiveTest do
       end
     end
 
+    test "offers the whole lot as an OBS scene collection", %{conn: conn, scope: scope} do
+      show = show_fixture(scope)
+
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}")
+
+      assert has_element?(
+               view,
+               ~s{#download-obs-scene-collection[href="/shows/#{show.slug}/obs.json"]}
+             )
+    end
+
     test "another account's show is not there to look at", %{conn: conn} do
       theirs = show_fixture(user_scope_fixture())
 

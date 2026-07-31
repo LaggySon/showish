@@ -146,6 +146,27 @@ Nothing needs saving. The form writes as you type.
 
 ## Wiring overlays into OBS
 
+### The quick way: import a scene collection
+
+The show page has a **Download for OBS** button. It hands you a scene collection
+built from the scene catalogue: one OBS scene per Showish scene, each holding a
+single browser source already set to 1920×1080 and already pointed at that
+scene's overlay URL for *this* show.
+
+In OBS: **Scene Collection → Import**, choose the file, **Import**, then switch
+to the new collection from the same menu.
+
+It arrives as a collection of its own rather than as sources dropped into the
+one you are using, so nothing you have already built is touched. Treat it as a
+starting point — rename the scenes, drop your game capture underneath, delete
+the scenes you will not use on the night.
+
+The URLs inside are absolute, built from the host the app is served on, so a
+collection downloaded from a deployment keeps working on any machine that can
+reach it. One downloaded from `localhost` only works on that machine.
+
+### By hand
+
 For each scene you want:
 
 1. Add a **Browser** source to your scene.
@@ -451,6 +472,7 @@ lib/showish_web/live/overlay_live.ex   shared mount/subscribe/tick for scenes
 lib/showish_web/live/overlays/         one LiveView per scene
 lib/showish_web/live/show_live/        index, overlay URLs, control room
 lib/showish_web/scenes.ex              the scene catalogue
+lib/showish_web/obs_scene_collection.ex  that catalogue as an OBS import file
 ```
 
 ### Adding a scene
@@ -461,8 +483,9 @@ Three steps:
    gives you `@show` (subscribed and kept current) and `@now` (ticking once a
    second); you supply `render/1` and wrap it in `<.stage>`.
 2. A route in the `/overlay` scope.
-3. An entry in `ShowishWeb.Scenes` — the preview tabs, the URL list and the copy
-   buttons all come from that catalogue.
+3. An entry in `ShowishWeb.Scenes` — the preview tabs, the URL list, the copy
+   buttons and the downloadable OBS scene collection all come from that
+   catalogue, so there is nothing else to update.
 
 Shared pieces live in `ShowishWeb.OverlayComponents`: `<.stage>` (the 1920×1080
 canvas), `<.team_logo>`, `<.countdown>`, `<.eyebrow>`, and the color helpers
