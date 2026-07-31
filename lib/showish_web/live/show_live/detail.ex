@@ -36,7 +36,29 @@ defmodule ShowishWeb.ShowLive.Detail do
       </div>
 
       <div class="rounded-box border border-base-300 bg-base-200 p-5">
-        <h2 class="font-bold">Adding an overlay to your broadcast software</h2>
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="min-w-[260px] flex-1">
+            <h2 class="font-bold">All of it at once, for OBS</h2>
+            <p class="mt-2 text-sm text-base-content/70">
+              A scene collection with one OBS scene per scene below, each holding its
+              browser source already sized and pointed at this show. In OBS:
+              <strong>Scene Collection → Import</strong>, choose the file, then
+              <strong>Import</strong>.
+            </p>
+          </div>
+          <.link
+            href={~p"/shows/#{@show.slug}/obs.json"}
+            download
+            id="download-obs-scene-collection"
+            class="btn btn-primary"
+          >
+            <.icon name="hero-arrow-down-tray-mini" class="size-4" /> Download for OBS
+          </.link>
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-300 bg-base-200 p-5">
+        <h2 class="font-bold">Or add an overlay by hand</h2>
         <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm text-base-content/70">
           <li>Add a <strong>Browser</strong> source to your scene.</li>
           <li>Paste one of the URLs below, and set the size to <strong>1920 × 1080</strong>.</li>
