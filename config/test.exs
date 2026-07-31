@@ -21,6 +21,13 @@ config :showish, ShowishWeb.Endpoint,
   secret_key_base: "AonVEwlykGRrqkaRTi7CMZPjzja9iCDrQEuvpslJeKeBX6pjEBpLllHVARK9nc29",
   server: false
 
+# The suite never reaches Google: Req is handed a stub plug per test, and these
+# only have to be present for `Google.configured?/0` to say yes.
+config :showish, Showish.Accounts.Google,
+  client_id: "test-client-id",
+  client_secret: "test-client-secret",
+  req_options: [plug: {Req.Test, Showish.Accounts.Google}]
+
 # In test we don't send emails
 config :showish, Showish.Mailer, adapter: Swoosh.Adapters.Test
 

@@ -23,6 +23,22 @@ end
 config :showish, ShowishWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# Sign-in with Google. Create an OAuth client in the Google Cloud console, add
+# <your host>/auth/google/callback as an authorized redirect URI, and set these.
+# Without them the sign-in page says so rather than sending anyone to a broken
+# Google URL.
+#
+# Set one key at a time, and only when the variable is actually there: this file
+# runs in every environment, after the others, and an unconditional `nil` here
+# would wipe out what config/test.exs put in place.
+if client_id = System.get_env("GOOGLE_CLIENT_ID") do
+  config :showish, Showish.Accounts.Google, client_id: client_id
+end
+
+if client_secret = System.get_env("GOOGLE_CLIENT_SECRET") do
+  config :showish, Showish.Accounts.Google, client_secret: client_secret
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

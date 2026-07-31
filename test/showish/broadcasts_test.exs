@@ -1,52 +1,132 @@
 defmodule Showish.BroadcastsTest do
   use Showish.DataCase, async: true
 
+  import Showish.AccountsFixtures
   import Showish.BroadcastsFixtures
 
   alias Showish.Broadcasts
+  alias Showish.Broadcasts.NotOwnerError
   alias Showish.Broadcasts.Show
 
   doctest Showish.Broadcasts.Show
 
-  describe "create_show/1" do
-    test "seeds two teams so a show can go on air immediately" do
-      show = show_fixture(%{title: "Cup Final", slug: "cup-final"})
+  describe "create_show/2" do
+    setup do
+      %{scope: user_scope_fixture()}
+    end
+
+    test "seeds two teams so a show can go on air immediately", %{scope: scope} do
+      show = show_fixture(scope, %{title: "Cup Final", slug: "cup-final"})
 
       assert show.slug == "cup-final"
       assert [%{position: 1}, %{position: 2}] = show.teams
     end
 
-    test "tidies a human-typed slug rather than rejecting it" do
-      assert {:ok, show} = Broadcasts.create_show(%{"title" => "T", "slug" => "Not A Slug!"})
+    test "gives the show to the account that created it", %{scope: scope} do
+      show = show_fixture(scope)
+
+      assert show.user_id == scope.user.id
+    end
+
+    test "ignores an owner smuggled in through the attributes", %{scope: scope} do
+      other = user_scope_fixture()
+
+      show = show_fixture(scope, %{"user_id" => other.user.id})
+
+      assert show.user_id == scope.user.id
+    end
+
+    test "tidies a human-typed slug rather than rejecting it", %{scope: scope} do
+      assert {:ok, show} =
+               Broadcasts.create_show(scope, %{"title" => "T", "slug" => "Not A Slug!"})
+
       assert show.slug == "not-a-slug"
     end
 
-    test "rejects a slug with nothing usable in it" do
-      assert {:error, changeset} = Broadcasts.create_show(%{"title" => "T", "slug" => "!!!"})
+    test "rejects a slug with nothing usable in it", %{scope: scope} do
+      assert {:error, changeset} =
+               Broadcasts.create_show(scope, %{"title" => "T", "slug" => "!!!"})
+
       assert %{slug: ["can't be blank"]} = errors_on(changeset)
     end
 
-    test "requires a unique slug" do
+    test "requires a slug that no account has taken", %{scope: scope} do
       show_fixture(%{slug: "taken"})
 
-      assert {:error, changeset} = Broadcasts.create_show(%{"title" => "T", "slug" => "taken"})
+      assert {:error, changeset} =
+               Broadcasts.create_show(scope, %{"title" => "T", "slug" => "taken"})
+
       assert %{slug: ["has already been taken"]} = errors_on(changeset)
     end
   end
 
-  describe "update_show/2" do
+  describe "update_show/3" do
     test "updates the show and keeps children ordered" do
-      show = show_with_games_fixture(3)
+      scope = user_scope_fixture()
+      show = show_with_games_fixture(3, scope)
 
-      assert {:ok, updated} = Broadcasts.update_show(show, %{"stage" => "Semi Final"})
+      assert {:ok, updated} = Broadcasts.update_show(scope, show, %{"stage" => "Semi Final"})
       assert updated.stage == "Semi Final"
       assert Enum.map(updated.games, & &1.position) == [0, 1, 2]
     end
 
     test "returns a changeset when the slug is invalid" do
-      show = show_fixture()
+      scope = user_scope_fixture()
+      show = show_fixture(scope)
 
-      assert {:error, %Ecto.Changeset{}} = Broadcasts.update_show(show, %{"slug" => ""})
+      assert {:error, %Ecto.Changeset{}} = Broadcasts.update_show(scope, show, %{"slug" => ""})
+    end
+  end
+
+  describe "ownership" do
+    test "list_shows/1 only returns the scope's own shows" do
+      scope = user_scope_fixture()
+      other = user_scope_fixture()
+
+      mine = show_fixture(scope, %{title: "Mine"})
+      _theirs = show_fixture(other, %{title: "Theirs"})
+
+      assert [%Show{id: id}] = Broadcasts.list_shows(scope)
+      assert id == mine.id
+    end
+
+    test "the scoped reads cannot reach somebody else's show" do
+      scope = user_scope_fixture()
+      theirs = show_fixture(user_scope_fixture())
+
+      assert_raise Ecto.NoResultsError, fn -> Broadcasts.get_show!(scope, theirs.id) end
+      assert_raise Ecto.NoResultsError, fn -> Broadcasts.get_show_by_slug!(scope, theirs.slug) end
+    end
+
+    test "the public read reaches any show, because overlays cannot log in" do
+      theirs = show_fixture(user_scope_fixture(), %{title: "On Air"})
+
+      assert Broadcasts.get_public_show_by_slug!(theirs.slug).title == "On Air"
+    end
+
+    test "writing to somebody else's show raises" do
+      scope = user_scope_fixture()
+      theirs = show_fixture(user_scope_fixture())
+
+      assert_raise NotOwnerError, fn ->
+        Broadcasts.update_show(scope, theirs, %{"stage" => "Hijacked"})
+      end
+
+      assert_raise NotOwnerError, fn -> Broadcasts.delete_show(scope, theirs) end
+      assert Broadcasts.get_public_show_by_slug!(theirs.slug).stage == ""
+    end
+
+    test "claim_unowned_shows/1 adopts shows that pre-date accounts" do
+      scope = user_scope_fixture()
+      orphan = show_fixture(user_scope_fixture())
+
+      Showish.Repo.update_all(
+        from(show in Show, where: show.id == ^orphan.id),
+        set: [user_id: nil]
+      )
+
+      assert Broadcasts.claim_unowned_shows(scope) == 1
+      assert Broadcasts.get_show!(scope, orphan.id).user_id == scope.user.id
     end
   end
 
@@ -135,10 +215,11 @@ defmodule Showish.BroadcastsTest do
 
   describe "pubsub" do
     test "subscribers are pushed the whole show on every write" do
-      show = show_fixture()
+      scope = user_scope_fixture()
+      show = show_fixture(scope)
       :ok = Broadcasts.subscribe(show.slug)
 
-      {:ok, _updated} = Broadcasts.update_show(show, %{"stage" => "Finals"})
+      {:ok, _updated} = Broadcasts.update_show(scope, show, %{"stage" => "Finals"})
 
       assert_receive {:show_updated, %Show{stage: "Finals", teams: [_, _]}}
     end
@@ -168,17 +249,21 @@ defmodule Showish.BroadcastsTest do
     end
 
     test "center_line/1 prefers the explicit status, then the current game" do
+      scope = user_scope_fixture()
+
       show =
-        show_fixture(%{
+        show_fixture(scope, %{
           "status_center" => "Overtime",
           "show_status_center" => true
         })
 
       assert Show.center_line(show) == "Overtime"
 
-      {:ok, show} = Broadcasts.update_show(show, %{"show_status_center" => false})
+      {:ok, show} = Broadcasts.update_show(scope, show, %{"show_status_center" => false})
       {:ok, show} = Broadcasts.add_game(show)
-      {:ok, show} = Broadcasts.update_show(show, %{"games" => game_params(show, "Old Harbour")})
+
+      {:ok, show} =
+        Broadcasts.update_show(scope, show, %{"games" => game_params(show, "Old Harbour")})
 
       assert Show.center_line(show) == "Game 1 · Old Harbour"
     end

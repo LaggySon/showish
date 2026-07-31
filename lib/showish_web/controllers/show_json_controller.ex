@@ -11,7 +11,7 @@ defmodule ShowishWeb.ShowJSONController do
   alias Showish.Broadcasts
 
   def show(conn, %{"slug" => slug}) do
-    case Broadcasts.get_show_by_slug(slug) do
+    case Broadcasts.get_public_show_by_slug(slug) do
       nil ->
         conn
         |> put_status(:not_found)

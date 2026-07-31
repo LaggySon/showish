@@ -2,6 +2,7 @@ defmodule ShowishWeb.OverlaysTest do
   use ShowishWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import Showish.AccountsFixtures
   import Showish.BroadcastsFixtures
 
   alias Showish.Broadcasts
@@ -12,8 +13,12 @@ defmodule ShowishWeb.OverlaysTest do
   @moduletag :overlays
 
   setup do
+    # Overlays are watched by broadcast software that never logs in, so these
+    # all run on a conn with nobody signed in.
+    scope = user_scope_fixture()
+
     show =
-      show_fixture(%{
+      show_fixture(scope, %{
         title: "Autumn Cup",
         stage: "Grand Finals",
         ticker: "Welcome to the Autumn Cup",
@@ -23,7 +28,7 @@ defmodule ShowishWeb.OverlaysTest do
         ]
       })
 
-    %{show: show}
+    %{scope: scope, show: show}
   end
 
   test "every scene renders on a transparent 1920x1080 stage", %{conn: conn, show: show} do
@@ -73,9 +78,13 @@ defmodule ShowishWeb.OverlaysTest do
     assert index_of(swapped, "Foxes") < index_of(swapped, "Kings")
   end
 
-  test "the series board lists every game", %{conn: conn, show: show} do
+  test "the series board lists every game", %{conn: conn, scope: scope, show: show} do
     {:ok, show} = Broadcasts.add_game(show)
-    {:ok, show} = Broadcasts.update_show(show, %{"games" => [%{"id" => hd(show.games).id, "name" => "Old Harbour"}]})
+
+    {:ok, show} =
+      Broadcasts.update_show(scope, show, %{
+        "games" => [%{"id" => hd(show.games).id, "name" => "Old Harbour"}]
+      })
 
     {:ok, _view, html} = live(conn, Scenes.path(show.slug, "series"))
 
@@ -83,11 +92,11 @@ defmodule ShowishWeb.OverlaysTest do
     assert html =~ "Game 1"
   end
 
-  test "talent and credits render the crew", %{conn: conn, show: show} do
+  test "talent and credits render the crew", %{conn: conn, scope: scope, show: show} do
     {:ok, show} = Broadcasts.add_talent(show)
 
     {:ok, show} =
-      Broadcasts.update_show(show, %{
+      Broadcasts.update_show(scope, show, %{
         "talents" => [%{"id" => hd(show.talents).id, "role" => "Caster", "name" => "Bo Ferreira"}]
       })
 
@@ -99,9 +108,13 @@ defmodule ShowishWeb.OverlaysTest do
     assert credits_html =~ "Caster"
   end
 
-  test "standby counts down to the configured start time", %{conn: conn, show: show} do
+  test "standby counts down to the configured start time", %{
+    conn: conn,
+    scope: scope,
+    show: show
+  } do
     starts_at = DateTime.utc_now() |> DateTime.add(90, :second) |> DateTime.truncate(:second)
-    {:ok, show} = Broadcasts.update_show(show, %{"starts_at" => starts_at})
+    {:ok, show} = Broadcasts.update_show(scope, show, %{"starts_at" => starts_at})
 
     {:ok, _view, html} = live(conn, Scenes.path(show.slug, "standby"))
 
@@ -113,6 +126,12 @@ defmodule ShowishWeb.OverlaysTest do
     assert_raise Ecto.NoResultsError, fn ->
       live(conn, Scenes.path("no-such-show", "scorebug"))
     end
+  end
+
+  test "an overlay renders for someone who is not logged in", %{conn: conn, show: show} do
+    {:ok, _view, html} = live(conn, Scenes.path(show.slug, "scorebug"))
+
+    assert html =~ "Kings"
   end
 
   defp index_of(html, needle) do
