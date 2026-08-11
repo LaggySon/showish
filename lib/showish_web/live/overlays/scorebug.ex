@@ -10,16 +10,11 @@ defmodule ShowishWeb.Overlays.Scorebug do
   use ShowishWeb.OverlayLive
 
   alias Showish.Broadcasts.Show
+  alias Showish.Text
 
   @impl Phoenix.LiveView
   def render(assigns) do
-    {left, right} = Show.sides(assigns.show)
-
-    assigns =
-      assigns
-      |> assign(:left, left)
-      |> assign(:right, right)
-      |> assign(:center_line, Show.center_line(assigns.show))
+    assigns = assign(assigns, :center_line, Show.center_line(assigns.show))
 
     render_preset(assigns)
   end
@@ -35,7 +30,12 @@ defmodule ShowishWeb.Overlays.Scorebug do
     <.stage preset={@show.preset} accent={@show.accent_color}>
       <div class="absolute left-1/2 top-0 -translate-x-1/2">
         <div class="flex h-[92px] items-stretch">
-          <.team_plate team={@left} align="right" show_sides={@show.show_sides} enter="overlay-in-left" />
+          <.team_plate
+            team={@left}
+            align="right"
+            show_sides={@show.show_sides}
+            enter="overlay-in-left"
+          />
           <.score_box team={@left} delay={140} />
 
           <div class="overlay-panel overlay-in-down flex w-[210px] flex-col items-center justify-center gap-1.5 border-x-0">
@@ -48,7 +48,12 @@ defmodule ShowishWeb.Overlays.Scorebug do
           </div>
 
           <.score_box team={@right} delay={140} />
-          <.team_plate team={@right} align="left" show_sides={@show.show_sides} enter="overlay-in-right" />
+          <.team_plate
+            team={@right}
+            align="left"
+            show_sides={@show.show_sides}
+            enter="overlay-in-right"
+          />
         </div>
 
         <div :if={@center_line != ""} class="flex justify-center">
@@ -138,7 +143,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
 
         <div class="tranq-bar" style={"background: #{primary(@team)};"}>
           <div
-            :if={@team && @team.record not in [nil, ""]}
+            :if={@team && Text.present?(@team.record)}
             class="tranq-record"
             style={"color: #{secondary(@team)};"}
           >
@@ -160,7 +165,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
         </div>
       </div>
 
-      <div :if={@show_sides and @team && @team.side not in [nil, ""]} class="tranq-side">
+      <div :if={(@show_sides and @team) && Text.present?(@team.side)} class="tranq-side">
         {@team.side}
       </div>
     </div>
@@ -169,13 +174,9 @@ defmodule ShowishWeb.Overlays.Scorebug do
 
   # The status slots become the small caption above each team's plate, which is
   # where this look puts per-team copy.
-  defp stat_line(show, :left) do
-    if show.show_status_left, do: String.trim(show.status_left || ""), else: ""
-  end
-
-  defp stat_line(show, :right) do
-    if show.show_status_right, do: String.trim(show.status_right || ""), else: ""
-  end
+  defp stat_line(%{show_status_left: true} = show, :left), do: Text.presence(show.status_left)
+  defp stat_line(%{show_status_right: true} = show, :right), do: Text.presence(show.status_right)
+  defp stat_line(_show, side) when side in [:left, :right], do: ""
 
   attr :team, :any, required: true
   attr :align, :string, required: true
@@ -200,13 +201,13 @@ defmodule ShowishWeb.Overlays.Scorebug do
         </div>
         <div class={["flex items-center gap-2", @align == "left" && "flex-row-reverse"]}>
           <span
-            :if={@team && @team.record not in [nil, ""]}
+            :if={@team && Text.present?(@team.record)}
             class="text-[14px] font-semibold uppercase tracking-[0.16em] text-slate-300/80"
           >
             {@team.record}
           </span>
           <span
-            :if={@show_sides and @team && @team.side not in [nil, ""]}
+            :if={(@show_sides and @team) && Text.present?(@team.side)}
             class="overlay-round-pill px-2 py-0.5 text-[12px] font-bold uppercase tracking-[0.14em]"
             style={"background: #{primary(@team)}; color: #{contrast(@team)};"}
           >
@@ -253,15 +254,12 @@ defmodule ShowishWeb.Overlays.Scorebug do
   defp gradient_angle("right"), do: "270deg"
   defp gradient_angle(_align), do: "90deg"
 
-  defp stage_label(show) do
-    case String.trim(show.stage || "") do
-      "" -> String.trim(show.subtitle || "")
-      stage -> stage
-    end
-  end
+  # The round being played, or the week it is part of if the operator named only
+  # that.
+  defp stage_label(show), do: Text.first_present([show.stage, show.subtitle])
 
   defp game_label(show) do
-    total = length(List.wrap(show.games))
+    total = length(Show.games(show))
 
     cond do
       total > 0 -> "Game #{min(show.current_game, total)}"

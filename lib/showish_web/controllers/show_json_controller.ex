@@ -4,11 +4,29 @@ defmodule ShowishWeb.ShowJSONController do
 
   The LiveView overlays never need this — they are pushed to. It exists for
   everything else: a static overlay, a bot, a scoreboard built on another stack.
+
+  The field lists below are the published contract. They are written out rather
+  than derived from the schemas so that adding a column to a table does not
+  quietly start publishing it, and so that removing one from here is a decision
+  somebody made on purpose.
   """
 
   use ShowishWeb, :controller
 
   alias Showish.Broadcasts
+  alias Showish.Broadcasts.Show
+
+  @show_fields ~w(slug title subtitle stage starts_at ticker accent_color best_of
+                  current_game show_sides swap_sides break_message updated_at)a
+
+  @team_fields ~w(position name short_name code logo_url record score primary_color
+                  secondary_color side)a
+
+  @game_fields ~w(position name mode image_url score_a score_b winner completed info)a
+
+  # Deliberately without `on_cam`: which of the crew is pointed at a camera is a
+  # control-room detail, and no use to anything reading this.
+  @talent_fields ~w(position role name pronouns social avatar_url)a
 
   def show(conn, %{"slug" => slug}) do
     case Broadcasts.get_public_show_by_slug(slug) do
@@ -23,68 +41,20 @@ defmodule ShowishWeb.ShowJSONController do
   end
 
   defp payload(show) do
-    %{
-      slug: show.slug,
-      title: show.title,
-      subtitle: show.subtitle,
-      stage: show.stage,
-      starts_at: show.starts_at,
-      ticker: show.ticker,
-      accent_color: show.accent_color,
-      best_of: show.best_of,
-      current_game: show.current_game,
-      show_sides: show.show_sides,
-      swap_sides: show.swap_sides,
-      break_message: show.break_message,
+    show
+    |> Map.take(@show_fields)
+    |> Map.merge(%{
+      # The three status slots are flattened in the schema — text beside a
+      # visibility flag — and paired back up here, where a caller reading one
+      # cannot miss the other.
       status: %{
         left: %{text: show.status_left, visible: show.show_status_left},
         center: %{text: show.status_center, visible: show.show_status_center},
         right: %{text: show.status_right, visible: show.show_status_right}
       },
-      teams: Enum.map(List.wrap(show.teams), &team_payload/1),
-      games: Enum.map(List.wrap(show.games), &game_payload/1),
-      talents: Enum.map(List.wrap(show.talents), &talent_payload/1),
-      updated_at: show.updated_at
-    }
-  end
-
-  defp team_payload(team) do
-    %{
-      position: team.position,
-      name: team.name,
-      short_name: team.short_name,
-      code: team.code,
-      logo_url: team.logo_url,
-      record: team.record,
-      score: team.score,
-      primary_color: team.primary_color,
-      secondary_color: team.secondary_color,
-      side: team.side
-    }
-  end
-
-  defp game_payload(game) do
-    %{
-      position: game.position,
-      name: game.name,
-      mode: game.mode,
-      image_url: game.image_url,
-      score_a: game.score_a,
-      score_b: game.score_b,
-      winner: game.winner,
-      completed: game.completed,
-      info: game.info
-    }
-  end
-
-  defp talent_payload(talent) do
-    %{
-      position: talent.position,
-      role: talent.role,
-      name: talent.name,
-      pronouns: talent.pronouns,
-      social: talent.social,
-      avatar_url: talent.avatar_url
-    }
+      teams: Enum.map(Show.teams(show), &Map.take(&1, @team_fields)),
+      games: Enum.map(Show.games(show), &Map.take(&1, @game_fields)),
+      talents: Enum.map(Show.talents(show), &Map.take(&1, @talent_fields))
+    })
   end
 end

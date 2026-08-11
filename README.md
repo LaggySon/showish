@@ -468,6 +468,7 @@ lib/showish/broadcasts.ex              the context: every write and the fan-out
 lib/showish/broadcasts/                show, team, game, talent schemas
 lib/showish/broadcasts/preset.ex       the catalogue of visual presets
 lib/showish/colors.ex                  contrast and rgba helpers for operator colors
+lib/showish/text.ex                    what to show for a field left empty
 lib/showish_web/live/overlay_live.ex   shared mount/subscribe/tick for scenes
 lib/showish_web/live/overlays/         one LiveView per scene
 lib/showish_web/live/show_live/        index, overlay URLs, control room
@@ -480,8 +481,9 @@ lib/showish_web/obs_scene_collection.ex  that catalogue as an OBS import file
 Three steps:
 
 1. A LiveView under `lib/showish_web/live/overlays/`. `use ShowishWeb.OverlayLive`
-   gives you `@show` (subscribed and kept current) and `@now` (ticking once a
-   second); you supply `render/1` and wrap it in `<.stage>`.
+   gives you `@show` (subscribed and kept current), `@left` and `@right` (the two
+   teams in the order they are drawn) and `@now` (ticking once a second); you
+   supply `render/1` and wrap it in `<.stage>`.
 2. A route in the `/overlay` scope.
 3. An entry in `ShowishWeb.Scenes` — the preview tabs, the URL list, the copy
    buttons and the downloadable OBS scene collection all come from that
@@ -512,3 +514,43 @@ other. Three steps:
 ```bash
 mix test
 ```
+
+The suite runs against a real database — Ecto's SQL sandbox rolls each test back
+rather than faking the repo — so `mix test` expects PostgreSQL on `localhost`.
+`config/test.exs` reads `PGHOST`, `PGPORT`, `PGUSER` and `PGPASSWORD` if yours
+lives somewhere else.
+
+Before pushing:
+
+```bash
+mix precommit
+```
+
+which compiles with warnings as errors, drops unused entries from `mix.lock`,
+formats, and runs the tests.
+
+### CI
+
+`.github/workflows/ci.yml` runs the same checks on every pull request, against a
+PostgreSQL service container. It differs from `mix precommit` in one way: where
+precommit *fixes* formatting and `mix.lock` for you, CI only *checks* them
+(`mix format --check-formatted`, `mix deps.unlock --check-unused`), because a
+runner that rewrites files and throws them away has told you nothing. So a red
+formatting step means running `mix precommit` locally and committing what it
+changed.
+
+A second job, **Railway deployment**, waits for the deployment Railway builds
+for the pull request and passes or fails with it. It exists because Railway
+reports through GitHub's Deployments API, and branch protection can only require
+a *check* or a *commit status* — so there was nothing to require. The job turns
+that deployment into something requireable.
+
+**Both jobs only gate a merge once you require them.** Until then they are
+advisory, however red they go. In **Settings → Branches** (or Rules → Rulesets),
+on a rule protecting `dev`, tick *Require status checks to pass before merging*
+and select both `mix precommit` and `Railway deployment`.
+
+The Railway job gives up after 25 minutes. If it times out on every pull request
+rather than occasionally, Railway is not publishing a deployment for pull
+requests — check the service's environment settings — and the job is enforcing
+a promise nothing is keeping, so fix that or drop it.
