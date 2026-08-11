@@ -24,7 +24,12 @@ defmodule ShowishWeb.OverlaysTest do
         ticker: "Welcome to the Autumn Cup",
         teams: [
           %{"position" => 1, "name" => "Harbour Kings", "short_name" => "Kings", "code" => "HRB"},
-          %{"position" => 2, "name" => "Ridgeline Foxes", "short_name" => "Foxes", "code" => "RDG"}
+          %{
+            "position" => 2,
+            "name" => "Ridgeline Foxes",
+            "short_name" => "Foxes",
+            "code" => "RDG"
+          }
         ]
       })
 

@@ -41,9 +41,7 @@ defmodule ShowishWeb.ShowLive.Detail do
             <h2 class="font-bold">All of it at once, for OBS</h2>
             <p class="mt-2 text-sm text-base-content/70">
               A scene collection with one OBS scene per scene below, each holding its
-              browser source already sized and pointed at this show. In OBS:
-              <strong>Scene Collection → Import</strong>, choose the file, then
-              <strong>Import</strong>.
+              browser source already sized and pointed at this show. In OBS: <strong>Scene Collection → Import</strong>, choose the file, then <strong>Import</strong>.
             </p>
           </div>
           <.link

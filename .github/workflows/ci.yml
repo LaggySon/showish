@@ -74,14 +74,22 @@ jobs:
       # names itself, and in the read-only form CI needs: precommit's `format`
       # and `deps.unlock --unused` rewrite files, which is right on a laptop and
       # useless on a runner that throws its disk away.
-      - name: Check for unused dependencies
-        run: mix deps.unlock --check-unused
-
-      - name: Check formatting
-        run: mix format --check-formatted
-
+      #
+      # Compilation goes first because nothing below it means anything if the
+      # app does not build. The rest carry on past a failure so that one run
+      # reports everything that is wrong, rather than a formatting nit hiding
+      # whether the tests pass.
       - name: Compile without warnings
         run: mix compile --warnings-as-errors
 
       - name: Run the test suite
+        if: ${{ !cancelled() }}
         run: mix test
+
+      - name: Check formatting
+        if: ${{ !cancelled() }}
+        run: mix format --check-formatted
+
+      - name: Check for unused dependencies
+        if: ${{ !cancelled() }}
+        run: mix deps.unlock --check-unused

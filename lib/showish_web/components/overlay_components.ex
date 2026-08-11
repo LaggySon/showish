@@ -293,7 +293,8 @@ defmodule ShowishWeb.OverlayComponents do
   def contrast(team), do: Colors.contrast_text(primary(team))
 
   @doc "A translucent wash of the team's primary color, for plate backgrounds."
-  def wash(team, opacity \\ 0.85), do: Colors.rgba(primary(team), opacity, "rgba(15, 23, 42, 0.85)")
+  def wash(team, opacity \\ 0.85),
+    do: Colors.rgba(primary(team), opacity, "rgba(15, 23, 42, 0.85)")
 
   defp color(nil, _field, fallback), do: fallback
 

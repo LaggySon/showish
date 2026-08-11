@@ -30,7 +30,12 @@ defmodule ShowishWeb.Overlays.Scorebug do
     <.stage preset={@show.preset} accent={@show.accent_color}>
       <div class="absolute left-1/2 top-0 -translate-x-1/2">
         <div class="flex h-[92px] items-stretch">
-          <.team_plate team={@left} align="right" show_sides={@show.show_sides} enter="overlay-in-left" />
+          <.team_plate
+            team={@left}
+            align="right"
+            show_sides={@show.show_sides}
+            enter="overlay-in-left"
+          />
           <.score_box team={@left} delay={140} />
 
           <div class="overlay-panel overlay-in-down flex w-[210px] flex-col items-center justify-center gap-1.5 border-x-0">
@@ -43,7 +48,12 @@ defmodule ShowishWeb.Overlays.Scorebug do
           </div>
 
           <.score_box team={@right} delay={140} />
-          <.team_plate team={@right} align="left" show_sides={@show.show_sides} enter="overlay-in-right" />
+          <.team_plate
+            team={@right}
+            align="left"
+            show_sides={@show.show_sides}
+            enter="overlay-in-right"
+          />
         </div>
 
         <div :if={@center_line != ""} class="flex justify-center">
@@ -155,7 +165,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
         </div>
       </div>
 
-      <div :if={@show_sides and @team && Text.present?(@team.side)} class="tranq-side">
+      <div :if={(@show_sides and @team) && Text.present?(@team.side)} class="tranq-side">
         {@team.side}
       </div>
     </div>
@@ -197,7 +207,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
             {@team.record}
           </span>
           <span
-            :if={@show_sides and @team && Text.present?(@team.side)}
+            :if={(@show_sides and @team) && Text.present?(@team.side)}
             class="overlay-round-pill px-2 py-0.5 text-[12px] font-bold uppercase tracking-[0.14em]"
             style={"background: #{primary(@team)}; color: #{contrast(@team)};"}
           >

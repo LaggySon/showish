@@ -102,7 +102,12 @@ defmodule ShowishWeb.ShowLive.Control do
                     Part of every overlay URL for this show — changing it moves them all.
                   </p>
                 </div>
-                <.input field={@form[:stage]} label="Stage" placeholder="Grand Finals" phx-debounce="500" />
+                <.input
+                  field={@form[:stage]}
+                  label="Stage"
+                  placeholder="Grand Finals"
+                  phx-debounce="500"
+                />
                 <.input
                   field={@form[:subtitle]}
                   label="Subtitle"
@@ -160,11 +165,18 @@ defmodule ShowishWeb.ShowLive.Control do
               </p>
 
               <div class="mt-2">
-                <.input field={@form[:show_sides]} type="checkbox" label="Show side labels on the scorebug" />
+                <.input
+                  field={@form[:show_sides]}
+                  type="checkbox"
+                  label="Show side labels on the scorebug"
+                />
               </div>
             </.panel>
 
-            <.panel title="Teams" subtitle="Colors drive every scene, so pick the ones from their kit.">
+            <.panel
+              title="Teams"
+              subtitle="Colors drive every scene, so pick the ones from their kit."
+            >
               <.inputs_for :let={tf} field={@form[:teams]}>
                 <div class="rounded-box border border-base-300 p-4">
                   <h3 class="mb-3 font-bold">Team {tf.index + 1}</h3>
@@ -209,7 +221,12 @@ defmodule ShowishWeb.ShowLive.Control do
                   </div>
 
                   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <.input field={gf[:name]} label="Name" placeholder="Map or level" phx-debounce="500" />
+                    <.input
+                      field={gf[:name]}
+                      label="Name"
+                      placeholder="Map or level"
+                      phx-debounce="500"
+                    />
                     <.input field={gf[:mode]} label="Mode" placeholder="Control" phx-debounce="500" />
                     <.input field={gf[:score_a]} type="number" label="Team 1 score" />
                     <.input field={gf[:score_b]} type="number" label="Team 2 score" />
@@ -243,7 +260,12 @@ defmodule ShowishWeb.ShowLive.Control do
                     <.input field={pf[:role]} label="Role" placeholder="Caster" phx-debounce="500" />
                     <.input field={pf[:name]} label="Name" phx-debounce="500" />
                     <.input field={pf[:pronouns]} label="Pronouns" phx-debounce="500" />
-                    <.input field={pf[:social]} label="Social" placeholder="@handle" phx-debounce="500" />
+                    <.input
+                      field={pf[:social]}
+                      label="Social"
+                      placeholder="@handle"
+                      phx-debounce="500"
+                    />
                     <.input field={pf[:on_cam]} type="checkbox" label="On camera" />
                   </div>
                 </div>
