@@ -538,3 +538,19 @@ precommit *fixes* formatting and `mix.lock` for you, CI only *checks* them
 runner that rewrites files and throws them away has told you nothing. So a red
 formatting step means running `mix precommit` locally and committing what it
 changed.
+
+A second job, **Railway deployment**, waits for the deployment Railway builds
+for the pull request and passes or fails with it. It exists because Railway
+reports through GitHub's Deployments API, and branch protection can only require
+a *check* or a *commit status* — so there was nothing to require. The job turns
+that deployment into something requireable.
+
+**Both jobs only gate a merge once you require them.** Until then they are
+advisory, however red they go. In **Settings → Branches** (or Rules → Rulesets),
+on a rule protecting `dev`, tick *Require status checks to pass before merging*
+and select both `mix precommit` and `Railway deployment`.
+
+The Railway job gives up after 25 minutes. If it times out on every pull request
+rather than occasionally, Railway is not publishing a deployment for pull
+requests — check the service's environment settings — and the job is enforcing
+a promise nothing is keeping, so fix that or drop it.
