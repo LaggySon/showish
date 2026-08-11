@@ -191,7 +191,11 @@ jobs:
             const describe = (s) => `${s.kind} ${JSON.stringify(s.name)} by ${s.by}: ${s.state}${s.url ? ` (${s.url})` : ""}`;
 
             core.info(`Watching deployments for ${sha}`);
-            let lastReport = "";
+            // Starts as null rather than "" so that an empty first poll still
+            // counts as a change and gets said out loud. A silent log is the
+            // one thing this job must never produce: "Railway reported
+            // nothing" and "the job did not look" read identically otherwise.
+            let lastReport = null;
 
             while (true) {
               const signals = await currentSignals();
