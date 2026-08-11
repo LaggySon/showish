@@ -468,6 +468,7 @@ lib/showish/broadcasts.ex              the context: every write and the fan-out
 lib/showish/broadcasts/                show, team, game, talent schemas
 lib/showish/broadcasts/preset.ex       the catalogue of visual presets
 lib/showish/colors.ex                  contrast and rgba helpers for operator colors
+lib/showish/text.ex                    what to show for a field left empty
 lib/showish_web/live/overlay_live.ex   shared mount/subscribe/tick for scenes
 lib/showish_web/live/overlays/         one LiveView per scene
 lib/showish_web/live/show_live/        index, overlay URLs, control room
@@ -480,8 +481,9 @@ lib/showish_web/obs_scene_collection.ex  that catalogue as an OBS import file
 Three steps:
 
 1. A LiveView under `lib/showish_web/live/overlays/`. `use ShowishWeb.OverlayLive`
-   gives you `@show` (subscribed and kept current) and `@now` (ticking once a
-   second); you supply `render/1` and wrap it in `<.stage>`.
+   gives you `@show` (subscribed and kept current), `@left` and `@right` (the two
+   teams in the order they are drawn) and `@now` (ticking once a second); you
+   supply `render/1` and wrap it in `<.stage>`.
 2. A route in the `/overlay` scope.
 3. An entry in `ShowishWeb.Scenes` — the preview tabs, the URL list, the copy
    buttons and the downloadable OBS scene collection all come from that

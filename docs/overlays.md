@@ -33,7 +33,8 @@ lib/showish/broadcasts/preset.ex        The catalogue: one entry per preset.
 lib/showish_web/live/overlay_live.ex     Shared mount/subscribe/tick for every scene.
 lib/showish_web/live/overlays/*.ex       One LiveView per scene.
 lib/showish_web/components/overlay_components.ex
-                                         <.stage>, <.team_logo>, style helpers.
+                                         <.stage>, <.team_logo>, <.talent_details>,
+                                         <.marquee>, <.empty_notice>, style helpers.
 lib/showish_web/router.ex                One `live` route per scene under /overlay.
 
 assets/css/
@@ -155,10 +156,15 @@ end
 
 - `use ShowishWeb.OverlayLive` supplies the shared `mount/3` (look the show up by
   slug, subscribe, tick every second). You only write `render/1`.
+- It also hands you the assigns every scene turned out to need: `@show`, `@left`
+  and `@right` (the two teams with `swap_sides` already applied — either may be
+  `nil`), and `@now`.
 - Wrap the scene in `<.stage>` and pass `@show.preset`. The stage stamps the
   `preset-<key>` class, so the preset system applies automatically.
-- Reuse the shared primitives (`overlay-panel`, the `overlay-in-*` entrances)
-  wherever they fit.
+- Reuse the shared primitives — the components in `overlay_components.ex`
+  (`<.team_logo>`, `<.talent_details>`, `<.marquee>`, `<.empty_notice>`), the
+  `overlay-panel` recipe, the `overlay-in-*` entrances — wherever they fit, and
+  `Showish.Text` for deciding what an empty field should say.
 
 ### Step 2 — the route
 
