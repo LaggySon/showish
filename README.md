@@ -514,3 +514,27 @@ other. Three steps:
 ```bash
 mix test
 ```
+
+The suite runs against a real database — Ecto's SQL sandbox rolls each test back
+rather than faking the repo — so `mix test` expects PostgreSQL on `localhost`.
+`config/test.exs` reads `PGHOST`, `PGPORT`, `PGUSER` and `PGPASSWORD` if yours
+lives somewhere else.
+
+Before pushing:
+
+```bash
+mix precommit
+```
+
+which compiles with warnings as errors, drops unused entries from `mix.lock`,
+formats, and runs the tests.
+
+### CI
+
+`.github/workflows/ci.yml` runs the same checks on every pull request, against a
+PostgreSQL service container. It differs from `mix precommit` in one way: where
+precommit *fixes* formatting and `mix.lock` for you, CI only *checks* them
+(`mix format --check-formatted`, `mix deps.unlock --check-unused`), because a
+runner that rewrites files and throws them away has told you nothing. So a red
+formatting step means running `mix precommit` locally and committing what it
+changed.
