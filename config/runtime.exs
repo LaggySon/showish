@@ -39,6 +39,24 @@ if client_secret = System.get_env("GOOGLE_CLIENT_SECRET") do
   config :showish, Showish.Accounts.Google, client_secret: client_secret
 end
 
+# PR deployments start Google sign-in on a stable deployment. Google therefore
+# needs one registered callback instead of one for every temporary Railway host.
+preview_auth =
+  [
+    broker_url: System.get_env("PREVIEW_AUTH_BROKER_URL"),
+    allowed_host_prefix:
+      System.get_env("PREVIEW_AUTH_HOST_PREFIX") ||
+        with project when is_binary(project) <- System.get_env("RAILWAY_PROJECT_NAME"),
+             service when is_binary(service) <- System.get_env("RAILWAY_SERVICE_NAME") do
+          "#{project}-#{service}-pr-"
+        end
+  ]
+  |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
+
+if preview_auth != [] do
+  config :showish, Showish.Accounts.PreviewAuth, preview_auth
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
