@@ -31,6 +31,8 @@ defmodule ShowishWeb.ShowJSONController do
       starts_at: show.starts_at,
       ticker: show.ticker,
       accent_color: show.accent_color,
+      sport: show.sport,
+      sport_state: show.sport_state,
       best_of: show.best_of,
       current_game: show.current_game,
       show_sides: show.show_sides,

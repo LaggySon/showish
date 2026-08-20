@@ -55,6 +55,39 @@ defmodule ShowishWeb.ControlLiveTest do
     end
   end
 
+  describe "baseball controls" do
+    test "switching sports replaces the series controls", %{conn: conn, scope: scope} do
+      show = show_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view
+      |> form("#control-form", show: %{sport: "baseball"})
+      |> render_change()
+
+      assert has_element?(view, "#baseball-controls")
+      assert has_element?(view, "#baseball-inning")
+      refute has_element?(view, "#esports-controls")
+      refute has_element?(view, "#add-game")
+    end
+
+    test "updates runs, count, bases and half innings", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view |> element("#run-up-1") |> render_click()
+      view |> element("#baseball-balls-up") |> render_click()
+      view |> element("#baseball-base-first") |> render_click()
+      view |> element("#baseball-next-half") |> render_click()
+
+      reloaded = Broadcasts.get_show!(scope, show.id)
+      assert Show.team(reloaded, 1).score == 1
+      assert reloaded.sport_state["half"] == "bottom"
+      assert reloaded.sport_state["balls"] == 0
+      refute reloaded.sport_state["bases"]["first"]
+      assert has_element?(view, "#baseball-inning")
+    end
+  end
+
   describe "the form" do
     test "saves as the operator types", %{conn: conn, scope: scope} do
       show = show_fixture(scope)

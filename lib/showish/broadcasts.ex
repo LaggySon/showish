@@ -31,6 +31,7 @@ defmodule Showish.Broadcasts do
   alias Showish.Broadcasts.Game
   alias Showish.Broadcasts.NotOwnerError
   alias Showish.Broadcasts.Show
+  alias Showish.Broadcasts.Sport
   alias Showish.Broadcasts.Talent
   alias Showish.Broadcasts.Team
   alias Showish.Repo
@@ -210,6 +211,32 @@ defmodule Showish.Broadcasts do
     end)
 
     {:ok, show |> reload() |> broadcast_show()}
+  end
+
+  @doc "Applies a sport-specific operator action and broadcasts the new state."
+  def apply_sport_action(%Show{} = show, action, params \\ %{}) when is_binary(action) do
+    with {:ok, state} <- Sport.transition(show.sport, show.sport_state, action, params) do
+      write_show(show, %{"sport_state" => state})
+    end
+  end
+
+  @doc "Resets sport state and both team scores as one operator action."
+  def reset_sport(%Show{} = show) do
+    result =
+      Repo.transaction(fn ->
+        Enum.each(List.wrap(show.teams), fn team ->
+          team |> Team.changeset(%{"score" => 0}) |> Repo.update!()
+        end)
+
+        show
+        |> Show.changeset(%{"sport_state" => Sport.default_state(show.sport)})
+        |> Repo.update!()
+      end)
+
+    case result do
+      {:ok, show} -> {:ok, show |> reload() |> broadcast_show()}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   @doc "Flips which team is drawn on the left."

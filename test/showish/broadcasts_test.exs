@@ -7,6 +7,7 @@ defmodule Showish.BroadcastsTest do
   alias Showish.Broadcasts
   alias Showish.Broadcasts.NotOwnerError
   alias Showish.Broadcasts.Show
+  alias Showish.Broadcasts.Sport
 
   doctest Showish.Broadcasts.Show
 
@@ -20,6 +21,33 @@ defmodule Showish.BroadcastsTest do
 
       assert show.slug == "cup-final"
       assert [%{position: 1}, %{position: 2}] = show.teams
+      assert show.sport == "esports"
+      assert show.sport_state == %{}
+    end
+
+    test "initializes state through the selected sport handler", %{scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+
+      assert show.sport == "baseball"
+      assert show.sport_state["inning"] == 1
+      assert show.sport_state["half"] == "top"
+
+      assert show.sport_state["bases"] == %{
+               "first" => false,
+               "second" => false,
+               "third" => false
+             }
+    end
+
+    test "rejects a sport that is not in the catalogue", %{scope: scope} do
+      assert {:error, changeset} =
+               Broadcasts.create_show(scope, %{
+                 "title" => "Mystery",
+                 "slug" => "mystery-sport",
+                 "sport" => "quidditch"
+               })
+
+      assert %{sport: ["is invalid"]} = errors_on(changeset)
     end
 
     test "gives the show to the account that created it", %{scope: scope} do
@@ -149,6 +177,77 @@ defmodule Showish.BroadcastsTest do
 
       assert {:ok, show} = Broadcasts.reset_scores(show)
       assert Enum.map(show.teams, & &1.score) == [0, 0]
+    end
+  end
+
+  describe "sports" do
+    test "the catalogue exposes baseball through the same API as other sports" do
+      assert {"Baseball", "baseball"} in Sport.options()
+      assert Sport.fetch("baseball").summary =~ "Innings"
+      assert Sport.fetch("unknown").key == Sport.default()
+    end
+
+    test "baseball actions normalize and clamp live state" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "adjust_count", %{
+                 "kind" => "balls",
+                 "delta" => "9"
+               })
+
+      assert show.sport_state["balls"] == 3
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "toggle_base", %{"base" => "first"})
+
+      assert show.sport_state["bases"]["first"]
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "adjust_stat", %{
+                 "stat" => "hits",
+                 "position" => "2",
+                 "delta" => "1"
+               })
+
+      assert show.sport_state["hits"]["2"] == 1
+    end
+
+    test "advancing a half inning clears transient game state" do
+      show = show_fixture(%{sport: "baseball"})
+      {:ok, show} = Broadcasts.apply_sport_action(show, "toggle_base", %{"base" => "third"})
+
+      {:ok, show} =
+        Broadcasts.apply_sport_action(show, "adjust_count", %{
+          "kind" => "outs",
+          "delta" => "2"
+        })
+
+      assert {:ok, show} = Broadcasts.apply_sport_action(show, "next_half")
+      assert show.sport_state["half"] == "bottom"
+      assert show.sport_state["inning"] == 1
+      assert show.sport_state["outs"] == 0
+      refute show.sport_state["bases"]["third"]
+
+      assert {:ok, show} = Broadcasts.apply_sport_action(show, "next_half")
+      assert show.sport_state["half"] == "top"
+      assert show.sport_state["inning"] == 2
+    end
+
+    test "resetting a baseball game clears state and runs together" do
+      show = show_fixture(%{sport: "baseball"})
+      {:ok, show} = Broadcasts.adjust_score(show, 1, 4)
+
+      {:ok, show} =
+        Broadcasts.apply_sport_action(show, "adjust_stat", %{
+          "stat" => "errors",
+          "position" => "2",
+          "delta" => "2"
+        })
+
+      assert {:ok, show} = Broadcasts.reset_sport(show)
+      assert Enum.map(show.teams, & &1.score) == [0, 0]
+      assert show.sport_state == Sport.default_state("baseball")
     end
   end
 

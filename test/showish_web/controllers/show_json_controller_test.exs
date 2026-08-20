@@ -13,6 +13,8 @@ defmodule ShowishWeb.ShowJSONControllerTest do
 
     assert body["data"]["title"] == "Autumn Cup"
     assert body["data"]["stage"] == "Grand Finals"
+    assert body["data"]["sport"] == "esports"
+    assert body["data"]["sport_state"] == %{}
     assert length(body["data"]["teams"]) == 2
   end
 

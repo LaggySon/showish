@@ -18,6 +18,7 @@ defmodule Showish.Broadcasts.Show do
   alias Showish.Accounts.User
   alias Showish.Broadcasts.Game
   alias Showish.Broadcasts.Preset
+  alias Showish.Broadcasts.Sport
   alias Showish.Broadcasts.Talent
   alias Showish.Broadcasts.Team
 
@@ -43,6 +44,8 @@ defmodule Showish.Broadcasts.Show do
     field :break_message, :string, default: "We'll be right back"
     field :accent_color, :string, default: "#22d3ee"
     field :preset, :string, default: "broadcast"
+    field :sport, :string, default: "esports"
+    field :sport_state, :map, default: %{}
 
     belongs_to :user, User
 
@@ -56,7 +59,7 @@ defmodule Showish.Broadcasts.Show do
   @castable ~w(slug title subtitle stage starts_at ticker status_left status_center
                status_right show_status_left show_status_center show_status_right
                current_game best_of show_sides swap_sides break_message accent_color
-               preset)a
+               preset sport sport_state)a
 
   def changeset(show, attrs) do
     show
@@ -69,6 +72,8 @@ defmodule Showish.Broadcasts.Show do
     |> validate_number(:current_game, greater_than_or_equal_to: 1)
     |> validate_number(:best_of, greater_than_or_equal_to: 1)
     |> validate_inclusion(:preset, Preset.keys())
+    |> validate_inclusion(:sport, Sport.keys())
+    |> normalize_sport_state()
     |> Showish.Colors.validate_hex(:accent_color)
     # Overlay URLs live in one namespace across every account, because a
     # browser source is just a URL — so slugs are unique globally, not per user.
@@ -165,6 +170,16 @@ defmodule Showish.Broadcasts.Show do
   end
 
   defp pad_datetimes(attrs), do: attrs
+
+  defp normalize_sport_state(changeset) do
+    sport = get_field(changeset, :sport) || Sport.default()
+
+    put_change(
+      changeset,
+      :sport_state,
+      Sport.normalize_state(sport, get_field(changeset, :sport_state))
+    )
+  end
 
   # Keeps `position` in sync with the order the rows arrive in from the form, so
   # drag-free reordering (the sort buttons) survives a round trip.

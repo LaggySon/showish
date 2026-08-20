@@ -10,8 +10,19 @@ defmodule ShowishWeb.Overlays.Scorebug do
   use ShowishWeb.OverlayLive
 
   alias Showish.Broadcasts.Show
+  alias Showish.Broadcasts.Sports.Baseball
 
   @impl Phoenix.LiveView
+  def render(%{show: %{sport: "baseball"}} = assigns) do
+    assigns =
+      assigns
+      |> assign(:away, Show.team(assigns.show, 1))
+      |> assign(:home, Show.team(assigns.show, 2))
+      |> assign(:state, Baseball.normalize_state(assigns.show.sport_state))
+
+    baseball(assigns)
+  end
+
   def render(assigns) do
     {left, right} = Show.sides(assigns.show)
 
@@ -22,6 +33,152 @@ defmodule ShowishWeb.Overlays.Scorebug do
       |> assign(:center_line, Show.center_line(assigns.show))
 
     render_preset(assigns)
+  end
+
+  defp baseball(assigns) do
+    ~H"""
+    <.stage preset={@show.preset} accent={@show.accent_color}>
+      <div id="baseball-scorebug" class="absolute left-1/2 top-8 -translate-x-1/2 overlay-in-down">
+        <div class="overlay-panel overlay-round-panel flex min-w-[940px] overflow-hidden shadow-2xl">
+          <div class="min-w-0 flex-1">
+            <div class="grid h-9 grid-cols-[minmax(0,1fr)_72px_72px_72px] items-center border-b border-white/10 bg-slate-950/65 px-4 text-[12px] font-bold uppercase tracking-[0.18em] text-slate-400">
+              <span class="truncate">{stage_label(@show)}</span>
+              <span class="text-center">R</span>
+              <span class="text-center">H</span>
+              <span class="text-center">E</span>
+            </div>
+            <.baseball_team_row
+              team={@away}
+              position={1}
+              role="Away"
+              runs={score(@away)}
+              hits={@state["hits"]["1"]}
+              errors={@state["errors"]["1"]}
+            />
+            <.baseball_team_row
+              team={@home}
+              position={2}
+              role="Home"
+              runs={score(@home)}
+              hits={@state["hits"]["2"]}
+              errors={@state["errors"]["2"]}
+            />
+          </div>
+
+          <div class="flex w-[310px] items-center gap-5 border-l border-white/10 bg-slate-950/80 px-5">
+            <div class="min-w-16 text-center">
+              <div class="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                {if(@state["half"] == "top", do: "Top", else: "Bottom")}
+              </div>
+              <div
+                id="baseball-overlay-inning"
+                class="text-[42px] font-black leading-none tabular-nums"
+              >
+                {@state["inning"]}
+              </div>
+            </div>
+
+            <.baseball_bases bases={@state["bases"]} />
+
+            <div class="space-y-1.5">
+              <.count_dots label="B" value={@state["balls"]} maximum={3} color="bg-emerald-400" />
+              <.count_dots label="S" value={@state["strikes"]} maximum={2} color="bg-amber-300" />
+              <.count_dots label="O" value={@state["outs"]} maximum={2} color="bg-rose-400" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </.stage>
+    """
+  end
+
+  attr :team, :any, required: true
+  attr :position, :integer, required: true
+  attr :role, :string, required: true
+  attr :runs, :integer, required: true
+  attr :hits, :integer, required: true
+  attr :errors, :integer, required: true
+
+  defp baseball_team_row(assigns) do
+    ~H"""
+    <div
+      class="grid h-[68px] grid-cols-[minmax(0,1fr)_72px_72px_72px] items-center border-b border-white/10 px-4 last:border-0"
+      style={"background: linear-gradient(90deg, #{wash(@team, 0.72)}, rgba(9, 12, 18, 0.92) 72%);"}
+    >
+      <div class="flex min-w-0 items-center gap-3">
+        <.team_logo team={@team} size={44} />
+        <div class="min-w-0">
+          <div class="truncate text-[24px] font-black uppercase leading-none tracking-tight">
+            {short_name(@team)}
+          </div>
+          <div class="mt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-300/70">
+            {@role}
+          </div>
+        </div>
+      </div>
+      <span
+        id={"baseball-overlay-runs-#{@position}"}
+        class="text-center text-[36px] font-black leading-none tabular-nums"
+      >
+        {@runs}
+      </span>
+      <span
+        id={"baseball-overlay-hits-#{@position}"}
+        class="text-center text-[24px] font-bold text-slate-200 tabular-nums"
+      >
+        {@hits}
+      </span>
+      <span
+        id={"baseball-overlay-errors-#{@position}"}
+        class="text-center text-[24px] font-bold text-slate-200 tabular-nums"
+      >
+        {@errors}
+      </span>
+    </div>
+    """
+  end
+
+  attr :bases, :map, required: true
+
+  defp baseball_bases(assigns) do
+    ~H"""
+    <div id="baseball-overlay-bases" class="grid size-[70px] shrink-0 grid-cols-3 grid-rows-2 gap-1.5">
+      <span class={base_classes(@bases["second"], "col-start-2")}></span>
+      <span class={base_classes(@bases["third"], "col-start-1 row-start-2")}></span>
+      <span class={base_classes(@bases["first"], "col-start-3 row-start-2")}></span>
+    </div>
+    """
+  end
+
+  attr :label, :string, required: true
+  attr :value, :integer, required: true
+  attr :maximum, :integer, required: true
+  attr :color, :string, required: true
+
+  defp count_dots(assigns) do
+    ~H"""
+    <div class="flex items-center gap-1.5">
+      <span class="w-3 text-[11px] font-black text-slate-300">{@label}</span>
+      <span
+        :for={index <- 1..@maximum}
+        class={[
+          "size-2.5 rounded-full border border-white/20",
+          index <= @value && @color,
+          index > @value && "bg-white/10"
+        ]}
+      >
+      </span>
+    </div>
+    """
+  end
+
+  defp base_classes(occupied?, position) do
+    [
+      "size-5 rotate-45 rounded-[2px] border",
+      occupied? && "border-amber-200 bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.65)]",
+      !occupied? && "border-white/30 bg-white/10",
+      position
+    ]
   end
 
   # The scorebug is the one scene whose geometry actually changes between
@@ -35,20 +192,26 @@ defmodule ShowishWeb.Overlays.Scorebug do
     <.stage preset={@show.preset} accent={@show.accent_color}>
       <div class="absolute left-1/2 top-0 -translate-x-1/2">
         <div class="flex h-[92px] items-stretch">
-          <.team_plate team={@left} align="right" show_sides={@show.show_sides} enter="overlay-in-left" />
-          <.score_box team={@left} delay={140} />
-
+          <.team_plate
+            team={@left}
+            align="right"
+            show_sides={@show.show_sides}
+            enter="overlay-in-left"
+          /> <.score_box team={@left} delay={140} />
           <div class="overlay-panel overlay-in-down flex w-[210px] flex-col items-center justify-center gap-1.5 border-x-0">
-            <.eyebrow color={@show.accent_color}>
-              {stage_label(@show)}
-            </.eyebrow>
+            <.eyebrow color={@show.accent_color}>{stage_label(@show)}</.eyebrow>
+
             <div class="text-[26px] font-black uppercase leading-none tracking-tight">
               {game_label(@show)}
             </div>
           </div>
-
           <.score_box team={@right} delay={140} />
-          <.team_plate team={@right} align="left" show_sides={@show.show_sides} enter="overlay-in-right" />
+          <.team_plate
+            team={@right}
+            align="left"
+            show_sides={@show.show_sides}
+            enter="overlay-in-right"
+          />
         </div>
 
         <div :if={@center_line != ""} class="flex justify-center">
@@ -145,9 +308,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
             {@team.record}
           </div>
 
-          <div class="tranq-name" style={"color: #{secondary(@team)};"}>
-            {short_name(@team)}
-          </div>
+          <div class="tranq-name" style={"color: #{secondary(@team)};"}>{short_name(@team)}</div>
 
           <div class="tranq-logo" style={"background-color: #{primary(@team)};"}>
             <img :if={logo?(@team)} src={@team.logo_url} alt={full_name(@team)} />
@@ -160,7 +321,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
         </div>
       </div>
 
-      <div :if={@show_sides and @team && @team.side not in [nil, ""]} class="tranq-side">
+      <div :if={(@show_sides and @team) && @team.side not in [nil, ""]} class="tranq-side">
         {@team.side}
       </div>
     </div>
@@ -198,6 +359,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
         <div class="truncate text-[34px] font-black uppercase leading-none tracking-tight">
           {short_name(@team)}
         </div>
+
         <div class={["flex items-center gap-2", @align == "left" && "flex-row-reverse"]}>
           <span
             :if={@team && @team.record not in [nil, ""]}
@@ -206,7 +368,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
             {@team.record}
           </span>
           <span
-            :if={@show_sides and @team && @team.side not in [nil, ""]}
+            :if={(@show_sides and @team) && @team.side not in [nil, ""]}
             class="overlay-round-pill px-2 py-0.5 text-[12px] font-bold uppercase tracking-[0.14em]"
             style={"background: #{primary(@team)}; color: #{contrast(@team)};"}
           >
@@ -214,7 +376,6 @@ defmodule ShowishWeb.Overlays.Scorebug do
           </span>
         </div>
       </div>
-
       <.team_logo team={@team} size={58} />
     </div>
     """
