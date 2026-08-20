@@ -14,6 +14,8 @@ defmodule Showish.Accounts.User do
 
   import Ecto.Changeset
 
+  alias Showish.Text
+
   @type t :: %__MODULE__{}
 
   schema "users" do
@@ -64,10 +66,5 @@ defmodule Showish.Accounts.User do
   What to call this person on screen: their name, or their address if Google
   did not give us one.
   """
-  def display_name(%__MODULE__{} = user) do
-    case String.trim(user.name || "") do
-      "" -> user.email
-      name -> name
-    end
-  end
+  def display_name(%__MODULE__{} = user), do: Text.presence(user.name, user.email)
 end

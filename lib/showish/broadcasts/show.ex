@@ -21,6 +21,7 @@ defmodule Showish.Broadcasts.Show do
   alias Showish.Broadcasts.Sport
   alias Showish.Broadcasts.Talent
   alias Showish.Broadcasts.Team
+  alias Showish.Text
 
   @type t :: %__MODULE__{}
 
@@ -109,29 +110,52 @@ defmodule Showish.Broadcasts.Show do
   def slugify(value), do: value
 
   @doc """
+  The show's teams, in position order.
+
+  Along with `games/1` and `talents/1`, this is how everything else reaches a
+  show's children: it answers with a list whether the association is loaded,
+  empty or `nil`, so a caller never has to decide what an unloaded show means
+  half way through a broadcast.
+  """
+  def teams(%__MODULE__{} = show), do: children(show, :teams)
+
+  @doc "The show's games, in running order."
+  def games(%__MODULE__{} = show), do: children(show, :games)
+
+  @doc "The show's talent, in the order the operator arranged them."
+  def talents(%__MODULE__{} = show), do: children(show, :talents)
+
+  @doc "One of the child associations above, named by its field."
+  def children(%__MODULE__{} = show, key) when key in [:teams, :games, :talents] do
+    case Map.fetch!(show, key) do
+      rows when is_list(rows) -> rows
+      _not_loaded -> []
+    end
+  end
+
+  @doc """
   The two teams in the order they should be drawn, honouring `swap_sides`.
 
   Returns `{left, right}`. Missing teams come back as `nil` so overlays can
   render a placeholder rather than crash mid-broadcast.
   """
   def sides(%__MODULE__{} = show) do
-    teams = if is_list(show.teams), do: show.teams, else: []
-    one = Enum.find(teams, &(&1.position == 1))
-    two = Enum.find(teams, &(&1.position == 2))
+    one = team(show, 1)
+    two = team(show, 2)
 
     if show.swap_sides, do: {two, one}, else: {one, two}
   end
 
-  @doc "Team one, i.e. the team labelled `a` on games."
+  @doc "Team one or team two, by position, or `nil` for an unfilled slot."
   def team(%__MODULE__{} = show, position) when position in [1, 2] do
-    show.teams |> List.wrap() |> Enum.find(&(&1.position == position))
+    show |> teams() |> Enum.find(&(&1.position == position))
   end
 
   @doc """
   The game currently being played, based on `current_game` (1-indexed).
   """
   def current_game(%__MODULE__{} = show) do
-    show.games |> List.wrap() |> Enum.at(show.current_game - 1)
+    show |> games() |> Enum.at(show.current_game - 1)
   end
 
   @doc """
@@ -140,21 +164,17 @@ defmodule Showish.Broadcasts.Show do
   An explicit centre status wins; otherwise we describe the current game, which
   is what an operator wants nine times out of ten.
   """
-  def center_line(%__MODULE__{} = show) do
-    explicit = String.trim(show.status_center || "")
-
-    cond do
-      show.show_status_center and explicit != "" -> explicit
-      game = current_game(show) -> describe_game(game)
-      true -> ""
-    end
+  def center_line(%__MODULE__{show_status_center: true} = show) do
+    Text.presence(show.status_center, current_game_line(show))
   end
 
-  defp describe_game(%Game{} = game) do
-    [Game.label(game), game.name, game.mode]
-    |> Enum.map(&String.trim(&1 || ""))
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join(" · ")
+  def center_line(%__MODULE__{} = show), do: current_game_line(show)
+
+  defp current_game_line(show) do
+    case current_game(show) do
+      %Game{} = game -> Text.join_present([Game.label(game), game.name, game.mode])
+      nil -> ""
+    end
   end
 
   # `datetime-local` inputs omit seconds, which older Ecto versions refuse to

@@ -7,13 +7,14 @@ defmodule ShowishWeb.UserLive.Login do
   use ShowishWeb, :live_view
 
   alias Showish.Accounts.Google
+  alias Showish.Accounts.PreviewAuth
 
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(:page_title, "Sign in")
-     |> assign(:configured?, Google.configured?())}
+     |> assign(:configured?, Google.configured?() or PreviewAuth.configured?())}
   end
 
   @impl true

@@ -8,16 +8,11 @@ defmodule ShowishWeb.Overlays.Series do
 
   alias Showish.Broadcasts.Game
   alias Showish.Broadcasts.Show
+  alias Showish.Text
 
   @impl Phoenix.LiveView
   def render(assigns) do
-    {left, right} = Show.sides(assigns.show)
-
-    assigns =
-      assigns
-      |> assign(:left, left)
-      |> assign(:right, right)
-      |> assign(:games, List.wrap(assigns.show.games))
+    assigns = assign(assigns, :games, Show.games(assigns.show))
 
     render_preset(assigns)
   end
@@ -58,7 +53,7 @@ defmodule ShowishWeb.Overlays.Series do
           >
             <div
               class="relative h-[132px] bg-slate-800 bg-cover bg-center"
-              style={game.image_url not in [nil, ""] && "background-image: url('#{game.image_url}');"}
+              style={Text.present?(game.image_url) && "background-image: url('#{game.image_url}');"}
             >
               <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent">
               </div>
@@ -67,14 +62,14 @@ defmodule ShowishWeb.Overlays.Series do
                   {Game.label(game)}
                 </div>
                 <div class="truncate text-[24px] font-black uppercase leading-tight">
-                  {display(game.name, "TBD")}
+                  {Text.presence(game.name, "TBD")}
                 </div>
               </div>
             </div>
 
             <div class="flex items-center justify-between px-4 py-3">
               <span class="text-[13px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                {display(game.mode, "—")}
+                {Text.presence(game.mode, "—")}
               </span>
               <span class="tabular text-[22px] font-black">
                 <span class={game.winner == "a" && "text-emerald-400"}>{game.score_a}</span>
@@ -83,21 +78,13 @@ defmodule ShowishWeb.Overlays.Series do
               </span>
             </div>
 
-            <div
-              class="h-[6px] w-full"
-              style={"background: #{winner_color(game, @show)};"}
-            >
-            </div>
+            <div class="h-[6px] w-full" style={"background: #{winner_color(game, @show)};"}></div>
           </div>
         </div>
 
-        <div
-          :if={@games == []}
-          class="overlay-panel overlay-round-card overlay-in-up px-12 py-8 text-[22px] text-slate-300"
-          style="--overlay-delay: 160ms"
-        >
+        <.empty_notice :if={@games == []} class="overlay-in-up" style="--overlay-delay: 160ms">
           No games have been added to this series yet.
-        </div>
+        </.empty_notice>
       </div>
     </.stage>
     """
@@ -118,7 +105,7 @@ defmodule ShowishWeb.Overlays.Series do
             class={[
               "tranq-map overlay-in-up",
               index + 1 == @show.current_game && "tranq-map-active",
-              game.image_url in [nil, ""] && "tranq-map-bare",
+              Text.blank?(game.image_url) && "tranq-map-bare",
               game.completed && "tranq-map-done"
             ]}
             style={"--overlay-delay: #{120 + index * 70}ms; --winner: #{winner_color(game, @show)};"}
@@ -126,7 +113,7 @@ defmodule ShowishWeb.Overlays.Series do
             <div class="tranq-map-media">
               <div class="tranq-map-mask">
                 <div
-                  :if={game.image_url not in [nil, ""]}
+                  :if={Text.present?(game.image_url)}
                   class="tranq-map-img"
                   style={"background-image: url('#{game.image_url}');"}
                 >
@@ -137,8 +124,8 @@ defmodule ShowishWeb.Overlays.Series do
 
             <div :if={index + 1 == @show.current_game} class="tranq-map-banner">Up next</div>
 
-            <div class="tranq-map-mode">{display(game.mode, "")}</div>
-            <span class="tranq-map-name">{display(game.name, "TBD")}</span>
+            <div class="tranq-map-mode">{Text.presence(game.mode)}</div>
+            <span class="tranq-map-name">{Text.presence(game.name, "TBD")}</span>
             <div class="tranq-map-winner">{winner_mark(game, @show, index)}</div>
           </div>
 
@@ -196,7 +183,7 @@ defmodule ShowishWeb.Overlays.Series do
           {full_name(@team)}
         </div>
         <div
-          :if={@team && @team.record not in [nil, ""]}
+          :if={@team && Text.present?(@team.record)}
           class="text-[15px] font-semibold uppercase tracking-[0.18em] text-slate-400"
         >
           {@team.record}
@@ -206,18 +193,9 @@ defmodule ShowishWeb.Overlays.Series do
     """
   end
 
+  # Everything the board is: the round, the week, and how long it runs for.
   defp header_label(show) do
-    [show.stage, show.subtitle, "Best of #{show.best_of}"]
-    |> Enum.map(&String.trim(to_string(&1 || "")))
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join(" · ")
-  end
-
-  defp display(value, fallback) do
-    case String.trim(to_string(value || "")) do
-      "" -> fallback
-      text -> text
-    end
+    Text.join_present([show.stage, show.subtitle, "Best of #{show.best_of}"])
   end
 
   # The game currently on air keeps its accent ring alongside its entrance delay.

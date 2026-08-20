@@ -1,0 +1,235 @@
+name: CI
+
+# Runs on every pull request, and on the branches we deploy from, so a red
+# build always points at a specific change rather than at "some time last week".
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+
+# A second push to a branch makes the first run's answer irrelevant, so stop it
+# rather than paying for both.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: mix precommit
+    runs-on: ubuntu-latest
+
+    env:
+      MIX_ENV: test
+
+    # The suite talks to a real database — Ecto's SQL sandbox rolls each test
+    # back rather than faking the repo — so CI needs one alongside it. These
+    # credentials are what config/test.exs falls back to.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Phoenix 1.8 needs Elixir 1.15 or newer (see mix.exs). Pinned to a minor
+      # series rather than a patch so security patches are picked up, but a new
+      # minor never lands on the project without somebody choosing it.
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.18"
+          otp-version: "27"
+
+      # Compiled dependencies are the slow part and only change when mix.lock
+      # does. _build is keyed on the run as well, so a stale artefact can never
+      # outlive the source it was built from.
+      - name: Restore the dependency cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('mix.lock') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-mix-${{ hashFiles('mix.lock') }}-
+            ${{ runner.os }}-mix-
+
+      - name: Fetch dependencies
+        run: mix deps.get --check-locked
+
+      # The checks below are `mix precommit`, run one at a time so a failure
+      # names itself, and in the read-only form CI needs: precommit's `format`
+      # and `deps.unlock --unused` rewrite files, which is right on a laptop and
+      # useless on a runner that throws its disk away.
+      #
+      # Compilation goes first because nothing below it means anything if the
+      # app does not build. The rest carry on past a failure so that one run
+      # reports everything that is wrong, rather than a formatting nit hiding
+      # whether the tests pass.
+      - name: Compile without warnings
+        run: mix compile --warnings-as-errors
+
+      - name: Run the test suite
+        if: ${{ !cancelled() }}
+        run: mix test
+
+      - name: Check formatting
+        if: ${{ !cancelled() }}
+        run: mix format --check-formatted
+
+      - name: Check for unused dependencies
+        if: ${{ !cancelled() }}
+        run: mix deps.unlock --check-unused
+
+  # Railway builds a deployment for every pull request, but it reports the
+  # result through GitHub's Deployments API — which branch protection cannot
+  # require, because only checks and commit statuses can be required. This job
+  # watches that deployment and passes or fails with it, so there is something
+  # requireable to gate the merge on.
+  #
+  # It is the deployment for the PR's head commit that matters, not
+  # github.sha — on a pull_request event that is the ephemeral merge commit,
+  # which Railway never sees.
+  railway:
+    name: Railway deployment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+      deployments: read
+      statuses: read
+
+    steps:
+      - name: Wait for Railway's deployment to go green
+        uses: actions/github-script@v7
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TIMEOUT_MINUTES: "25"
+          POLL_SECONDS: "15"
+        with:
+          script: |
+            const sha = process.env.HEAD_SHA;
+            const deadline = Date.now() + Number(process.env.TIMEOUT_MINUTES) * 60_000;
+            const interval = Number(process.env.POLL_SECONDS) * 1000;
+            const { owner, repo } = context.repo;
+
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            // Railway reports through the Deployments API today. Commit statuses
+            // are read as well so this keeps working if that changes — and
+            // neither API can see this job's own check run, so there is no way
+            // for it to end up waiting on itself.
+            async function currentSignals() {
+              const signals = [];
+
+              const { data: deployments } = await github.rest.repos.listDeployments({
+                owner, repo, sha, per_page: 100,
+              });
+
+              // Newest deployment per environment only: a redeploy after a
+              // failure should count as the answer, not be outvoted by the
+              // attempt it replaced.
+              const newestPerEnvironment = new Map();
+              for (const deployment of deployments) {
+                const seen = newestPerEnvironment.get(deployment.environment);
+                if (!seen || deployment.id > seen.id) {
+                  newestPerEnvironment.set(deployment.environment, deployment);
+                }
+              }
+
+              for (const deployment of newestPerEnvironment.values()) {
+                const { data: statuses } = await github.rest.repos.listDeploymentStatuses({
+                  owner, repo, deployment_id: deployment.id, per_page: 1,
+                });
+
+                signals.push({
+                  kind: "deployment",
+                  name: deployment.environment,
+                  by: deployment.performed_via_github_app?.slug ?? deployment.creator?.login ?? "unknown",
+                  state: statuses[0]?.state ?? "pending",
+                  url: statuses[0]?.environment_url || statuses[0]?.target_url || "",
+                });
+              }
+
+              const { data: commitStatuses } = await github.rest.repos.listCommitStatusesForRef({
+                owner, repo, ref: sha, per_page: 100,
+              });
+
+              // The API returns newest first, so the first of each context wins.
+              const seenContexts = new Set();
+              for (const status of commitStatuses) {
+                if (seenContexts.has(status.context)) continue;
+                seenContexts.add(status.context);
+
+                signals.push({
+                  kind: "status",
+                  name: status.context,
+                  by: status.creator?.login ?? "unknown",
+                  state: status.state,
+                  url: status.target_url || "",
+                });
+              }
+
+              return signals;
+            }
+
+            const describe = (s) => `${s.kind} ${JSON.stringify(s.name)} by ${s.by}: ${s.state}${s.url ? ` (${s.url})` : ""}`;
+
+            core.info(`Watching deployments for ${sha}`);
+            // Starts as null rather than "" so that an empty first poll still
+            // counts as a change and gets said out loud. A silent log is the
+            // one thing this job must never produce: "Railway reported
+            // nothing" and "the job did not look" read identically otherwise.
+            let lastReport = null;
+
+            while (true) {
+              const signals = await currentSignals();
+
+              // Only say something when the picture changes, so a 25-minute
+              // wait does not bury the interesting line in a log of its own
+              // heartbeat.
+              const report = signals.map(describe).join("\n");
+              if (report !== lastReport) {
+                core.info(report || "nothing has reported against this commit yet");
+                lastReport = report;
+              }
+
+              const failed = signals.filter((s) => ["failure", "error"].includes(s.state));
+              if (failed.length > 0) {
+                core.setFailed(`Deployment failed — ${failed.map(describe).join("; ")}`);
+                return;
+              }
+
+              const succeeded = signals.filter((s) => s.state === "success");
+              if (succeeded.length > 0) {
+                core.info(`Deployed — ${succeeded.map(describe).join("; ")}`);
+                return;
+              }
+
+              if (Date.now() > deadline) {
+                core.setFailed(
+                  `Timed out after ${process.env.TIMEOUT_MINUTES} minutes with no deployment result for ${sha}. ` +
+                  `Either Railway has not started this pull request's deployment, or it is not reporting one ` +
+                  `to GitHub — check the service's Settings → Environments in Railway. ` +
+                  `A pull request from a fork will not get one at all.`
+                );
+                return;
+              }
+
+              await sleep(interval);
+            }

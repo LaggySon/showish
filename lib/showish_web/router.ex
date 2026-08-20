@@ -28,6 +28,17 @@ defmodule ShowishWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # A signed-in file download: it needs the session the browser pipeline sets up
+  # so it can sit behind the same login, but it answers with a file rather than
+  # a page.
+  pipeline :download do
+    plug :accepts, ["json", "html"]
+    plug :fetch_session
+    plug :fetch_flash
+    plug :put_secure_browser_headers
+    plug :fetch_current_scope_for_user
+  end
+
   # Everything that can change a show sits behind a login.
   scope "/", ShowishWeb do
     pipe_through [:browser, :require_authenticated_user]
@@ -39,6 +50,13 @@ defmodule ShowishWeb.Router do
       live "/shows/:slug", ShowLive.Detail, :show
       live "/shows/:slug/control", ShowLive.Control, :control
     end
+  end
+
+  # Every overlay of a show at once, as a scene collection OBS can import.
+  scope "/", ShowishWeb do
+    pipe_through [:download, :require_authenticated_user]
+
+    get "/shows/:slug/obs.json", ObsController, :download
   end
 
   scope "/", ShowishWeb do
@@ -56,6 +74,13 @@ defmodule ShowishWeb.Router do
 
     get "/google", GoogleAuthController, :request
     get "/google/callback", GoogleAuthController, :callback
+    get "/google/preview/callback", GoogleAuthController, :preview_callback
+  end
+
+  scope "/auth", ShowishWeb do
+    pipe_through :api
+
+    post "/google/preview/exchange", GoogleAuthController, :exchange
   end
 
   scope "/", ShowishWeb do

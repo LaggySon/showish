@@ -8,6 +8,8 @@ defmodule ShowishWeb.ShowLive.Index do
 
   alias Showish.Broadcasts
   alias Showish.Broadcasts.Show
+  alias Showish.Broadcasts.Team
+  alias Showish.Text
 
   @impl true
   def mount(_params, _session, socket) do
@@ -99,7 +101,7 @@ defmodule ShowishWeb.ShowLive.Index do
             <.link navigate={~p"/shows/#{show.slug}/control"} class="btn btn-sm btn-primary">
               Control room
             </.link>
-             <.link navigate={~p"/shows/#{show.slug}"} class="btn btn-sm">Overlay URLs</.link>
+            <.link navigate={~p"/shows/#{show.slug}"} class="btn btn-sm">Overlay URLs</.link>
             <button
               type="button"
               class="btn btn-sm btn-ghost text-error"
@@ -163,25 +165,18 @@ defmodule ShowishWeb.ShowLive.Index do
 
   # An operator should not have to think about slugs, but should be able to
   # override the one we derive from the title.
-  defp fill_slug(%{"slug" => slug} = params) when is_binary(slug) do
-    if String.trim(slug) == "" do
-      Map.put(params, "slug", Show.slugify(params["title"] || ""))
-    else
+  defp fill_slug(params) do
+    if Text.present?(params["slug"]) do
       params
+    else
+      Map.put(params, "slug", Show.slugify(params["title"] || ""))
     end
   end
 
-  defp fill_slug(params), do: Map.put(params, "slug", Show.slugify(params["title"] || ""))
-
   defp matchup(show) do
-    case List.wrap(show.teams) do
-      [] ->
-        "No teams yet"
-
-      teams ->
-        teams
-        |> Enum.sort_by(& &1.position)
-        |> Enum.map_join(" vs ", &Showish.Broadcasts.Team.full_name/1)
+    case Show.teams(show) do
+      [] -> "No teams yet"
+      teams -> Enum.map_join(teams, " vs ", &Team.full_name/1)
     end
   end
 end

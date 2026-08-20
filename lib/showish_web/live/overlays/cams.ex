@@ -16,15 +16,24 @@ defmodule ShowishWeb.Overlays.Cams do
 
   use ShowishWeb.OverlayLive
 
+  alias Showish.Broadcasts.Show
+
+  # Past this many windows the desk goes to two rows rather than shaving every
+  # window down to a letterbox.
+  @windows_per_row 4
+
   @impl Phoenix.LiveView
   def render(assigns) do
-    talents = assigns.show.talents |> List.wrap() |> Enum.filter(& &1.on_cam)
+    talents = Enum.filter(Show.talents(assigns.show), & &1.on_cam)
 
-    assigns = assign(assigns, :talents, talents)
+    assigns =
+      assigns
+      |> assign(:talents, talents)
+      |> assign(:second_row?, length(talents) > @windows_per_row)
 
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
-      <div class={["overlay-cams", length(@talents) > 4 && "overlay-cams-wrap"]}>
+      <div class={["overlay-cams", @second_row? && "overlay-cams-wrap"]}>
         <div
           :for={{talent, index} <- Enum.with_index(@talents)}
           class="overlay-cam overlay-in-up"
@@ -33,49 +42,17 @@ defmodule ShowishWeb.Overlays.Cams do
           <div class="overlay-cam-window"></div>
 
           <div class="overlay-panel overlay-round-card overlay-talent overlay-cam-plate flex flex-col">
-            <.eyebrow color={@show.accent_color}>{display(talent.role, "Talent")}</.eyebrow>
-
-            <div class="overlay-talent-name truncate text-[32px] font-black uppercase leading-none">
-              {display(talent.name, "TBD")}
-            </div>
-
-            <div
-              :if={talent.pronouns not in [nil, ""] or talent.social not in [nil, ""]}
-              class="overlay-talent-sub flex items-baseline justify-center gap-3"
-            >
-              <span
-                :if={talent.pronouns not in [nil, ""]}
-                class="overlay-pronouns text-[15px] font-medium lowercase text-slate-400"
-              >
-                {talent.pronouns}
-              </span>
-              <span
-                :if={talent.social not in [nil, ""]}
-                class="text-[16px] font-semibold tracking-wide text-slate-300/90"
-              >
-                {talent.social}
-              </span>
-            </div>
+            <.talent_details talent={talent} accent={@show.accent_color} size={:compact} />
           </div>
         </div>
       </div>
 
-      <div
-        :if={@talents == []}
-        class="overlay-in-up absolute inset-0 flex items-center justify-center text-[22px] text-slate-300"
-      >
-        <div class="overlay-panel overlay-round-card px-12 py-8">
+      <div :if={@talents == []} class="absolute inset-0 flex items-center justify-center">
+        <.empty_notice class="overlay-in-up">
           Nobody on the crew is marked as on camera.
-        </div>
+        </.empty_notice>
       </div>
     </.stage>
     """
-  end
-
-  defp display(value, fallback) do
-    case String.trim(to_string(value || "")) do
-      "" -> fallback
-      text -> text
-    end
   end
 end

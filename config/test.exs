@@ -28,6 +28,10 @@ config :showish, Showish.Accounts.Google,
   client_secret: "test-client-secret",
   req_options: [plug: {Req.Test, Showish.Accounts.Google}]
 
+config :showish, Showish.Accounts.PreviewAuth,
+  allowed_host_prefix: "showish-showish-pr-",
+  req_options: [plug: {Req.Test, Showish.Accounts.PreviewAuth}]
+
 # In test we don't send emails
 config :showish, Showish.Mailer, adapter: Swoosh.Adapters.Test
 
