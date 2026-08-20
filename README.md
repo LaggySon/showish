@@ -81,6 +81,25 @@ broken Google URL. Only addresses Google reports as verified are accepted.
 Nothing about the flow needs an extra dependency: it is the standard
 authorization-code exchange over `Req`, which Showish already had.
 
+### Limiting who may sign in
+
+By default any address Google reports as verified gets an account. A deployment
+that is only meant for a few people can name them:
+
+```bash
+export ALLOWED_GOOGLE_EMAILS="operator@example.com, producer@example.com"
+```
+
+Anyone else is turned away at the callback with no account created, and the
+sign-in page says the server only signs in invited accounts. The list is checked
+on **every** sign-in, so taking an address off it locks that person out at their
+next login rather than only stopping new arrivals — though it does not end a
+session already in progress.
+
+Leave the variable unset and the door is open to any verified Google address,
+which is what a local checkout wants. The dev deployment at `dev.show.laggi.sh`
+sets it.
+
 ### Handing someone a show before they have signed in
 
 An account can be created by address, ahead of its owner's first sign-in — that

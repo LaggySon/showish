@@ -39,6 +39,35 @@ if client_secret = System.get_env("GOOGLE_CLIENT_SECRET") do
   config :showish, Showish.Accounts.Google, client_secret: client_secret
 end
 
+# PR deployments start Google sign-in on a stable deployment. Google therefore
+# needs one registered callback instead of one for every temporary Railway host.
+preview_auth =
+  [
+    broker_url: System.get_env("PREVIEW_AUTH_BROKER_URL"),
+    allowed_host_prefix:
+      System.get_env("PREVIEW_AUTH_HOST_PREFIX") ||
+        with project when is_binary(project) <- System.get_env("RAILWAY_PROJECT_NAME"),
+             service when is_binary(service) <- System.get_env("RAILWAY_SERVICE_NAME") do
+          "#{project}-#{service}-pr-"
+        end
+  ]
+  |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
+
+if preview_auth != [] do
+  config :showish, Showish.Accounts.PreviewAuth, preview_auth
+end
+
+# Who may sign in, comma separated. Leave it unset and anyone with a verified
+# Google address gets an account, which is what a local checkout and the
+# production deployment want; the dev deployment sets it so that a second copy
+# of the app on a public URL is not an open door.
+#
+# The string goes through as-is; `Showish.Accounts.Allowlist` does the splitting
+# so that nothing in here has to call application code at boot.
+if allowed_emails = System.get_env("ALLOWED_GOOGLE_EMAILS") do
+  config :showish, Showish.Accounts.Allowlist, emails: allowed_emails
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

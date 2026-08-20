@@ -56,6 +56,13 @@ defmodule ShowishWeb.Router do
 
     get "/google", GoogleAuthController, :request
     get "/google/callback", GoogleAuthController, :callback
+    get "/google/preview/callback", GoogleAuthController, :preview_callback
+  end
+
+  scope "/auth", ShowishWeb do
+    pipe_through :api
+
+    post "/google/preview/exchange", GoogleAuthController, :exchange
   end
 
   scope "/", ShowishWeb do

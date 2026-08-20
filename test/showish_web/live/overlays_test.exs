@@ -81,6 +81,8 @@ defmodule ShowishWeb.OverlaysTest do
 
     assert has_element?(view, "#baseball-scorebug")
     assert has_element?(view, "#baseball-overlay-inning")
+    assert has_element?(view, "#baseball-overlay-bases")
+    assert has_element?(view, "#baseball-overlay-errors-2", "0")
 
     {:ok, show} = Broadcasts.adjust_score(show, 1, 2)
 

@@ -65,6 +65,7 @@ defmodule ShowishWeb.ControlLiveTest do
       |> render_change()
 
       assert has_element?(view, "#baseball-controls")
+      assert has_element?(view, "#baseball-live-state")
       assert has_element?(view, "#baseball-inning")
       refute has_element?(view, "#esports-controls")
       refute has_element?(view, "#add-game")
@@ -85,6 +86,7 @@ defmodule ShowishWeb.ControlLiveTest do
       assert reloaded.sport_state["balls"] == 0
       refute reloaded.sport_state["bases"]["first"]
       assert has_element?(view, "#baseball-inning")
+      assert has_element?(view, "#baseball-advance-half")
     end
   end
 

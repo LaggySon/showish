@@ -13,6 +13,7 @@ defmodule Showish.Accounts do
 
   import Ecto.Query, warn: false
 
+  alias Showish.Accounts.Allowlist
   alias Showish.Accounts.User
   alias Showish.Accounts.UserToken
   alias Showish.Repo
@@ -34,7 +35,10 @@ defmodule Showish.Accounts do
   @doc """
   Finds or creates the account a Google profile belongs to.
 
-  In order:
+  An address `Showish.Accounts.Allowlist` does not admit gets
+  `{:error, :not_allowed}` and no row: a deployment that only some people are
+  meant to reach should not be quietly collecting accounts for everyone else.
+  Otherwise, in order:
 
     * the subject id is known — sign them in, refreshing the name and picture in
       case they have changed them at Google, and the address in case they have
@@ -52,11 +56,15 @@ defmodule Showish.Accounts do
   """
   def sign_in_with_google(%{google_id: google_id, email: email} = profile)
       when is_binary(google_id) and is_binary(email) do
-    case get_user_by_google_id(google_id) || get_user_by_email(email) do
-      %User{google_id: ^google_id} = user -> update_from_google(user, profile)
-      %User{google_id: nil} = user -> update_from_google(user, profile)
-      %User{} -> {:error, :email_taken}
-      nil -> update_from_google(%User{}, profile)
+    if Allowlist.allows?(email) do
+      case get_user_by_google_id(google_id) || get_user_by_email(email) do
+        %User{google_id: ^google_id} = user -> update_from_google(user, profile)
+        %User{google_id: nil} = user -> update_from_google(user, profile)
+        %User{} -> {:error, :email_taken}
+        nil -> update_from_google(%User{}, profile)
+      end
+    else
+      {:error, :not_allowed}
     end
   end
 

@@ -1,5 +1,8 @@
 # Overlays: adding scenes and presets
 
+This guide covers the two visual extension axes. For game rules, live operator
+controls, and sport-specific scene availability, see [Adding sports](sports.md).
+
 An overlay is a browser source composited over live video by the broadcast
 software. Two things vary independently:
 
@@ -129,7 +132,7 @@ why a reskin preset never needs `.preset-<key> .overlay-thing` descendant rules.
 
 ## 1. Add a scene
 
-Worked example: a "standings" table. Three edits, all in the scene's own turf.
+Worked example: a "standings" table. Four edits, all in the scene's own turf.
 No preset file is touched.
 
 ### Step 1 — the LiveView
@@ -170,7 +173,35 @@ live "/:slug/standings", Standings
 
 The browser source is then `…/overlay/<slug>/standings`.
 
-### Step 3 — the scene's structural CSS
+### Step 3 — the catalogue entry
+
+Add the scene to `ShowishWeb.Scenes`. This one entry drives the control-room
+preview tabs and the browser-source URL list:
+
+```elixir
+%{
+  key: "standings",
+  name: "Standings",
+  summary: "League table with records and rank changes."
+}
+```
+
+Scenes are shared by every sport unless they include a `:sports` restriction:
+
+```elixir
+%{
+  key: "diamond-defense",
+  name: "Diamond defense",
+  summary: "Current fielders and defensive alignment.",
+  sports: ["baseball"]
+}
+```
+
+Use `sports: ["sport-a", "sport-b"]` when several registered sports share a
+scene. See [Decide which scenes apply](sports.md#step-5--decide-which-scenes-apply)
+for the complete behavior.
+
+### Step 4 — the scene's structural CSS
 
 In `assets/css/overlays/base.css`. That file is imported into `@layer overlays`,
 so write plain rules — do **not** wrap them in an `@layer` block yourself; the
@@ -299,7 +330,7 @@ Scenes that keep their default geometry (typically talent, ticker, cams) need
 
 | Task | Files touched |
 |------|---------------|
-| Add a scene | 1 LiveView + 1 route line + 1 rule in `base.css`. **Zero preset files.** |
+| Add a scene | 1 LiveView + 1 route line + 1 catalogue entry + 1 rule in `base.css`. **Zero preset files.** |
 | Add a reskin preset | 1 catalogue entry + 1 token file + 1 layered `@import`. **Zero scene files.** |
 | Add a structural preset | the reskin steps **+** a `render_preset/1` fork and a CSS file for **only the scenes that differ**. |
 
