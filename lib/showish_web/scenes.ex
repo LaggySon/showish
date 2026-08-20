@@ -16,7 +16,8 @@ defmodule ShowishWeb.Scenes do
     %{
       key: "series",
       name: "Series",
-      summary: "Between-games board showing every game, its result and what is next."
+      summary: "Between-games board showing every game, its result and what is next.",
+      sports: ["esports"]
     },
     %{
       key: "talent",
@@ -52,6 +53,11 @@ defmodule ShowishWeb.Scenes do
 
   @doc "Every scene, in the order they are offered to an operator."
   def all, do: @scenes
+
+  @doc "Scenes applicable to a sport; scenes without a restriction are shared."
+  def for_sport(sport) do
+    Enum.filter(@scenes, fn scene -> Map.get(scene, :sports, [sport]) |> Enum.member?(sport) end)
+  end
 
   @doc "Looks a scene up by key, returning the first scene for anything unknown."
   def fetch(key) do

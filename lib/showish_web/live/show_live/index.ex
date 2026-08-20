@@ -32,11 +32,13 @@ defmodule ShowishWeb.ShowLive.Index do
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 class="text-3xl font-black tracking-tight">Shows</h1>
+
           <p class="mt-1 text-base-content/70">
             A show holds the teams, the series and the crew. Point your broadcast
             software at its overlay URLs and everything updates live.
           </p>
         </div>
+
         <.link :if={@live_action != :new} patch={~p"/shows/new"} class="btn btn-primary">
           <.icon name="hero-plus-mini" class="size-4" /> New show
         </.link>
@@ -44,6 +46,7 @@ defmodule ShowishWeb.ShowLive.Index do
 
       <div :if={@live_action == :new} class="rounded-box border border-base-300 bg-base-200 p-6">
         <h2 class="text-lg font-bold">New show</h2>
+
         <.form for={@form} id="new-show-form" phx-change="validate" phx-submit="create" class="mt-4">
           <div class="grid gap-4 sm:grid-cols-2">
             <.input field={@form[:title]} label="Title" placeholder="Summer Cup — Grand Finals" />
@@ -51,6 +54,12 @@ defmodule ShowishWeb.ShowLive.Index do
               field={@form[:slug]}
               label="URL slug"
               placeholder="summer-cup-finals"
+            />
+            <.input
+              field={@form[:sport]}
+              type="select"
+              label="Sport"
+              options={Showish.Broadcasts.Sport.options()}
             />
           </div>
           <div class="mt-4 flex gap-2">
@@ -77,6 +86,7 @@ defmodule ShowishWeb.ShowLive.Index do
               </.link>
               <p class="truncate text-sm text-base-content/60">/{show.slug}</p>
             </div>
+
             <span
               class="mt-1 size-3 shrink-0 rounded-full"
               style={"background: #{show.accent_color}"}
@@ -85,9 +95,7 @@ defmodule ShowishWeb.ShowLive.Index do
             </span>
           </div>
 
-          <p class="mt-3 text-sm text-base-content/70">
-            {matchup(show)}
-          </p>
+          <p class="mt-3 text-sm text-base-content/70">{matchup(show)}</p>
 
           <div class="mt-4 flex flex-wrap gap-2">
             <.link navigate={~p"/shows/#{show.slug}/control"} class="btn btn-sm btn-primary">

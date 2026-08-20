@@ -13,7 +13,8 @@ defmodule ShowishWeb.ShowLive.Control do
   alias Showish.Broadcasts
   alias Showish.Broadcasts.Preset
   alias Showish.Broadcasts.Show
-  alias Showish.Broadcasts.Team
+  alias Showish.Broadcasts.Sport
+  alias ShowishWeb.SportControls
   alias ShowishWeb.Scenes
 
   @impl true
@@ -36,8 +37,10 @@ defmodule ShowishWeb.ShowLive.Control do
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p class="text-sm text-base-content/60">Control room · /{@show.slug}</p>
+
           <h1 class="text-3xl font-black tracking-tight">{@show.title}</h1>
         </div>
+
         <div class="flex items-center gap-2">
           <span class="flex items-center gap-2 text-sm text-base-content/60">
             <span class="size-2 animate-pulse rounded-full bg-success"></span> Live — changes go
@@ -49,47 +52,9 @@ defmodule ShowishWeb.ShowLive.Control do
 
       <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_560px]">
         <div class="space-y-6">
-          <.panel title="On air" subtitle="The controls you reach for during a match.">
-            <div class="grid gap-4 sm:grid-cols-2">
-              <.score_control :for={team <- Show.teams(@show)} team={team} />
-            </div>
-
-            <div class="mt-4 flex flex-wrap gap-2">
-              <button id="swap-sides" type="button" class="btn btn-sm" phx-click="swap_sides">
-                <.icon name="hero-arrows-right-left-mini" class="size-4" />
-                {if @show.swap_sides, do: "Sides swapped", else: "Swap sides"}
-              </button>
-              <button
-                id="previous-game"
-                type="button"
-                class="btn btn-sm"
-                phx-click="step_game"
-                phx-value-delta="-1"
-              >
-                Previous game
-              </button>
-              <span class="btn btn-sm btn-ghost pointer-events-none">
-                Game {@show.current_game} of {max(length(Show.games(@show)), 1)}
-              </span>
-              <button
-                id="next-game"
-                type="button"
-                class="btn btn-sm"
-                phx-click="step_game"
-                phx-value-delta="1"
-              >
-                Next game
-              </button>
-              <button
-                id="reset-scores"
-                type="button"
-                class="btn btn-sm btn-ghost text-error"
-                phx-click="reset_scores"
-                data-confirm="Set both series scores back to zero?"
-              >
-                Reset scores
-              </button>
-            </div>
+          <% sport = Sport.fetch(@show.sport) %>
+          <.panel title={sport.control_title} subtitle={sport.control_summary}>
+            <SportControls.panel show={@show} />
           </.panel>
 
           <.form for={@form} id="control-form" phx-change="save" phx-submit="save" class="space-y-6">
@@ -119,7 +84,19 @@ defmodule ShowishWeb.ShowLive.Control do
                   type="datetime-local"
                   label="Countdown target (UTC)"
                 />
-                <.input field={@form[:best_of]} type="number" min="1" label="Best of" />
+                <.input
+                  field={@form[:sport]}
+                  type="select"
+                  label="Sport"
+                  options={Sport.options()}
+                />
+                <.input
+                  :if={@show.sport == "esports"}
+                  field={@form[:best_of]}
+                  type="number"
+                  min="1"
+                  label="Best of"
+                />
                 <.input field={@form[:accent_color]} type="color" label="Accent color" />
                 <.input
                   field={@form[:preset]}
@@ -141,7 +118,6 @@ defmodule ShowishWeb.ShowLive.Control do
                 label="Ticker"
                 phx-debounce="500"
               />
-
               <div class="mt-2 grid gap-4 sm:grid-cols-3">
                 <.status_field
                   label="Status — left"
@@ -164,7 +140,7 @@ defmodule ShowishWeb.ShowLive.Control do
                 With the centre status off, the scorebug describes the current game instead.
               </p>
 
-              <div class="mt-2">
+              <div :if={@show.sport == "esports"} class="mt-2">
                 <.input
                   field={@form[:show_sides]}
                   type="checkbox"
@@ -180,6 +156,7 @@ defmodule ShowishWeb.ShowLive.Control do
               <.inputs_for :let={tf} field={@form[:teams]}>
                 <div class="rounded-box border border-base-300 p-4">
                   <h3 class="mb-3 font-bold">Team {tf.index + 1}</h3>
+
                   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <.input field={tf[:name]} label="Name" phx-debounce="500" />
                     <.input field={tf[:short_name]} label="Short name" phx-debounce="500" />
@@ -191,7 +168,12 @@ defmodule ShowishWeb.ShowLive.Control do
                       placeholder="Attack"
                       phx-debounce="500"
                     />
-                    <.input field={tf[:score]} type="number" min="0" label="Series score" />
+                    <.input
+                      field={tf[:score]}
+                      type="number"
+                      min="0"
+                      label={if(@show.sport == "baseball", do: "Runs", else: "Series score")}
+                    />
                     <.input field={tf[:primary_color]} type="color" label="Primary color" />
                     <.input field={tf[:secondary_color]} type="color" label="Secondary color" />
                     <.input field={tf[:logo_url]} label="Logo URL" phx-debounce="blur" />
@@ -200,7 +182,11 @@ defmodule ShowishWeb.ShowLive.Control do
               </.inputs_for>
             </.panel>
 
-            <.panel title="Series" subtitle="One row per game. The highlighted row is what is on air.">
+            <.panel
+              :if={@show.sport == "esports"}
+              title="Series"
+              subtitle="One row per game. The highlighted row is what is on air."
+            >
               <.inputs_for :let={gf} field={@form[:games]}>
                 <div class={[
                   "rounded-box mb-3 border p-4",
@@ -237,8 +223,7 @@ defmodule ShowishWeb.ShowLive.Control do
                       type="select"
                       label="Winner"
                       options={[{"Undecided", ""}, {"Team 1", "a"}, {"Team 2", "b"}, {"Draw", "draw"}]}
-                    />
-                    <.input field={gf[:completed]} type="checkbox" label="Completed" />
+                    /> <.input field={gf[:completed]} type="checkbox" label="Completed" />
                   </div>
                 </div>
               </.inputs_for>
@@ -282,7 +267,7 @@ defmodule ShowishWeb.ShowLive.Control do
           <.panel title="Preview" subtitle="Exactly what a browser source renders, scaled to fit.">
             <div class="mb-3 flex flex-wrap gap-1">
               <button
-                :for={scene <- Scenes.all()}
+                :for={scene <- Scenes.for_sport(@show.sport)}
                 type="button"
                 class={["btn btn-xs", @preview_scene == scene.key && "btn-primary"]}
                 phx-click="preview"
@@ -357,6 +342,16 @@ defmodule ShowishWeb.ShowLive.Control do
     socket.assigns.show |> Broadcasts.reset_scores() |> apply_result(socket)
   end
 
+  def handle_event("sport_action", %{"action" => action} = params, socket) do
+    socket.assigns.show
+    |> Broadcasts.apply_sport_action(action, Map.delete(params, "action"))
+    |> apply_result(socket)
+  end
+
+  def handle_event("reset_sport", _params, socket) do
+    socket.assigns.show |> Broadcasts.reset_sport() |> apply_result(socket)
+  end
+
   def handle_event("swap_sides", _params, socket) do
     socket.assigns.show |> Broadcasts.swap_sides() |> apply_result(socket)
   end
@@ -427,6 +422,7 @@ defmodule ShowishWeb.ShowLive.Control do
     <section class="rounded-box border border-base-300 bg-base-100 p-5">
       <header class="mb-4">
         <h2 class="text-lg font-bold">{@title}</h2>
+
         <p :if={@subtitle} class="text-sm text-base-content/60">{@subtitle}</p>
       </header>
       {render_slot(@inner_block)}
@@ -487,49 +483,18 @@ defmodule ShowishWeb.ShowLive.Control do
     """
   end
 
-  attr :team, :any, required: true
-
-  @doc false
-  def score_control(assigns) do
-    ~H"""
-    <div class="rounded-box flex items-center gap-3 border border-base-300 p-3">
-      <span class="size-8 shrink-0 rounded" style={"background: #{@team.primary_color}"}></span>
-      <div class="min-w-0 flex-1">
-        <div class="truncate font-bold">{Team.full_name(@team)}</div>
-        <div class="text-xs text-base-content/60">Team {@team.position}</div>
-      </div>
-      <button
-        type="button"
-        id={"score-down-#{@team.position}"}
-        class="btn btn-sm btn-circle"
-        phx-click="score"
-        phx-value-position={@team.position}
-        phx-value-delta="-1"
-        aria-label={"Decrease score for team #{@team.position}"}
-      >
-        −
-      </button>
-      <span class="w-10 text-center text-2xl font-black tabular-nums">{@team.score}</span>
-      <button
-        type="button"
-        id={"score-up-#{@team.position}"}
-        class="btn btn-sm btn-circle btn-primary"
-        phx-click="score"
-        phx-value-position={@team.position}
-        phx-value-delta="1"
-        aria-label={"Increase score for team #{@team.position}"}
-      >
-        +
-      </button>
-    </div>
-    """
-  end
-
   ## Helpers
 
   defp assign_show(socket, %Show{} = show) do
+    available_scenes = Enum.map(Scenes.for_sport(show.sport), & &1.key)
+    preview_scene = socket.assigns[:preview_scene]
+
+    preview_scene =
+      if preview_scene in available_scenes, do: preview_scene, else: hd(available_scenes)
+
     socket
     |> assign(:show, show)
+    |> assign(:preview_scene, preview_scene)
     |> assign(:form, to_form(Broadcasts.change_show(show)))
   end
 

@@ -71,6 +71,35 @@ defmodule ShowishWeb.OverlaysTest do
     assert render(view) =~ "Game 2"
   end
 
+  test "baseball gets its own scorebug and receives live state", %{
+    conn: conn,
+    scope: scope,
+    show: show
+  } do
+    {:ok, show} = Broadcasts.update_show(scope, show, %{"sport" => "baseball"})
+    {:ok, view, _html} = live(conn, Scenes.path(show.slug, "scorebug"))
+
+    assert has_element?(view, "#baseball-scorebug")
+    assert has_element?(view, "#baseball-overlay-inning")
+
+    {:ok, show} = Broadcasts.adjust_score(show, 1, 2)
+
+    {:ok, _show} =
+      Broadcasts.apply_sport_action(show, "adjust_stat", %{
+        "stat" => "hits",
+        "position" => "1",
+        "delta" => "1"
+      })
+
+    assert has_element?(view, "#baseball-overlay-runs-1", "2")
+    assert has_element?(view, "#baseball-overlay-hits-1", "1")
+  end
+
+  test "sport-aware scene lists hide the esports series board" do
+    assert Enum.any?(Scenes.for_sport("esports"), &(&1.key == "series"))
+    refute Enum.any?(Scenes.for_sport("baseball"), &(&1.key == "series"))
+  end
+
   test "swapping sides reorders the scorebug", %{conn: conn, show: show} do
     {:ok, view, _html} = live(conn, Scenes.path(show.slug, "scorebug"))
 

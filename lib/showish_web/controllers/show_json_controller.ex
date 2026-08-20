@@ -16,8 +16,8 @@ defmodule ShowishWeb.ShowJSONController do
   alias Showish.Broadcasts
   alias Showish.Broadcasts.Show
 
-  @show_fields ~w(slug title subtitle stage starts_at ticker accent_color best_of
-                  current_game show_sides swap_sides break_message updated_at)a
+  @show_fields ~w(slug title subtitle stage starts_at ticker accent_color sport sport_state
+                  best_of current_game show_sides swap_sides break_message updated_at)a
 
   @team_fields ~w(position name short_name code logo_url record score primary_color
                   secondary_color side)a
