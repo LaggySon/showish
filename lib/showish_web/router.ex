@@ -93,6 +93,11 @@ defmodule ShowishWeb.Router do
     pipe_through :overlay
 
     live "/:slug/scorebug", Scorebug
+    live "/:slug/baseball-lineup", BaseballLineup
+    live "/:slug/baseball-defense", BaseballDefense
+    live "/:slug/baseball-bullpen", BaseballBullpen
+    live "/:slug/baseball-player", BaseballPlayer
+    live "/:slug/baseball-comparison", BaseballComparison
     live "/:slug/series", Series
     live "/:slug/talent", Talent
     live "/:slug/cams", Cams

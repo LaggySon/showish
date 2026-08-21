@@ -65,9 +65,70 @@ defmodule ShowishWeb.ControlLiveTest do
       |> render_change()
 
       assert has_element?(view, "#baseball-controls")
+      assert has_element?(view, "#baseball-live-state")
       assert has_element?(view, "#baseball-inning")
+      assert has_element?(view, "#baseball-rosters")
+      assert has_element?(view, "#baseball-graphics-controls")
+      assert has_element?(view, "#baseball-roster-form-1")
+      assert has_element?(view, "#baseball-pitcher-form-2")
+      refute has_element?(view, "#baseball-defense-form-1")
+      assert has_element?(view, "#baseball-bullpen-form-2")
+      assert has_element?(view, "#baseball-play-single")
+      assert has_element?(view, "#baseball-play-strikeout")
+      assert has_element?(view, "#baseball-play-error")
+      assert has_element?(view, "#baseball-play-fielders-choice")
+      assert has_element?(view, "#baseball-play-sac-fly")
+      assert has_element?(view, "#baseball-play-double-play")
+      assert has_element?(view, "#baseball-play-triple-play")
+      assert has_element?(view, "#baseball-play-interference")
+      assert has_element?(view, "#baseball-play-triple")
+      assert has_element?(view, "#baseball-play-hit-by-pitch")
+      assert has_element?(view, "#baseball-play-strikeout-reached")
+      assert has_element?(view, "#baseball-record-notation")
+      assert has_element?(view, "div#baseball-more-results")
+      refute has_element?(view, "details#baseball-more-results")
+      refute has_element?(view, "#baseball-single-stats-form")
       refute has_element?(view, "#esports-controls")
       refute has_element?(view, "#add-game")
+    end
+
+    test "saves defensive and bullpen data while deriving highlight data", %{
+      conn: conn,
+      scope: scope
+    } do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view
+      |> form("#baseball-roster-form-1",
+        roster: %{
+          position: "1",
+          entries: "1. Alex Cruz | SS\nP: Jordan Lee"
+        }
+      )
+      |> render_submit()
+
+      view
+      |> form("#baseball-bullpen-form-2",
+        bullpen: %{position: "2", pitchers: "Taylor Reed | Warming"}
+      )
+      |> render_submit()
+
+      view
+      |> element("#baseball-play-form")
+      |> render_submit(%{"play" => %{"notation" => "", "result" => "single"}})
+
+      state = Broadcasts.get_show!(scope, show.id).sport_state
+      assert state["defense"]["1"]["P"] == "Jordan Lee"
+      assert state["defense"]["1"]["SS"] == "Alex Cruz"
+      assert Enum.map(state["lineups"]["1"], & &1["name"]) == ["Alex Cruz"]
+
+      assert Enum.map(state["bullpens"]["2"], &Map.take(&1, ~w(name status))) == [
+               %{"name" => "Taylor Reed", "status" => "Warming"}
+             ]
+
+      assert state["graphics"]["single"]["name"] == "Alex Cruz"
+      assert %{"label" => "H-AB", "value" => "1-1"} in state["graphics"]["single"]["stats"]
     end
 
     test "updates runs, count, bases and half innings", %{conn: conn, scope: scope} do
@@ -85,6 +146,124 @@ defmodule ShowishWeb.ControlLiveTest do
       assert reloaded.sport_state["balls"] == 0
       refute reloaded.sport_state["bases"]["first"]
       assert has_element?(view, "#baseball-inning")
+      assert has_element?(view, "#baseball-advance-half")
+    end
+
+    test "treats entered scorebook notation as authoritative", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view
+      |> form("#baseball-roster-form-1",
+        roster: %{position: "1", entries: "1. Error Batter | SS"}
+      )
+      |> render_submit()
+
+      view
+      |> element("#baseball-play-form")
+      |> render_submit(%{"play" => %{"notation" => "E1", "result" => "out"}})
+
+      reloaded = Broadcasts.get_show!(scope, show.id)
+      [batter] = reloaded.sport_state["lineups"]["1"]
+
+      assert {batter["hits"], batter["at_bats"]} == {0, 1}
+      assert reloaded.sport_state["outs"] == 0
+      assert reloaded.sport_state["bases"]["first"]
+      assert has_element?(view, "#baseball-last-play", "E1 · Error")
+    end
+
+    test "manages lineups, the active batter and pitching", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view
+      |> form("#baseball-roster-form-1",
+        roster: %{position: "1", entries: "1. A. Leadoff | CF\n2. B. Slugger | 1B"}
+      )
+      |> render_submit()
+
+      view
+      |> form("#baseball-pitcher-form-2", pitcher: %{position: "2", name: "Phillips"})
+      |> render_submit()
+
+      pitcher_id = Broadcasts.get_show!(scope, show.id).sport_state["pitchers"]["2"]["id"]
+
+      assert has_element?(
+               view,
+               "#baseball-highlight-selection-form select option[value='#{pitcher_id}']",
+               "Phillips · P"
+             )
+
+      view |> element("#baseball-batter-1-1") |> render_click()
+
+      view
+      |> element("#baseball-play-form")
+      |> render_submit(%{"play" => %{"notation" => "9", "result" => "single"}})
+
+      view |> element("#baseball-pitches-up-2") |> render_click()
+
+      reloaded = Broadcasts.get_show!(scope, show.id)
+
+      assert Enum.map(reloaded.sport_state["lineups"]["1"], & &1["name"]) == [
+               "A. Leadoff",
+               "B. Slugger"
+             ]
+
+      assert reloaded.sport_state["defense"]["1"]["CF"] == "A. Leadoff"
+      assert reloaded.sport_state["defense"]["1"]["1B"] == "B. Slugger"
+      assert reloaded.sport_state["last_play"] == %{"notation" => "9", "result" => "single"}
+      assert has_element?(view, "#baseball-last-play", "9 · Single")
+
+      assert reloaded.sport_state["active_batters"]["1"] == 0
+      assert Enum.at(reloaded.sport_state["lineups"]["1"], 1)["at_bats"] == 1
+      assert Enum.at(reloaded.sport_state["lineups"]["1"], 1)["hits"] == 1
+
+      assert Map.take(reloaded.sport_state["pitchers"]["2"], ~w(name pitch_count)) == %{
+               "name" => "Phillips",
+               "pitch_count" => 1
+             }
+    end
+
+    test "records and undoes pitches from the live action surface", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      assert has_element?(view, "#baseball-live-actions")
+      assert has_element?(view, "#baseball-undo[disabled]")
+
+      view |> element("#baseball-pitch-ball") |> render_click()
+
+      reloaded = Broadcasts.get_show!(scope, show.id)
+      assert reloaded.sport_state["balls"] == 1
+      assert reloaded.sport_state["pitchers"]["2"]["pitch_count"] == 1
+      refute has_element?(view, "#baseball-undo[disabled]")
+
+      view |> element("#baseball-undo") |> render_click()
+
+      reloaded = Broadcasts.get_show!(scope, show.id)
+      assert reloaded.sport_state["balls"] == 0
+      assert reloaded.sport_state["pitchers"]["2"]["pitch_count"] == 0
+    end
+
+    test "shows the completed at-bat on the struck-out hitter's lineup row", %{
+      conn: conn,
+      scope: scope
+    } do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view
+      |> form("#baseball-roster-form-1",
+        roster: %{position: "1", entries: "A. Leadoff | CF\nB. Slugger | 1B"}
+      )
+      |> render_submit()
+
+      for _pitch <- 1..3 do
+        view |> element("#baseball-pitch-strike") |> render_click()
+      end
+
+      assert has_element?(view, "#baseball-batter-1-0 span.font-mono", "0-1")
+      assert has_element?(view, "#baseball-batter-1-1 span.font-mono", "0-0")
     end
   end
 

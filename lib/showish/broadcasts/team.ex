@@ -28,6 +28,7 @@ defmodule Showish.Broadcasts.Team do
     field :side, :string, default: ""
 
     belongs_to :show, Showish.Broadcasts.Show
+    has_many :baseball_players, Showish.Baseball.Player
 
     timestamps(type: :utc_datetime)
   end

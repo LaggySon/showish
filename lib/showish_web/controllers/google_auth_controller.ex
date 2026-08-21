@@ -176,6 +176,9 @@ defmodule ShowishWeb.GoogleAuthController do
       {:error, :email_not_verified} ->
         failed(conn, "Google has not verified that address, so we cannot sign you in with it.")
 
+      {:error, :not_allowed} ->
+        failed(conn, "That Google account is not on the list for this server.")
+
       {:error, :email_taken} ->
         failed(conn, "Another account here already uses that address.")
 

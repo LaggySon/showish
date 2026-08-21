@@ -14,6 +14,36 @@ defmodule ShowishWeb.Scenes do
       summary: "In-game bar with both teams, the series score and the current game."
     },
     %{
+      key: "baseball-lineup",
+      name: "Batting lineups",
+      summary: "Full-screen batting orders with the active hitters and game totals.",
+      sports: ["baseball"]
+    },
+    %{
+      key: "baseball-defense",
+      name: "Defensive alignment",
+      summary: "On-field defensive positioning for the team currently in the field.",
+      sports: ["baseball"]
+    },
+    %{
+      key: "baseball-bullpen",
+      name: "Bullpens",
+      summary: "Both clubs' available, ready, and warming relief pitchers.",
+      sports: ["baseball"]
+    },
+    %{
+      key: "baseball-player",
+      name: "Player spotlight",
+      summary: "One-player feature card with operator-defined statistics.",
+      sports: ["baseball"]
+    },
+    %{
+      key: "baseball-comparison",
+      name: "Player comparison",
+      summary: "Head-to-head player graphic with matched statistical rows.",
+      sports: ["baseball"]
+    },
+    %{
       key: "series",
       name: "Series",
       summary: "Between-games board showing every game, its result and what is next.",

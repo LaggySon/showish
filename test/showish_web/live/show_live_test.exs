@@ -80,7 +80,7 @@ defmodule ShowishWeb.ShowLiveTest do
 
       {:ok, view, html} = live(conn, ~p"/shows/#{show.slug}")
 
-      for scene <- ShowishWeb.Scenes.all() do
+      for scene <- ShowishWeb.Scenes.for_sport(show.sport) do
         assert html =~ scene.name
         assert has_element?(view, "#copy-#{scene.key}")
       end

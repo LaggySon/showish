@@ -6,6 +6,7 @@ defmodule ShowishWeb.GoogleAuthControllerTest do
   import Showish.AccountsFixtures
 
   alias Showish.Accounts
+  alias Showish.Accounts.Allowlist
   alias Showish.Accounts.Google
 
   describe "GET /auth/google" do
@@ -137,6 +138,44 @@ defmodule ShowishWeb.GoogleAuthControllerTest do
         |> get(~p"/auth/google/callback?code=abc&state=#{state}")
 
       assert redirected_to(conn) == ~p"/users/log-in"
+    end
+  end
+
+  describe "GET /auth/google/callback with an allowlist" do
+    setup do
+      # Putting `nil` back would leave the key in place holding nil, which is
+      # not what an unconfigured server looks like.
+      original = Application.get_env(:showish, Allowlist)
+
+      on_exit(fn ->
+        if original do
+          Application.put_env(:showish, Allowlist, original)
+        else
+          Application.delete_env(:showish, Allowlist)
+        end
+      end)
+
+      Application.put_env(:showish, Allowlist, emails: "invited@example.com")
+    end
+
+    test "signs in an invited account", %{conn: conn} do
+      stub_google(google_claims(email: "invited@example.com"))
+
+      conn = complete_sign_in(conn)
+
+      assert redirected_to(conn) == ~p"/"
+      assert get_session(conn, :user_token)
+    end
+
+    test "turns away an account that is not on the list", %{conn: conn} do
+      stub_google(google_claims(email: "stranger@example.com"))
+
+      conn = complete_sign_in(conn)
+
+      assert redirected_to(conn) == ~p"/users/log-in"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "not on the list"
+      refute get_session(conn, :user_token)
+      refute Accounts.get_user_by_email("stranger@example.com")
     end
   end
 

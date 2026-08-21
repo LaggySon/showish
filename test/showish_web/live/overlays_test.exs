@@ -37,7 +37,7 @@ defmodule ShowishWeb.OverlaysTest do
   end
 
   test "every scene renders on a transparent 1920x1080 stage", %{conn: conn, show: show} do
-    for scene <- Scenes.all() do
+    for scene <- Scenes.for_sport(show.sport) do
       {:ok, view, html} = live(conn, Scenes.path(show.slug, scene.key))
 
       assert html =~ "overlay-stage"
@@ -81,23 +81,112 @@ defmodule ShowishWeb.OverlaysTest do
 
     assert has_element?(view, "#baseball-scorebug")
     assert has_element?(view, "#baseball-overlay-inning")
+    assert has_element?(view, "#baseball-overlay-bases")
+    assert has_element?(view, "#baseball-overlay-count", "0-0")
+    assert has_element?(view, "#baseball-overlay-pitcher", "PITCHER P: 0")
+    assert has_element?(view, "#baseball-overlay-batter", "BATTER —")
 
-    {:ok, show} = Broadcasts.adjust_score(show, 1, 2)
-
-    {:ok, _show} =
-      Broadcasts.apply_sport_action(show, "adjust_stat", %{
-        "stat" => "hits",
-        "position" => "1",
-        "delta" => "1"
-      })
+    {:ok, _show} = Broadcasts.adjust_score(show, 1, 2)
 
     assert has_element?(view, "#baseball-overlay-runs-1", "2")
-    assert has_element?(view, "#baseball-overlay-hits-1", "1")
+  end
+
+  test "baseball scorecard follows the active batter and fielding pitcher", %{
+    conn: conn,
+    scope: scope,
+    show: show
+  } do
+    {:ok, show} = Broadcasts.update_show(scope, show, %{"sport" => "baseball"})
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_lineup", %{
+        "lineup" => %{"position" => "1", "names" => "A. leadoff\nB. slugger"}
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_pitcher", %{
+        "pitcher" => %{"position" => "2", "name" => "Phillips"}
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "adjust_pitch_count", %{
+        "position" => "2",
+        "delta" => "30"
+      })
+
+    results = ~w(single reached_on_error reached_on_error reached_on_error)
+
+    show =
+      Enum.reduce(results, show, fn result, current_show ->
+        {:ok, current_show} =
+          Broadcasts.apply_sport_action(current_show, "set_batter", %{
+            "position" => "1",
+            "index" => "0"
+          })
+
+        {:ok, current_show} =
+          Broadcasts.apply_sport_action(current_show, "record_play", %{"result" => result})
+
+        current_show
+      end)
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "set_batter", %{"position" => "1", "index" => "0"})
+
+    {:ok, view, _html} = live(conn, Scenes.path(show.slug, "scorebug"))
+
+    assert has_element?(view, "#baseball-overlay-pitcher", "Phillips P: 30")
+    assert has_element?(view, "#baseball-overlay-batter", "1. A. leadoff 1-4")
   end
 
   test "sport-aware scene lists hide the esports series board" do
     assert Enum.any?(Scenes.for_sport("esports"), &(&1.key == "series"))
     refute Enum.any?(Scenes.for_sport("baseball"), &(&1.key == "series"))
+    assert Enum.any?(Scenes.for_sport("baseball"), &(&1.key == "baseball-defense"))
+    refute Enum.any?(Scenes.for_sport("esports"), &(&1.key == "baseball-defense"))
+  end
+
+  test "baseball production scenes render configured roster and stat data", %{
+    conn: conn,
+    scope: scope,
+    show: show
+  } do
+    {:ok, show} = Broadcasts.update_show(scope, show, %{"sport" => "baseball"})
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_lineup", %{
+        "lineup" => %{"position" => "1", "names" => "A. Leadoff\nB. Slugger"}
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_lineup", %{
+        "lineup" => %{"position" => "2", "names" => "Casey Park\nJordan Lee"}
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_defense", %{
+        "defense" => %{"position" => "2", "players" => "P: Phillips\nCF: Casey Park"}
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_bullpen", %{
+        "bullpen" => %{"position" => "1", "pitchers" => "Taylor Reed | Warming"}
+      })
+
+    {:ok, _show} =
+      Broadcasts.apply_sport_action(show, "record_play", %{"result" => "single"})
+
+    for {scene, selector, copy} <- [
+          {"baseball-lineup", "#baseball-lineup-scene", "A. Leadoff"},
+          {"baseball-defense", "#baseball-defense-scene", "Phillips"},
+          {"baseball-bullpen", "#baseball-bullpen-scene", "Taylor Reed"},
+          {"baseball-player", "#baseball-player-scene", "1-1"},
+          {"baseball-comparison", "#baseball-comparison-scene", "A. Leadoff"}
+        ] do
+      {:ok, view, html} = live(conn, Scenes.path(show.slug, scene))
+      assert has_element?(view, selector)
+      assert html =~ copy
+    end
   end
 
   test "swapping sides reorders the scorebug", %{conn: conn, show: show} do
