@@ -501,9 +501,12 @@ defmodule Showish.Baseball do
 
   defp automatic_runs(game, "triple"), do: occupied_bases(game)
   defp automatic_runs(game, "sacrifice_fly"), do: if(game.third_occupied, do: 1, else: 0)
+  defp automatic_runs(game, "single"), do: if(game.third_occupied, do: 1, else: 0)
 
-  defp automatic_runs(game, result) when result in ~w(walk hit_by_pitch interference),
-    do: if(game.first_occupied and game.second_occupied and game.third_occupied, do: 1, else: 0)
+  defp automatic_runs(game, result)
+       when result in ~w(walk hit_by_pitch interference reached_on_error strikeout_reached),
+       do:
+         if(game.first_occupied and game.second_occupied and game.third_occupied, do: 1, else: 0)
 
   defp automatic_runs(_game, _result), do: 0
 
@@ -601,7 +604,7 @@ defmodule Showish.Baseball do
   defp place_batter(game, batter_id, result) do
     case result do
       "single" ->
-        force_batter_to_first(game, batter_id)
+        advance_on_single(game, batter_id)
 
       "reached_on_error" ->
         force_batter_to_first(game, batter_id)
@@ -672,6 +675,17 @@ defmodule Showish.Baseball do
     else
       update_game!(game, %{first_occupied: true, first_runner_id: batter_id})
     end
+  end
+
+  defp advance_on_single(game, batter_id) do
+    update_game!(game, %{
+      first_occupied: true,
+      first_runner_id: batter_id,
+      second_occupied: game.first_occupied,
+      second_runner_id: if(game.first_occupied, do: game.first_runner_id, else: nil),
+      third_occupied: game.second_occupied,
+      third_runner_id: if(game.second_occupied, do: game.second_runner_id, else: nil)
+    })
   end
 
   defp ensure_game!(show) do

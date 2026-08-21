@@ -543,6 +543,68 @@ defmodule Showish.BroadcastsTest do
       assert List.last(doubled_up.baseball_game.plate_appearances).notation == "4-6-3"
     end
 
+    test "bases-loaded reaches score the forced runner and preserve a loaded diamond" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      loaded =
+        Enum.reduce(~w(first second third), show, fn base, current ->
+          assert {:ok, updated} =
+                   Broadcasts.apply_sport_action(current, "toggle_base", %{"base" => base})
+
+          updated
+        end)
+
+      for {result, expected_rbi} <- [
+            {"single", 1},
+            {"walk", 1},
+            {"hit_by_pitch", 1},
+            {"interference", 1},
+            {"reached_on_error", 0},
+            {"strikeout_reached", 0}
+          ] do
+        assert {:ok, played} =
+                 Broadcasts.apply_sport_action(loaded, "record_play", %{"result" => result})
+
+        [batter] = played.sport_state["lineups"]["1"]
+        assert Show.team(played, 1).score == 1
+        assert batter["rbi"] == expected_rbi
+        assert played.sport_state["outs"] == 0
+        assert Enum.all?(Map.values(played.sport_state["bases"]))
+
+        assert {:ok, undone} = Broadcasts.apply_sport_action(played, "undo")
+        assert Show.team(undone, 1).score == 0
+        assert Enum.all?(Map.values(undone.sport_state["bases"]))
+      end
+    end
+
+    test "a single advances existing runners one base when no notation overrides it" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "toggle_base", %{"base" => "third"})
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{"result" => "single"})
+
+      assert Show.team(played, 1).score == 1
+
+      assert played.sport_state["bases"] == %{
+               "first" => true,
+               "second" => false,
+               "third" => false
+             }
+    end
+
     test "scorebook notation overrides a mismatched quick-result button" do
       show = show_fixture(%{sport: "baseball"})
 
