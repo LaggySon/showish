@@ -68,7 +68,7 @@ defmodule Showish.Baseball.Notation do
 
   # Retrosheet places batted-ball modifiers after `/` and runner advances after `.`.
   # C/E2 is kept intact because it is the conventional catcher-interference code.
-  defp event_core("C/E2" = notation), do: notation
+  defp event_core("C/E2" <> _suffix), do: "C/E2"
 
   defp event_core(notation) do
     notation
@@ -157,7 +157,28 @@ defmodule Showish.Baseball.Notation do
   end
 
   defp canonical(notation), do: String.replace(notation, ~r/\s+/u, " ")
-  defp ok(result, notation), do: {:ok, %{result: result, notation: notation}}
+
+  defp ok(result, notation),
+    do: {:ok, %{result: result, notation: notation, advances: runner_advances(notation)}}
+
+  defp runner_advances(notation) do
+    case String.split(notation, ".", parts: 2) do
+      [_event, advances] ->
+        advances
+        |> String.split(";")
+        |> Enum.flat_map(fn advance ->
+          case Regex.run(~r/^\s*([B123])-([123H])(?:\([^)]*\))?\s*$/u, advance,
+                 capture: :all_but_first
+               ) do
+            [from, to] -> [%{"from" => from, "to" => to}]
+            _ -> []
+          end
+        end)
+
+      _ ->
+        []
+    end
+  end
 
   defp normalize(nil), do: ""
 

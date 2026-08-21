@@ -523,6 +523,92 @@ defmodule Showish.BroadcastsTest do
              }
     end
 
+    test "scorebook advance clauses move existing runners without overwriting them" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Runner\nError Batter"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "record_play", %{"result" => "single"})
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "E1.1-3"}
+               })
+
+      assert played.sport_state["outs"] == 0
+
+      assert played.sport_state["bases"] == %{
+               "first" => true,
+               "second" => false,
+               "third" => true
+             }
+
+      assert played.sport_state["last_play"] == %{
+               "result" => "reached_on_error",
+               "notation" => "E1.1-3"
+             }
+    end
+
+    test "scorebook advance clauses score runners without crediting an RBI on an error" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Error Batter"}
+               })
+
+      show =
+        Enum.reduce(~w(first second), show, fn base, current ->
+          assert {:ok, updated} =
+                   Broadcasts.apply_sport_action(current, "toggle_base", %{"base" => base})
+
+          updated
+        end)
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "E1.1-3;2-H"}
+               })
+
+      [batter] = played.sport_state["lineups"]["1"]
+      assert Show.team(played, 1).score == 1
+      assert batter["rbi"] == 0
+
+      assert played.sport_state["bases"] == %{
+               "first" => true,
+               "second" => false,
+               "third" => true
+             }
+    end
+
+    test "scorebook batter advances can place an error batter directly on second" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Error Batter"}
+               })
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "E1.B-2"}
+               })
+
+      [batter] = played.sport_state["lineups"]["1"]
+      assert {batter["hits"], batter["at_bats"], batter["rbi"]} == {0, 1, 0}
+      assert played.sport_state["outs"] == 0
+
+      assert played.sport_state["bases"] == %{
+               "first" => false,
+               "second" => true,
+               "third" => false
+             }
+    end
+
     test "notation-only submissions infer a complete plate appearance" do
       show = show_fixture(%{sport: "baseball"})
 

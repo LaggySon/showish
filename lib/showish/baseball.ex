@@ -316,6 +316,7 @@ defmodule Showish.Baseball do
         params
         |> Map.put("result", play.result)
         |> Map.put("notation", play.notation)
+        |> Map.put("advances", play.advances)
 
       dispatch(game, show, "record_play", params)
     end
@@ -327,7 +328,13 @@ defmodule Showish.Baseball do
                          sacrifice_bunt double_play triple_play interference out strikeout
                          strikeout_reached) do
     with {:ok, play} <- Notation.interpret(params["notation"], result) do
-      params = Map.merge(params, %{"result" => play.result, "notation" => play.notation})
+      params =
+        Map.merge(params, %{
+          "result" => play.result,
+          "notation" => play.notation,
+          "advances" => play.advances
+        })
+
       event = event!(game, "record_play", params, show)
       complete_appearance(game, show, event, play.result, params)
     end
@@ -412,9 +419,12 @@ defmodule Showish.Baseball do
     identities = current_identities(game, show)
     scoring = scoring(result)
     automatic_runs = automatic_runs(game, result)
-    runs_on_play = max(to_integer(Map.get(params, "runs", automatic_runs)), 0)
-    rbi = max(to_integer(Map.get(params, "rbi", runs_on_play)), 0)
+    advances = valid_advances(game, Map.get(params, "advances", []))
+    inferred_runs = if advances == [], do: automatic_runs, else: count_runs(advances)
+    runs_on_play = max(to_integer(Map.get(params, "runs", inferred_runs)), 0)
+    rbi = max(to_integer(Map.get(params, "rbi", default_rbi(result, runs_on_play))), 0)
     outs_recorded = min(scoring.outs, 3 - game.outs)
+    batter_runs = if advances == [], do: scoring.runs_scored, else: batter_runs(advances)
 
     %PlateAppearance{
       game_id: game.id,
@@ -432,7 +442,7 @@ defmodule Showish.Baseball do
       at_bat: scoring.at_bat,
       hit_value: scoring.hit_value,
       rbi: rbi,
-      runs_scored: max(to_integer(Map.get(params, "runs_scored", scoring.runs_scored)), 0),
+      runs_scored: max(to_integer(Map.get(params, "runs_scored", batter_runs)), 0),
       outs_recorded: outs_recorded
     })
     |> Repo.insert!()
@@ -445,7 +455,9 @@ defmodule Showish.Baseball do
 
     next = next_order(game, identities.batting_team.id, identities.batter_order)
     game = update_game!(game, %{identities.batter_order_field => next, balls: 0, strikes: 0})
+    game = apply_runner_advances(game, advances)
     game = place_batter(game, identities.batter_id, result)
+    game = apply_batter_advance(game, identities.batter_id, advances)
 
     if outs_recorded > 0 do
       if game.outs + outs_recorded >= 3,
@@ -494,6 +506,97 @@ defmodule Showish.Baseball do
     do: if(game.first_occupied and game.second_occupied and game.third_occupied, do: 1, else: 0)
 
   defp automatic_runs(_game, _result), do: 0
+
+  defp valid_advances(game, advances) when is_list(advances) do
+    advances
+    |> Enum.filter(fn
+      %{"from" => "B", "to" => to} when to in ~w(1 2 3 H) ->
+        true
+
+      %{"from" => from, "to" => to} when from in ~w(1 2 3) and to in ~w(1 2 3 H) ->
+        Map.fetch!(game, occupied_field(from))
+
+      _ ->
+        false
+    end)
+    |> Enum.uniq_by(& &1["from"])
+  end
+
+  defp valid_advances(_game, _advances), do: []
+  defp count_runs(advances), do: Enum.count(advances, &(&1["to"] == "H"))
+
+  defp batter_runs(advances),
+    do: Enum.count(advances, &(&1["from"] == "B" and &1["to"] == "H"))
+
+  defp default_rbi(result, _runs) when result in ~w(reached_on_error strikeout_reached), do: 0
+  defp default_rbi(_result, runs), do: runs
+
+  defp apply_runner_advances(game, advances) do
+    advances
+    |> Enum.reject(&(&1["from"] == "B"))
+    |> Enum.sort_by(& &1["from"], :desc)
+    |> Enum.reduce(game, fn advance, current ->
+      move_runner(current, advance["from"], advance["to"])
+    end)
+  end
+
+  defp move_runner(game, from, to) do
+    runner_id = Map.fetch!(game, runner_field(from))
+
+    attrs = %{
+      occupied_field(from) => false,
+      runner_field(from) => nil
+    }
+
+    attrs =
+      if to == "H" do
+        attrs
+      else
+        attrs
+        |> Map.put(occupied_field(to), true)
+        |> Map.put(runner_field(to), runner_id)
+      end
+
+    update_game!(game, attrs)
+  end
+
+  defp apply_batter_advance(game, batter_id, advances) do
+    case Enum.find(advances, &(&1["from"] == "B")) do
+      nil ->
+        game
+
+      %{"to" => to} ->
+        attrs =
+          ~w(1 2 3)
+          |> Enum.reduce(%{}, fn base, acc ->
+            if Map.fetch!(game, runner_field(base)) == batter_id do
+              acc
+              |> Map.put(occupied_field(base), false)
+              |> Map.put(runner_field(base), nil)
+            else
+              acc
+            end
+          end)
+
+        attrs =
+          if to == "H" do
+            attrs
+          else
+            attrs
+            |> Map.put(occupied_field(to), true)
+            |> Map.put(runner_field(to), batter_id)
+          end
+
+        if attrs == %{}, do: game, else: update_game!(game, attrs)
+    end
+  end
+
+  defp occupied_field("1"), do: :first_occupied
+  defp occupied_field("2"), do: :second_occupied
+  defp occupied_field("3"), do: :third_occupied
+  defp runner_field("1"), do: :first_runner_id
+  defp runner_field("2"), do: :second_runner_id
+  defp runner_field("3"), do: :third_runner_id
 
   defp place_batter(game, batter_id, result) do
     case result do

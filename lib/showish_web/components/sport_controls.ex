@@ -188,7 +188,7 @@ defmodule ShowishWeb.SportControls do
                 field={@play_form[:notation]}
                 id="baseball-play-notation"
                 type="text"
-                placeholder="463 becomes 4-6-3 · also accepts F8, 6-3, K"
+                placeholder="E1.1-3 advances first to third · also accepts 463, F8, K"
                 class="mt-1 w-full rounded-md border border-white/15 bg-white/[0.06] px-3 py-2 text-sm font-bold text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
               />
               <button
@@ -345,7 +345,7 @@ defmodule ShowishWeb.SportControls do
                 </div>
               </details>
               <p class="mt-2 text-[10px] leading-relaxed text-slate-500">
-                Use Out for any routine batted out. Sac fly scores a runner from third automatically; use score and runner controls for unusual advancement. Undo reverses the entire last pitch or play.
+                Add runner advances after a period: 1-3 moves first to third, 2-H scores second, and semicolons combine moves. Undo reverses the entire last pitch or play.
               </p>
             </.form>
           </div>

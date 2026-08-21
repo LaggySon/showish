@@ -10,6 +10,22 @@ defmodule Showish.Baseball.NotationTest do
 
       assert {:ok, %{result: "reached_on_error", notation: "6-E3"}} =
                Notation.interpret("6–E3", "out")
+
+      assert {:ok,
+              %{
+                result: "reached_on_error",
+                notation: "E1.1-3;2-H",
+                advances: [
+                  %{"from" => "1", "to" => "3"},
+                  %{"from" => "2", "to" => "H"}
+                ]
+              }} = Notation.interpret("E1.1-3;2-H", "out")
+
+      assert {:ok,
+              %{
+                result: "reached_on_error",
+                advances: [%{"from" => "B", "to" => "2"}]
+              }} = Notation.interpret("E1.B-2", "out")
     end
 
     test "canonicalizes fielder sequences and recognizes double and triple plays" do
