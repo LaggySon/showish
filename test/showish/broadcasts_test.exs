@@ -357,6 +357,51 @@ defmodule Showish.BroadcastsTest do
              ]
     end
 
+    test "current pitchers can drive database-backed spotlight graphics" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_pitcher", %{
+                 "pitcher" => %{"position" => "2", "name" => "Phillips"}
+               })
+
+      show =
+        Enum.reduce(1..3, show, fn _pitch, current ->
+          assert {:ok, updated} =
+                   Broadcasts.apply_sport_action(current, "record_pitch", %{
+                     "result" => "strike"
+                   })
+
+          updated
+        end)
+
+      pitcher_id = show.sport_state["pitchers"]["2"]["id"]
+
+      assert {:ok, selected} =
+               Broadcasts.apply_sport_action(show, "select_highlights", %{
+                 "highlight" => %{"spotlight_player_id" => to_string(pitcher_id)}
+               })
+
+      graphic = selected.sport_state["graphics"]["single"]
+      assert graphic["name"] == "Phillips"
+      assert graphic["detail"] == "PITCHER"
+      assert graphic["selected_player_id"] == pitcher_id
+
+      assert graphic["stats"] == [
+               %{"label" => "IP", "value" => "0.1"},
+               %{"label" => "P", "value" => "3"},
+               %{"label" => "BF", "value" => "1"},
+               %{"label" => "H", "value" => "0"},
+               %{"label" => "BB", "value" => "0"},
+               %{"label" => "SO", "value" => "1"}
+             ]
+    end
+
     test "a strikeout records an at-bat before advancing the lineup" do
       show = show_fixture(%{sport: "baseball"})
 

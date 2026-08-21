@@ -254,17 +254,13 @@ defmodule ShowishWeb.SportControls do
                 />
               </div>
 
-              <details
+              <div
                 id="baseball-more-results"
-                class="group mt-3 rounded-md border border-white/10 bg-white/[0.03]"
+                class="mt-3 rounded-md border border-white/10 bg-white/[0.03]"
               >
-                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-300 transition hover:bg-white/[0.05]">
-                  More results
-                  <.icon
-                    name="hero-chevron-down-mini"
-                    class="size-4 transition group-open:rotate-180"
-                  />
-                </summary>
+                <p class="px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-300">
+                  All other outcomes
+                </p>
                 <div class="grid grid-cols-2 gap-2 border-t border-white/10 p-3 sm:grid-cols-3">
                   <.game_action
                     id="baseball-play-triple"
@@ -343,7 +339,7 @@ defmodule ShowishWeb.SportControls do
                     disabled={@state["bases"]["first"] and @state["outs"] < 2}
                   />
                 </div>
-              </details>
+              </div>
               <p class="mt-2 text-[10px] leading-relaxed text-slate-500">
                 Add runner advances after a period: 1-3 moves first to third, 2-H scores second, and semicolons combine moves. Undo reverses the entire last pitch or play.
               </p>
@@ -1230,15 +1226,20 @@ defmodule ShowishWeb.SportControls do
   end
 
   defp highlight_options(state) do
-    away = player_options(state["lineups"]["1"])
-    home = player_options(state["lineups"]["2"])
+    away = player_options(state["lineups"]["1"], state["pitchers"]["1"])
+    home = player_options(state["lineups"]["2"], state["pitchers"]["2"])
     %{away: away, home: home, all: away ++ home}
   end
 
-  defp player_options(players) do
-    players
-    |> Enum.filter(&Map.get(&1, "id"))
-    |> Enum.map(&{&1["name"], &1["id"]})
+  defp player_options(players, pitcher) do
+    pitcher_options =
+      if Map.get(pitcher, "id"), do: [{"#{pitcher["name"]} · P", pitcher["id"]}], else: []
+
+    (pitcher_options ++
+       (players
+        |> Enum.filter(&Map.get(&1, "id"))
+        |> Enum.map(&{&1["name"], &1["id"]})))
+    |> Enum.uniq_by(&elem(&1, 1))
   end
 
   defp sorted_teams(show), do: show.teams |> List.wrap() |> Enum.sort_by(& &1.position)

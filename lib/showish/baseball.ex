@@ -870,6 +870,10 @@ defmodule Showish.Baseball do
 
   defp empty_stats do
     %{
+      pitcher?: false,
+      pitch_count: 0,
+      batters_faced: 0,
+      innings_pitched: "0.0",
       at_bats: 0,
       hits: 0,
       doubles: 0,
@@ -949,20 +953,38 @@ defmodule Showish.Baseball do
   end
 
   defp graphics_projection(game, show, stats) do
-    leaders =
+    batting_candidates =
       game.lineup_spots
       |> Enum.filter(&(not is_nil(&1.batting_order)))
       |> Enum.uniq_by(& &1.player_id)
       |> Enum.map(fn spot -> {spot, Map.get(stats, spot.player_id, empty_stats())} end)
 
-    overall = selected_or_leader(leaders, game.spotlight_player_id)
+    pitcher_candidates =
+      [game.away_pitcher, game.home_pitcher]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.map(fn player ->
+        spot = %LineupSpot{
+          player_id: player.id,
+          player: player,
+          team_id: player.team_id,
+          field_position: "P"
+        }
+
+        {spot, pitcher_stats(game, player.id)}
+      end)
+
+    candidates =
+      Enum.uniq_by(pitcher_candidates ++ batting_candidates, fn {spot, _} -> spot.player_id end)
+
+    overall = selected_or_leader(candidates, batting_candidates, game.spotlight_player_id)
 
     team_leaders =
       Map.new(~w(1 2), fn position ->
         team = team!(show, position)
 
         automatic =
-          leaders
+          batting_candidates
           |> Enum.filter(fn {spot, _} -> spot.team_id == team.id end)
           |> Enum.max_by(&leader_score/1, fn -> nil end)
 
@@ -971,7 +993,7 @@ defmodule Showish.Baseball do
             do: game.comparison_left_player_id,
             else: game.comparison_right_player_id
 
-        selected = Enum.find(leaders, fn {spot, _stats} -> spot.player_id == selected_id end)
+        selected = Enum.find(candidates, fn {spot, _stats} -> spot.player_id == selected_id end)
         {position, selected || automatic}
       end)
 
@@ -990,12 +1012,14 @@ defmodule Showish.Baseball do
     do: %{"kicker" => "PLAYER SPOTLIGHT", "name" => "", "detail" => "", "stats" => []}
 
   defp single_graphic({spot, stats}) do
+    pitcher? = Map.get(stats, :pitcher?, false)
+
     %{
       "player_id" => spot.player_id,
       "kicker" => "PLAYER SPOTLIGHT",
       "name" => spot.player.name,
-      "detail" => spot.field_position,
-      "stats" => graphic_stats(stats)
+      "detail" => if(pitcher?, do: "PITCHER", else: spot.field_position),
+      "stats" => if(pitcher?, do: pitcher_graphic_stats(stats), else: graphic_stats(stats))
     }
   end
 
@@ -1003,27 +1027,45 @@ defmodule Showish.Baseball do
     left_stats = if left, do: elem(left, 1), else: empty_stats()
     right_stats = if right, do: elem(right, 1), else: empty_stats()
 
+    stats =
+      if Map.get(left_stats, :pitcher?, false) and Map.get(right_stats, :pitcher?, false) do
+        [
+          comparison_stat("IP", left_stats.innings_pitched, right_stats.innings_pitched),
+          comparison_stat("P", left_stats.pitch_count, right_stats.pitch_count),
+          comparison_stat("BF", left_stats.batters_faced, right_stats.batters_faced),
+          comparison_stat("H", left_stats.hits, right_stats.hits),
+          comparison_stat("BB", left_stats.walks, right_stats.walks),
+          comparison_stat("SO", left_stats.strikeouts, right_stats.strikeouts)
+        ]
+      else
+        [
+          comparison_stat(
+            "H-AB",
+            "#{left_stats.hits}-#{left_stats.at_bats}",
+            "#{right_stats.hits}-#{right_stats.at_bats}"
+          ),
+          comparison_stat("AVG", average(left_stats), average(right_stats)),
+          comparison_stat("HR", left_stats.home_runs, right_stats.home_runs),
+          comparison_stat("RBI", left_stats.rbi, right_stats.rbi),
+          comparison_stat("BB", left_stats.walks, right_stats.walks)
+        ]
+      end
+
     %{
       "title" => "PLAYER COMPARISON",
       "left_name" => if(left, do: elem(left, 0).player.name, else: ""),
       "left_player_id" => if(left, do: elem(left, 0).player_id, else: nil),
-      "left_detail" => if(left, do: elem(left, 0).field_position, else: ""),
+      "left_detail" => comparison_detail(left),
       "right_name" => if(right, do: elem(right, 0).player.name, else: ""),
       "right_player_id" => if(right, do: elem(right, 0).player_id, else: nil),
-      "right_detail" => if(right, do: elem(right, 0).field_position, else: ""),
-      "stats" => [
-        comparison_stat(
-          "H-AB",
-          "#{left_stats.hits}-#{left_stats.at_bats}",
-          "#{right_stats.hits}-#{right_stats.at_bats}"
-        ),
-        comparison_stat("AVG", average(left_stats), average(right_stats)),
-        comparison_stat("HR", left_stats.home_runs, right_stats.home_runs),
-        comparison_stat("RBI", left_stats.rbi, right_stats.rbi),
-        comparison_stat("BB", left_stats.walks, right_stats.walks)
-      ]
+      "right_detail" => comparison_detail(right),
+      "stats" => stats
     }
   end
+
+  defp comparison_detail(nil), do: ""
+  defp comparison_detail({_spot, %{pitcher?: true}}), do: "PITCHER"
+  defp comparison_detail({spot, _stats}), do: spot.field_position
 
   defp graphic_stats(stats) do
     [
@@ -1031,6 +1073,17 @@ defmodule Showish.Baseball do
       %{"label" => "AVG", "value" => average(stats)},
       %{"label" => "HR", "value" => to_string(stats.home_runs)},
       %{"label" => "RBI", "value" => to_string(stats.rbi)},
+      %{"label" => "BB", "value" => to_string(stats.walks)},
+      %{"label" => "SO", "value" => to_string(stats.strikeouts)}
+    ]
+  end
+
+  defp pitcher_graphic_stats(stats) do
+    [
+      %{"label" => "IP", "value" => stats.innings_pitched},
+      %{"label" => "P", "value" => to_string(stats.pitch_count)},
+      %{"label" => "BF", "value" => to_string(stats.batters_faced)},
+      %{"label" => "H", "value" => to_string(stats.hits)},
       %{"label" => "BB", "value" => to_string(stats.walks)},
       %{"label" => "SO", "value" => to_string(stats.strikeouts)}
     ]
@@ -1047,9 +1100,33 @@ defmodule Showish.Baseball do
 
   defp leader_score({_spot, stats}), do: {stats.hits, stats.home_runs, stats.rbi, stats.walks}
 
-  defp selected_or_leader(leaders, player_id) do
-    Enum.find(leaders, fn {spot, _stats} -> spot.player_id == player_id end) ||
-      Enum.max_by(leaders, &leader_score/1, fn -> nil end)
+  defp selected_or_leader(candidates, automatic_candidates, player_id) do
+    Enum.find(candidates, fn {spot, _stats} -> spot.player_id == player_id end) ||
+      Enum.max_by(automatic_candidates, &leader_score/1, fn -> nil end)
+  end
+
+  defp pitcher_stats(game, pitcher_id) do
+    appearances = Enum.filter(game.plate_appearances, &(&1.pitcher_id == pitcher_id))
+    outs = Enum.sum(Enum.map(appearances, & &1.outs_recorded))
+
+    empty_stats()
+    |> Map.merge(%{
+      pitcher?: true,
+      pitch_count: pitcher_pitch_count(game, pitcher_id),
+      batters_faced: length(appearances),
+      innings_pitched: "#{div(outs, 3)}.#{rem(outs, 3)}",
+      hits: Enum.count(appearances, &(&1.hit_value > 0)),
+      walks: Enum.count(appearances, &(&1.result == "walk")),
+      strikeouts: Enum.count(appearances, &(&1.result in ~w(strikeout strikeout_reached)))
+    })
+  end
+
+  defp pitcher_pitch_count(game, pitcher_id) do
+    cond do
+      game.away_pitcher_id == pitcher_id -> game.away_pitch_count
+      game.home_pitcher_id == pitcher_id -> game.home_pitch_count
+      true -> Enum.count(game.pitches, &(&1.pitcher_id == pitcher_id))
+    end
   end
 
   defp pitcher_projection(nil, count), do: %{"id" => nil, "name" => "", "pitch_count" => count}
@@ -1261,12 +1338,22 @@ defmodule Showish.Baseball do
   defp selected_player_id(game, value, team_id \\ nil) do
     player_id = optional_integer(value)
 
-    query =
-      LineupSpot
-      |> where(game_id: ^game.id, player_id: ^player_id)
-      |> then(fn query -> if team_id, do: where(query, team_id: ^team_id), else: query end)
-      |> select([spot], spot.player_id)
+    lineup_player? =
+      if player_id do
+        Repo.exists?(
+          from spot in LineupSpot,
+            where: spot.game_id == ^game.id and spot.player_id == ^player_id
+        )
+      else
+        false
+      end
 
-    if player_id, do: Repo.one(query), else: nil
+    current_pitcher? =
+      not is_nil(player_id) and player_id in [game.away_pitcher_id, game.home_pitcher_id]
+
+    player = if player_id, do: Repo.get(Player, player_id), else: nil
+    correct_team? = not is_nil(player) and (is_nil(team_id) or player.team_id == team_id)
+
+    if correct_team? and (lineup_player? or current_pitcher?), do: player_id, else: nil
   end
 end

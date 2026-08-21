@@ -81,7 +81,12 @@ defmodule ShowishWeb.ControlLiveTest do
       assert has_element?(view, "#baseball-play-double-play")
       assert has_element?(view, "#baseball-play-triple-play")
       assert has_element?(view, "#baseball-play-interference")
+      assert has_element?(view, "#baseball-play-triple")
+      assert has_element?(view, "#baseball-play-hit-by-pitch")
+      assert has_element?(view, "#baseball-play-strikeout-reached")
       assert has_element?(view, "#baseball-record-notation")
+      assert has_element?(view, "div#baseball-more-results")
+      refute has_element?(view, "details#baseball-more-results")
       refute has_element?(view, "#baseball-single-stats-form")
       refute has_element?(view, "#esports-controls")
       refute has_element?(view, "#add-game")
@@ -180,6 +185,14 @@ defmodule ShowishWeb.ControlLiveTest do
       view
       |> form("#baseball-pitcher-form-2", pitcher: %{position: "2", name: "Phillips"})
       |> render_submit()
+
+      pitcher_id = Broadcasts.get_show!(scope, show.id).sport_state["pitchers"]["2"]["id"]
+
+      assert has_element?(
+               view,
+               "#baseball-highlight-selection-form select option[value='#{pitcher_id}']",
+               "Phillips · P"
+             )
 
       view |> element("#baseball-batter-1-1") |> render_click()
 
