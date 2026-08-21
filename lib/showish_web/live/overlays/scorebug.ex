@@ -14,11 +14,20 @@ defmodule ShowishWeb.Overlays.Scorebug do
 
   @impl Phoenix.LiveView
   def render(%{show: %{sport: "baseball"}} = assigns) do
+    state = Baseball.normalize_state(assigns.show.sport_state)
+    batting_position = if state["half"] == "top", do: "1", else: "2"
+    fielding_position = if batting_position == "1", do: "2", else: "1"
+    active_index = state["active_batters"][batting_position]
+
     assigns =
       assigns
       |> assign(:away, Show.team(assigns.show, 1))
       |> assign(:home, Show.team(assigns.show, 2))
-      |> assign(:state, Baseball.normalize_state(assigns.show.sport_state))
+      |> assign(:state, state)
+      |> assign(:batting_position, batting_position)
+      |> assign(:batter, Enum.at(state["lineups"][batting_position], active_index))
+      |> assign(:batter_order, active_index + 1)
+      |> assign(:pitcher, state["pitchers"][fielding_position])
 
     baseball(assigns)
   end
@@ -42,56 +51,59 @@ defmodule ShowishWeb.Overlays.Scorebug do
         id="baseball-scorebug"
         class="absolute left-12 top-10 overlay-in-left font-[Oswald] text-white"
       >
-        <div class="flex h-[104px] w-[624px] overflow-hidden rounded-[3px] border border-white/15 bg-[#06182b] shadow-[0_8px_24px_rgba(0,0,0,0.42)]">
-          <div class="min-w-0 flex-1">
-            <div class="grid h-6 grid-cols-[minmax(0,1fr)_48px_42px_42px] items-center border-b border-white/12 bg-[#0b2947] px-3 text-[9px] font-bold uppercase tracking-[0.16em] text-blue-100/60">
-              <span class="truncate">{stage_label(@show)}</span>
-              <span class="text-center">R</span>
-              <span class="text-center">H</span> <span class="text-center">E</span>
+        <div class="w-[600px] overflow-hidden rounded-[3px] border-2 border-white/25 bg-[#06182b] shadow-[0_10px_28px_rgba(0,0,0,0.48)]">
+          <div class="grid h-[148px] grid-cols-[430px_170px] border-b-2 border-white/20">
+            <div class="grid grid-cols-[1fr_92px] grid-rows-2 bg-[#071d33]">
+              <.baseball_team team={@away} position={1} runs={score(@away)} />
+              <.baseball_team team={@home} position={2} runs={score(@home)} />
             </div>
 
-            <.baseball_team_row
-              team={@away}
-              position={1}
-              role="A"
-              runs={score(@away)}
-              hits={@state["hits"]["1"]}
-              errors={@state["errors"]["1"]}
-            />
-            <.baseball_team_row
-              team={@home}
-              position={2}
-              role="H"
-              runs={score(@home)}
-              hits={@state["hits"]["2"]}
-              errors={@state["errors"]["2"]}
-            />
+            <div class="grid grid-cols-[76px_94px] border-l-2 border-white/20 bg-[#04111f]">
+              <div class="grid grid-rows-2 items-center text-center">
+                <div
+                  id="baseball-overlay-outs"
+                  class="flex h-full flex-col items-center justify-center border-b-2 border-white/20"
+                >
+                  <span class="text-[31px] font-bold leading-none tabular-nums">
+                    {@state["outs"]}
+                  </span>
+                  <span class="mt-1 text-[15px] font-semibold uppercase leading-none tracking-[0.08em]">
+                    {if(@state["outs"] == 1, do: "out", else: "outs")}
+                  </span>
+                </div>
+                <div
+                  id="baseball-overlay-count"
+                  class="text-[30px] font-bold leading-none tracking-[0.08em] tabular-nums"
+                >
+                  {@state["balls"]}-{@state["strikes"]}
+                </div>
+              </div>
+
+              <div class="flex flex-col items-center justify-center border-l-2 border-white/20">
+                <.baseball_bases bases={@state["bases"]} />
+                <div
+                  id="baseball-overlay-inning"
+                  class="mt-3 flex items-center gap-2 text-[31px] font-bold leading-none tabular-nums"
+                >
+                  <span class="text-[22px] text-blue-100/80">
+                    {if(@state["half"] == "top", do: "▲", else: "▼")}
+                  </span>
+                  <span>{@state["inning"]}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="grid w-[218px] grid-cols-[52px_82px_1fr] items-center border-l border-white/12 bg-[#04111f]">
-            <div class="text-center">
-              <div
-                id="baseball-overlay-inning"
-                class="text-[27px] font-bold leading-none tabular-nums"
-              >
-                <span class="mr-0.5 text-[13px] text-blue-100/70">
-                  {if(@state["half"] == "top", do: "▲", else: "▼")}
-                </span>
-                <span>{@state["inning"]}</span>
-              </div>
-              <div class="mt-1 text-[8px] font-bold uppercase tracking-[0.14em] text-blue-100/45">
-                Inning
-              </div>
-            </div>
-
-            <.baseball_bases bases={@state["bases"]} />
-
-            <div class="space-y-1.5 border-l border-white/10 pl-3">
-              <.count_dots label="B" value={@state["balls"]} maximum={3} color="bg-[#43c98b]" />
-              <.count_dots label="S" value={@state["strikes"]} maximum={2} color="bg-[#f3c85b]" />
-              <.count_dots label="O" value={@state["outs"]} maximum={2} color="bg-[#f16f6f]" />
-            </div>
-          </div>
+          <.baseball_player_line
+            id="baseball-overlay-pitcher"
+            name={player_name(@pitcher, "PITCHER")}
+            stat={"P: #{@pitcher["pitch_count"]}"}
+          />
+          <.baseball_player_line
+            id="baseball-overlay-batter"
+            name={batter_name(@batter_order, @batter)}
+            stat={batter_line(@batter)}
+          />
         </div>
       </div>
     </.stage>
@@ -100,39 +112,48 @@ defmodule ShowishWeb.Overlays.Scorebug do
 
   attr :team, :any, required: true
   attr :position, :integer, required: true
-  attr :role, :string, required: true
   attr :runs, :integer, required: true
-  attr :hits, :integer, required: true
-  attr :errors, :integer, required: true
 
-  defp baseball_team_row(assigns) do
+  defp baseball_team(assigns) do
     ~H"""
-    <div class="relative grid h-10 grid-cols-[minmax(0,1fr)_48px_42px_42px] items-center border-b border-white/10 bg-[#071d33] px-3 last:border-0">
-      <span class="absolute inset-y-0 left-0 w-[3px]" style={"background: #{@team.primary_color}"}>
-      </span>
-      <div class="flex min-w-0 items-center gap-2 pl-1">
-        <span class="text-[8px] font-bold text-blue-100/40">{@role}</span>
-        <span class="truncate text-[18px] font-bold uppercase leading-none tracking-[0.025em]">
-          {short_name(@team)}
+    <div class="contents">
+      <div class={[
+        "relative flex min-w-0 items-center px-6",
+        @position == 1 && "border-b-2 border-white/20"
+      ]}>
+        <span class="absolute inset-y-0 left-0 w-1" style={"background: #{primary(@team)}"}></span>
+        <span class="truncate text-[34px] font-semibold uppercase leading-none tracking-[0.08em]">
+          {team_code(@team)}
         </span>
       </div>
       <span
         id={"baseball-overlay-runs-#{@position}"}
-        class="border-x border-white/10 text-center text-[23px] font-bold leading-10 tabular-nums"
+        class={[
+          "flex items-center justify-center border-l-2 border-white/20 text-[46px] font-bold leading-none tabular-nums",
+          @position == 1 && "border-b-2"
+        ]}
       >
         {@runs}
       </span>
-      <span
-        id={"baseball-overlay-hits-#{@position}"}
-        class="text-center text-[17px] font-medium text-blue-50/85 tabular-nums"
-      >
-        {@hits}
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :stat, :string, required: true
+
+  defp baseball_player_line(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      class="grid h-[62px] grid-cols-[430px_170px] border-b-2 border-white/20 bg-[#071d33] last:border-b-0"
+    >
+      <span class="flex min-w-0 items-center truncate px-6 text-[27px] font-semibold uppercase leading-none tracking-[0.06em]">
+        {@name}
       </span>
-      <span
-        id={"baseball-overlay-errors-#{@position}"}
-        class="text-center text-[17px] font-medium text-blue-50/85 tabular-nums"
-      >
-        {@errors}
+      <span class="flex items-center justify-center border-l-2 border-white/20 bg-[#04111f] text-[28px] font-bold uppercase leading-none tracking-[0.04em] tabular-nums">
+        {@stat}
       </span>
     </div>
     """
@@ -144,7 +165,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
     ~H"""
     <div
       id="baseball-overlay-bases"
-      class="mx-auto grid size-[48px] shrink-0 grid-cols-3 grid-rows-2 gap-1"
+      class="grid h-[48px] w-[66px] shrink-0 grid-cols-3 grid-rows-2 gap-1.5"
     >
       <span class={base_classes(@bases["second"], "col-start-2")}></span>
       <span class={base_classes(@bases["third"], "col-start-1 row-start-2")}></span>
@@ -153,36 +174,38 @@ defmodule ShowishWeb.Overlays.Scorebug do
     """
   end
 
-  attr :label, :string, required: true
-  attr :value, :integer, required: true
-  attr :maximum, :integer, required: true
-  attr :color, :string, required: true
-
-  defp count_dots(assigns) do
-    ~H"""
-    <div class="flex items-center gap-1">
-      <span class="w-2.5 text-[9px] font-bold text-blue-100/65">{@label}</span>
-      <span
-        :for={index <- 1..@maximum}
-        class={[
-          "size-[7px] rounded-full border border-white/20",
-          index <= @value && @color,
-          index > @value && "bg-white/10"
-        ]}
-      >
-      </span>
-    </div>
-    """
-  end
-
   defp base_classes(occupied?, position) do
     [
-      "size-3.5 rotate-45 rounded-[1px] border",
-      occupied? && "border-[#f7d168] bg-[#f7d168] shadow-[0_0_7px_rgba(247,209,104,0.55)]",
+      "size-[19px] rotate-45 rounded-[2px] border-2",
+      occupied? && "border-[#f7d168] bg-[#f7d168] shadow-[0_0_8px_rgba(247,209,104,0.5)]",
       !occupied? && "border-blue-100/30 bg-blue-100/8",
       position
     ]
   end
+
+  defp team_code(nil), do: "TBD"
+
+  defp team_code(team) do
+    case String.trim(team.code || "") do
+      "" -> short_name(team)
+      code -> code
+    end
+  end
+
+  defp player_name(%{"name" => name}, fallback) when is_binary(name) do
+    case String.trim(name) do
+      "" -> fallback
+      name -> name
+    end
+  end
+
+  defp player_name(_player, fallback), do: fallback
+
+  defp batter_name(_order, nil), do: "BATTER"
+  defp batter_name(order, batter), do: "#{order}. #{player_name(batter, "BATTER")}"
+
+  defp batter_line(nil), do: "—"
+  defp batter_line(batter), do: "#{batter["hits"]}-#{batter["at_bats"]}"
 
   # The scorebug is the one scene whose geometry actually changes between
   # presets, so it dispatches on the show's preset rather than leaning on

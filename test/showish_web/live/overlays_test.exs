@@ -82,19 +82,56 @@ defmodule ShowishWeb.OverlaysTest do
     assert has_element?(view, "#baseball-scorebug")
     assert has_element?(view, "#baseball-overlay-inning")
     assert has_element?(view, "#baseball-overlay-bases")
-    assert has_element?(view, "#baseball-overlay-errors-2", "0")
+    assert has_element?(view, "#baseball-overlay-count", "0-0")
+    assert has_element?(view, "#baseball-overlay-pitcher", "PITCHER P: 0")
+    assert has_element?(view, "#baseball-overlay-batter", "BATTER —")
 
     {:ok, show} = Broadcasts.adjust_score(show, 1, 2)
 
-    {:ok, _show} =
-      Broadcasts.apply_sport_action(show, "adjust_stat", %{
-        "stat" => "hits",
+    assert has_element?(view, "#baseball-overlay-runs-1", "2")
+  end
+
+  test "baseball scorecard follows the active batter and fielding pitcher", %{
+    conn: conn,
+    scope: scope,
+    show: show
+  } do
+    {:ok, show} = Broadcasts.update_show(scope, show, %{"sport" => "baseball"})
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_lineup", %{
+        "lineup" => %{"position" => "1", "names" => "A. leadoff\nB. slugger"}
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_pitcher", %{
+        "pitcher" => %{"position" => "2", "name" => "Phillips"}
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "adjust_pitch_count", %{
+        "position" => "2",
+        "delta" => "30"
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "adjust_batter_stat", %{
         "position" => "1",
+        "stat" => "at_bats",
+        "delta" => "4"
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "adjust_batter_stat", %{
+        "position" => "1",
+        "stat" => "hits",
         "delta" => "1"
       })
 
-    assert has_element?(view, "#baseball-overlay-runs-1", "2")
-    assert has_element?(view, "#baseball-overlay-hits-1", "1")
+    {:ok, view, _html} = live(conn, Scenes.path(show.slug, "scorebug"))
+
+    assert has_element?(view, "#baseball-overlay-pitcher", "Phillips P: 30")
+    assert has_element?(view, "#baseball-overlay-batter", "1. A. leadoff 1-4")
   end
 
   test "sport-aware scene lists hide the esports series board" do

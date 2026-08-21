@@ -67,6 +67,9 @@ defmodule ShowishWeb.ControlLiveTest do
       assert has_element?(view, "#baseball-controls")
       assert has_element?(view, "#baseball-live-state")
       assert has_element?(view, "#baseball-inning")
+      assert has_element?(view, "#baseball-rosters")
+      assert has_element?(view, "#baseball-lineup-form-1")
+      assert has_element?(view, "#baseball-pitcher-form-2")
       refute has_element?(view, "#esports-controls")
       refute has_element?(view, "#add-game")
     end
@@ -87,6 +90,57 @@ defmodule ShowishWeb.ControlLiveTest do
       refute reloaded.sport_state["bases"]["first"]
       assert has_element?(view, "#baseball-inning")
       assert has_element?(view, "#baseball-advance-half")
+    end
+
+    test "manages lineups, the active batter and pitching", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view
+      |> form("#baseball-lineup-form-1",
+        lineup: %{position: "1", names: "A. Leadoff\nB. Slugger"}
+      )
+      |> render_submit()
+
+      view
+      |> form("#baseball-pitcher-form-2", pitcher: %{position: "2", name: "Phillips"})
+      |> render_submit()
+
+      view |> element("#baseball-batter-1-1") |> render_click()
+      view |> element("#baseball-batter-at_bats-up-1") |> render_click()
+      view |> element("#baseball-pitches-up-2") |> render_click()
+
+      reloaded = Broadcasts.get_show!(scope, show.id)
+
+      assert Enum.map(reloaded.sport_state["lineups"]["1"], & &1["name"]) == [
+               "A. Leadoff",
+               "B. Slugger"
+             ]
+
+      assert reloaded.sport_state["active_batters"]["1"] == 1
+      assert Enum.at(reloaded.sport_state["lineups"]["1"], 1)["at_bats"] == 1
+      assert reloaded.sport_state["pitchers"]["2"] == %{"name" => "Phillips", "pitch_count" => 1}
+    end
+
+    test "records and undoes pitches from the live action surface", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      assert has_element?(view, "#baseball-live-actions")
+      assert has_element?(view, "#baseball-undo[disabled]")
+
+      view |> element("#baseball-pitch-ball") |> render_click()
+
+      reloaded = Broadcasts.get_show!(scope, show.id)
+      assert reloaded.sport_state["balls"] == 1
+      assert reloaded.sport_state["pitchers"]["2"]["pitch_count"] == 1
+      refute has_element?(view, "#baseball-undo[disabled]")
+
+      view |> element("#baseball-undo") |> render_click()
+
+      reloaded = Broadcasts.get_show!(scope, show.id)
+      assert reloaded.sport_state["balls"] == 0
+      assert reloaded.sport_state["pitchers"]["2"]["pitch_count"] == 0
     end
   end
 

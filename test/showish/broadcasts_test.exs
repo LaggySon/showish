@@ -234,6 +234,85 @@ defmodule Showish.BroadcastsTest do
       assert show.sport_state["inning"] == 2
     end
 
+    test "baseball lineups and pitchers retain validated live stats" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "A. Leadoff\nB. Slugger"}
+               })
+
+      assert Enum.map(show.sport_state["lineups"]["1"], & &1["name"]) == [
+               "A. Leadoff",
+               "B. Slugger"
+             ]
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "set_batter", %{
+                 "position" => "1",
+                 "index" => "1"
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "adjust_batter_stat", %{
+                 "position" => "1",
+                 "stat" => "at_bats",
+                 "delta" => "3"
+               })
+
+      assert Enum.at(show.sport_state["lineups"]["1"], 1)["at_bats"] == 3
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_pitcher", %{
+                 "pitcher" => %{"position" => "2", "name" => "Phillips"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "adjust_pitch_count", %{
+                 "position" => "2",
+                 "delta" => "30"
+               })
+
+      assert show.sport_state["pitchers"]["2"] == %{
+               "name" => "Phillips",
+               "pitch_count" => 30
+             }
+    end
+
+    test "live pitch actions advance the count, pitcher and inning and can be undone" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "record_pitch", %{"result" => "ball"})
+
+      assert show.sport_state["balls"] == 1
+      assert show.sport_state["pitchers"]["2"]["pitch_count"] == 1
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "record_pitch", %{"result" => "strike"})
+
+      assert show.sport_state["strikes"] == 1
+      assert show.sport_state["pitchers"]["2"]["pitch_count"] == 2
+
+      assert {:ok, show} = Broadcasts.apply_sport_action(show, "undo")
+      assert show.sport_state["strikes"] == 0
+      assert show.sport_state["pitchers"]["2"]["pitch_count"] == 1
+
+      show =
+        Enum.reduce(1..3, show, fn _out, current_show ->
+          assert {:ok, updated_show} =
+                   Broadcasts.apply_sport_action(current_show, "record_play", %{
+                     "result" => "out"
+                   })
+
+          updated_show
+        end)
+
+      assert show.sport_state["half"] == "bottom"
+      assert show.sport_state["outs"] == 0
+      assert show.sport_state["pitchers"]["2"]["pitch_count"] == 1
+    end
+
     test "resetting a baseball game clears state and runs together" do
       show = show_fixture(%{sport: "baseball"})
       {:ok, show} = Broadcasts.adjust_score(show, 1, 4)

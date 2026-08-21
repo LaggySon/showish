@@ -18,6 +18,10 @@ defmodule ShowishWeb.SportControls do
     state = Baseball.normalize_state(assigns.show.sport_state)
     teams = sorted_teams(assigns.show)
     batting_position = if state["half"] == "top", do: 1, else: 2
+    fielding_position = if batting_position == 1, do: 2, else: 1
+    batting_key = to_string(batting_position)
+    fielding_key = to_string(fielding_position)
+    active_batter = Enum.at(state["lineups"][batting_key], state["active_batters"][batting_key])
 
     assigns =
       assigns
@@ -25,6 +29,10 @@ defmodule ShowishWeb.SportControls do
       |> assign(:teams, teams)
       |> assign(:batting_position, batting_position)
       |> assign(:batting_team, Enum.find(teams, &(&1.position == batting_position)))
+      |> assign(:active_batter, active_batter)
+      |> assign(:current_pitcher, state["pitchers"][fielding_key])
+      |> assign(:lineup_forms, lineup_forms(teams, state))
+      |> assign(:pitcher_forms, pitcher_forms(teams, state))
 
     ~H"""
     <div id="baseball-controls" class="space-y-4">
@@ -65,6 +73,150 @@ defmodule ShowishWeb.SportControls do
           batting?={team.position == @batting_position}
         />
       </div>
+
+      <section
+        id="baseball-live-actions"
+        class="overflow-hidden rounded-lg border border-slate-700 bg-slate-950 text-white shadow-sm"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+              Live actions
+            </p>
+            <p class="mt-0.5 font-bold">
+              {if(@active_batter, do: @active_batter["name"], else: "Batter not set")}
+              <span class="px-1 text-slate-600">vs.</span>
+              {if(@current_pitcher["name"] == "",
+                do: "Pitcher not set",
+                else: @current_pitcher["name"]
+              )}
+            </p>
+          </div>
+          <button
+            id="baseball-undo"
+            type="button"
+            class="flex items-center gap-1.5 rounded-md border border-white/15 bg-white/8 px-3 py-2 text-xs font-black uppercase tracking-wider transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+            phx-click="sport_action"
+            phx-value-action="undo"
+            disabled={@state["history"] == []}
+          >
+            <.icon name="hero-arrow-uturn-left-mini" class="size-4" /> Undo
+          </button>
+        </div>
+
+        <div class="grid gap-px bg-white/10 lg:grid-cols-2">
+          <div class="bg-slate-950 p-4">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Record pitch
+              </p>
+              <span class="font-mono text-xs font-bold text-slate-400 tabular-nums">
+                Count {@state["balls"]}-{@state["strikes"]}
+              </span>
+            </div>
+            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+              <.game_action
+                id="baseball-pitch-ball"
+                action="record_pitch"
+                result="ball"
+                label="Ball"
+                tone="green"
+              />
+              <.game_action
+                id="baseball-pitch-strike"
+                action="record_pitch"
+                result="strike"
+                label="Strike"
+                tone="red"
+              />
+              <.game_action
+                id="baseball-pitch-foul"
+                action="record_pitch"
+                result="foul"
+                label="Foul"
+                tone="amber"
+              />
+              <.game_action
+                id="baseball-pitch-in-play"
+                action="record_pitch"
+                result="in_play"
+                label="In play"
+                tone="blue"
+              />
+            </div>
+            <p class="mt-2 text-[10px] leading-relaxed text-slate-500">
+              Every pitch increments the fielding pitcher's count. Ball four and strike three close the plate appearance automatically.
+            </p>
+          </div>
+
+          <div class="bg-slate-950 p-4">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Finish plate appearance
+              </p>
+              <span class="font-mono text-xs font-bold text-slate-400 tabular-nums">
+                {@state["outs"]} {if(@state["outs"] == 1, do: "out", else: "outs")}
+              </span>
+            </div>
+            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+              <.game_action
+                id="baseball-play-out"
+                action="record_play"
+                result="out"
+                label="Out"
+                tone="red"
+              />
+              <.game_action
+                id="baseball-play-reached"
+                action="record_play"
+                result="reached"
+                label="Hit / error"
+                tone="blue"
+              />
+              <.game_action
+                id="baseball-play-walk"
+                action="record_play"
+                result="walk"
+                label="Walk / HBP"
+                tone="green"
+              />
+              <.game_action
+                id="baseball-play-home-run"
+                action="record_play"
+                result="home_run"
+                label="Home run"
+                tone="amber"
+              />
+            </div>
+            <p class="mt-2 text-[10px] leading-relaxed text-slate-500">
+              These advance the lineup and clear the count. Use the score and runner controls for the exact play result.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="baseball-rosters" class="overflow-hidden rounded-lg border border-base-300">
+        <div class="border-b border-base-300 bg-base-200/70 px-4 py-3">
+          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
+            Lineups & pitching
+          </p>
+          <p class="mt-1 text-xs text-base-content/55">
+            Enter one batter per line, choose who is at bat, and set each team's current pitcher.
+          </p>
+        </div>
+        <div class="grid gap-px bg-base-300 lg:grid-cols-2">
+          <.roster_control
+            :for={team <- @teams}
+            team={team}
+            lineup={@state["lineups"][to_string(team.position)]}
+            active_index={@state["active_batters"][to_string(team.position)]}
+            pitcher={@state["pitchers"][to_string(team.position)]}
+            batting?={team.position == @batting_position}
+            lineup_form={@lineup_forms[team.position]}
+            pitcher_form={@pitcher_forms[team.position]}
+          />
+        </div>
+      </section>
 
       <div class="grid gap-3 lg:grid-cols-[0.85fr_1.45fr_1fr]">
         <section class="rounded-lg border border-base-300 bg-base-200/45 p-4">
@@ -205,7 +357,7 @@ defmodule ShowishWeb.SportControls do
           type="button"
           class="rounded px-3 py-2 text-xs font-bold text-error transition hover:bg-error/10"
           phx-click="reset_sport"
-          data-confirm="Reset the inning, count, bases, runs, hits and errors?"
+          data-confirm="Reset the game stats and scores? Saved lineups and pitcher names will remain."
         >
           Reset game
         </button>
@@ -258,6 +410,203 @@ defmodule ShowishWeb.SportControls do
         >
           Reset scores
         </button>
+      </div>
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :action, :string, required: true
+  attr :result, :string, required: true
+  attr :label, :string, required: true
+  attr :tone, :string, required: true, values: ~w(green red amber blue)
+
+  defp game_action(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      type="button"
+      class={[
+        "min-h-11 rounded-md border px-2 py-2 text-xs font-black uppercase tracking-[0.08em] shadow-sm transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 active:scale-[0.98]",
+        game_action_tone(@tone)
+      ]}
+      phx-click="sport_action"
+      phx-value-action={@action}
+      phx-value-result={@result}
+    >
+      {@label}
+    </button>
+    """
+  end
+
+  defp game_action_tone("green"), do: "border-emerald-400/30 bg-emerald-500/18 text-emerald-200"
+  defp game_action_tone("red"), do: "border-rose-400/30 bg-rose-500/18 text-rose-200"
+  defp game_action_tone("amber"), do: "border-amber-400/30 bg-amber-500/18 text-amber-200"
+  defp game_action_tone("blue"), do: "border-sky-400/30 bg-sky-500/18 text-sky-200"
+
+  attr :team, :any, required: true
+  attr :lineup, :list, required: true
+  attr :active_index, :integer, required: true
+  attr :pitcher, :map, required: true
+  attr :batting?, :boolean, required: true
+  attr :lineup_form, :any, required: true
+  attr :pitcher_form, :any, required: true
+
+  defp roster_control(assigns) do
+    assigns = assign(assigns, :active_batter, Enum.at(assigns.lineup, assigns.active_index))
+
+    ~H"""
+    <div class="bg-base-100 p-4">
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="truncate font-black">{Team.full_name(@team)}</p>
+          <p class="text-[10px] font-black uppercase tracking-[0.14em] text-base-content/45">
+            {if(@batting?, do: "Batting", else: "Fielding")}
+          </p>
+        </div>
+        <span class="size-3 shrink-0 rounded-full" style={"background: #{@team.primary_color}"}>
+        </span>
+      </div>
+
+      <.form
+        for={@lineup_form}
+        id={"baseball-lineup-form-#{@team.position}"}
+        phx-submit="sport_action"
+        phx-value-action="save_lineup"
+        class="mt-3"
+      >
+        <.input field={@lineup_form[:position]} type="hidden" />
+        <.input
+          field={@lineup_form[:names]}
+          type="textarea"
+          rows="5"
+          label="Batting order — one player per line"
+          placeholder="1. Player name\n2. Player name\n3. Player name"
+        />
+        <button
+          id={"baseball-save-lineup-#{@team.position}"}
+          type="submit"
+          class="mt-2 w-full rounded-md bg-primary px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110 active:scale-[0.99]"
+        >
+          Save lineup
+        </button>
+      </.form>
+
+      <div id={"baseball-lineup-#{@team.position}"} class="mt-3 space-y-1.5">
+        <p
+          :if={@lineup == []}
+          class="rounded-md border border-dashed border-base-300 p-3 text-center text-xs text-base-content/45"
+        >
+          No lineup entered yet
+        </p>
+        <button
+          :for={{player, index} <- Enum.with_index(@lineup)}
+          id={"baseball-batter-#{@team.position}-#{index}"}
+          type="button"
+          class={[
+            "grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition",
+            index == @active_index && "border-primary bg-primary/10",
+            index != @active_index &&
+              "border-base-300 hover:border-base-content/30 hover:bg-base-200/60"
+          ]}
+          phx-click="sport_action"
+          phx-value-action="set_batter"
+          phx-value-position={@team.position}
+          phx-value-index={index}
+        >
+          <span class="text-center text-xs font-black text-base-content/40">{index + 1}</span>
+          <span class="truncate font-bold">{player["name"]}</span>
+          <span class="font-mono text-xs font-bold tabular-nums">
+            {player["hits"]}-{player["at_bats"]}
+          </span>
+        </button>
+      </div>
+
+      <div :if={@active_batter} class="mt-3 rounded-md border border-base-300 bg-base-200/45 p-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-[9px] font-black uppercase tracking-[0.14em] text-primary">
+              Selected batter
+            </p>
+            <p class="truncate text-sm font-black">{@active_batter["name"]}</p>
+          </div>
+          <button
+            id={"baseball-next-batter-#{@team.position}"}
+            type="button"
+            class="rounded px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary transition hover:bg-primary/10"
+            phx-click="sport_action"
+            phx-value-action="next_batter"
+            phx-value-position={@team.position}
+          >
+            Next batter
+          </button>
+        </div>
+        <div class="mt-2 grid grid-cols-2 gap-2">
+          <.player_stat_control
+            label="Hits"
+            stat="hits"
+            position={@team.position}
+            value={@active_batter["hits"]}
+          />
+          <.player_stat_control
+            label="At bats"
+            stat="at_bats"
+            position={@team.position}
+            value={@active_batter["at_bats"]}
+          />
+        </div>
+      </div>
+
+      <.form
+        for={@pitcher_form}
+        id={"baseball-pitcher-form-#{@team.position}"}
+        phx-submit="sport_action"
+        phx-value-action="save_pitcher"
+        class="mt-4 border-t border-base-300 pt-4"
+      >
+        <.input field={@pitcher_form[:position]} type="hidden" />
+        <.input field={@pitcher_form[:name]} label="Current pitcher" placeholder="Pitcher name" />
+        <button
+          id={"baseball-save-pitcher-#{@team.position}"}
+          type="submit"
+          class="mt-2 w-full rounded-md border border-base-300 bg-base-200 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition hover:bg-base-300 active:scale-[0.99]"
+        >
+          Update pitcher
+        </button>
+      </.form>
+
+      <div class="mt-2 flex items-center justify-between rounded-md bg-slate-950 px-3 py-2 text-white">
+        <span class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Pitches</span>
+        <div class="flex items-center gap-2">
+          <button
+            id={"baseball-pitches-down-#{@team.position}"}
+            type="button"
+            class="grid size-7 place-items-center rounded bg-white/10 font-black transition hover:bg-white/20"
+            phx-click="sport_action"
+            phx-value-action="adjust_pitch_count"
+            phx-value-position={@team.position}
+            phx-value-delta="-1"
+          >
+            −
+          </button>
+          <span
+            id={"baseball-pitches-#{@team.position}"}
+            class="w-8 text-center text-lg font-black tabular-nums"
+          >
+            {@pitcher["pitch_count"]}
+          </span>
+          <button
+            id={"baseball-pitches-up-#{@team.position}"}
+            type="button"
+            class="grid size-7 place-items-center rounded bg-primary font-black text-primary-content transition hover:brightness-110"
+            phx-click="sport_action"
+            phx-value-action="adjust_pitch_count"
+            phx-value-position={@team.position}
+            phx-value-delta="1"
+          >
+            +
+          </button>
+        </div>
       </div>
     </div>
     """
@@ -468,6 +817,72 @@ defmodule ShowishWeb.SportControls do
       </button>
     </div>
     """
+  end
+
+  attr :label, :string, required: true
+  attr :stat, :string, required: true
+  attr :position, :integer, required: true
+  attr :value, :integer, required: true
+
+  defp player_stat_control(assigns) do
+    ~H"""
+    <div class="rounded border border-base-300 bg-base-100 p-2">
+      <span class="block text-center text-[9px] font-black uppercase tracking-wider text-base-content/45">
+        {@label}
+      </span>
+      <div class="mt-1 flex items-center justify-center gap-1.5">
+        <button
+          id={"baseball-batter-#{@stat}-down-#{@position}"}
+          type="button"
+          class="grid size-7 place-items-center rounded border border-base-300 font-bold transition hover:bg-base-200"
+          phx-click="sport_action"
+          phx-value-action="adjust_batter_stat"
+          phx-value-position={@position}
+          phx-value-stat={@stat}
+          phx-value-delta="-1"
+        >
+          −
+        </button>
+        <span
+          id={"baseball-batter-#{@stat}-#{@position}"}
+          class="w-6 text-center font-black tabular-nums"
+        >
+          {@value}
+        </span>
+        <button
+          id={"baseball-batter-#{@stat}-up-#{@position}"}
+          type="button"
+          class="grid size-7 place-items-center rounded bg-primary font-bold text-primary-content transition hover:brightness-110"
+          phx-click="sport_action"
+          phx-value-action="adjust_batter_stat"
+          phx-value-position={@position}
+          phx-value-stat={@stat}
+          phx-value-delta="1"
+        >
+          +
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  defp lineup_forms(teams, state) do
+    Map.new(teams, fn team ->
+      position = to_string(team.position)
+      names = state["lineups"][position] |> Enum.map_join("\n", & &1["name"])
+      {team.position, to_form(%{"position" => position, "names" => names}, as: :lineup)}
+    end)
+  end
+
+  defp pitcher_forms(teams, state) do
+    Map.new(teams, fn team ->
+      position = to_string(team.position)
+
+      {team.position,
+       to_form(%{"position" => position, "name" => state["pitchers"][position]["name"]},
+         as: :pitcher
+       )}
+    end)
   end
 
   defp sorted_teams(show), do: show.teams |> List.wrap() |> Enum.sort_by(& &1.position)
