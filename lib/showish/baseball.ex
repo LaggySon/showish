@@ -420,7 +420,7 @@ defmodule Showish.Baseball do
     scoring = scoring(result)
     automatic_runs = automatic_runs(game, result)
     advances = valid_advances(game, Map.get(params, "advances", []))
-    inferred_runs = if advances == [], do: automatic_runs, else: count_runs(advances)
+    inferred_runs = inferred_runs(game, result, advances, automatic_runs)
     runs_on_play = max(to_integer(Map.get(params, "runs", inferred_runs)), 0)
     rbi = max(to_integer(Map.get(params, "rbi", default_rbi(result, runs_on_play))), 0)
     outs_recorded = min(scoring.outs, 3 - game.outs)
@@ -455,9 +455,16 @@ defmodule Showish.Baseball do
 
     next = next_order(game, identities.batting_team.id, identities.batter_order)
     game = update_game!(game, %{identities.batter_order_field => next, balls: 0, strikes: 0})
-    game = apply_runner_advances(game, advances)
-    game = place_batter(game, identities.batter_id, result)
-    game = apply_batter_advance(game, identities.batter_id, advances)
+
+    game =
+      if result == "single" and advances != [] do
+        place_single_with_advances(game, identities.batter_id, advances)
+      else
+        game
+        |> apply_runner_advances(advances)
+        |> place_batter(identities.batter_id, result)
+        |> apply_batter_advance(identities.batter_id, advances)
+      end
 
     if outs_recorded > 0 do
       if game.outs + outs_recorded >= 3,
@@ -528,6 +535,17 @@ defmodule Showish.Baseball do
   defp valid_advances(_game, _advances), do: []
   defp count_runs(advances), do: Enum.count(advances, &(&1["to"] == "H"))
 
+  defp inferred_runs(_game, _result, [], automatic_runs), do: automatic_runs
+
+  defp inferred_runs(game, "single", advances, _automatic_runs) do
+    default_run =
+      if game.third_occupied and not Enum.any?(advances, &(&1["from"] == "3")), do: 1, else: 0
+
+    count_runs(advances) + default_run
+  end
+
+  defp inferred_runs(_game, _result, advances, _automatic_runs), do: count_runs(advances)
+
   defp batter_runs(advances),
     do: Enum.count(advances, &(&1["from"] == "B" and &1["to"] == "H"))
 
@@ -592,6 +610,42 @@ defmodule Showish.Baseball do
 
         if attrs == %{}, do: game, else: update_game!(game, attrs)
     end
+  end
+
+  defp place_single_with_advances(game, batter_id, advances) do
+    explicit = Map.new(advances, &{&1["from"], &1["to"]})
+
+    attrs =
+      %{
+        first_occupied: false,
+        first_runner_id: nil,
+        second_occupied: false,
+        second_runner_id: nil,
+        third_occupied: false,
+        third_runner_id: nil
+      }
+      |> place_original_runner(game, "1", Map.get(explicit, "1", "2"))
+      |> place_original_runner(game, "2", Map.get(explicit, "2", "3"))
+      |> place_original_runner(game, "3", Map.get(explicit, "3", "H"))
+      |> place_runner(batter_id, Map.get(explicit, "B", "1"))
+
+    update_game!(game, attrs)
+  end
+
+  defp place_original_runner(attrs, game, from, to) do
+    if Map.fetch!(game, occupied_field(from)) do
+      place_runner(attrs, Map.fetch!(game, runner_field(from)), to)
+    else
+      attrs
+    end
+  end
+
+  defp place_runner(attrs, _runner_id, "H"), do: attrs
+
+  defp place_runner(attrs, runner_id, to) do
+    attrs
+    |> Map.put(occupied_field(to), true)
+    |> Map.put(runner_field(to), runner_id)
   end
 
   defp occupied_field("1"), do: :first_occupied

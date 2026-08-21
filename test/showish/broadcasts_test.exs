@@ -605,6 +605,64 @@ defmodule Showish.BroadcastsTest do
              }
     end
 
+    test "explicit single advances do not move the same runner twice" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "toggle_base", %{"base" => "first"})
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "1B.1-3"}
+               })
+
+      [batter] = played.sport_state["lineups"]["1"]
+      assert {batter["hits"], batter["at_bats"], batter["rbi"]} == {1, 1, 0}
+      assert Show.team(played, 1).score == 0
+
+      assert played.sport_state["bases"] == %{
+               "first" => true,
+               "second" => false,
+               "third" => true
+             }
+    end
+
+    test "unspecified runners still take their normal advance on an explicit single" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      show =
+        Enum.reduce(~w(first third), show, fn base, current ->
+          assert {:ok, updated} =
+                   Broadcasts.apply_sport_action(current, "toggle_base", %{"base" => base})
+
+          updated
+        end)
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "1B.1-3"}
+               })
+
+      assert Show.team(played, 1).score == 1
+
+      assert Enum.all?([
+               played.sport_state["bases"]["first"],
+               played.sport_state["bases"]["third"]
+             ])
+
+      refute played.sport_state["bases"]["second"]
+    end
+
     test "scorebook notation overrides a mismatched quick-result button" do
       show = show_fixture(%{sport: "baseball"})
 
