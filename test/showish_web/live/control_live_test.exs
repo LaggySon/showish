@@ -74,7 +74,12 @@ defmodule ShowishWeb.ControlLiveTest do
       refute has_element?(view, "#baseball-defense-form-1")
       assert has_element?(view, "#baseball-bullpen-form-2")
       assert has_element?(view, "#baseball-play-single")
+      assert has_element?(view, "#baseball-play-strikeout")
       assert has_element?(view, "#baseball-play-error")
+      assert has_element?(view, "#baseball-play-fielders-choice")
+      assert has_element?(view, "#baseball-play-sac-fly")
+      assert has_element?(view, "#baseball-play-double-play")
+      assert has_element?(view, "#baseball-play-interference")
       refute has_element?(view, "#baseball-single-stats-form")
       refute has_element?(view, "#esports-controls")
       refute has_element?(view, "#add-game")
@@ -102,7 +107,9 @@ defmodule ShowishWeb.ControlLiveTest do
       )
       |> render_submit()
 
-      view |> element("#baseball-play-single") |> render_click()
+      view
+      |> element("#baseball-play-form")
+      |> render_submit(%{"play" => %{"notation" => "", "result" => "single"}})
 
       state = Broadcasts.get_show!(scope, show.id).sport_state
       assert state["defense"]["1"]["P"] == "Jordan Lee"
@@ -150,7 +157,11 @@ defmodule ShowishWeb.ControlLiveTest do
       |> render_submit()
 
       view |> element("#baseball-batter-1-1") |> render_click()
-      view |> element("#baseball-play-single") |> render_click()
+
+      view
+      |> element("#baseball-play-form")
+      |> render_submit(%{"play" => %{"notation" => "9", "result" => "single"}})
+
       view |> element("#baseball-pitches-up-2") |> render_click()
 
       reloaded = Broadcasts.get_show!(scope, show.id)
@@ -162,6 +173,8 @@ defmodule ShowishWeb.ControlLiveTest do
 
       assert reloaded.sport_state["defense"]["1"]["CF"] == "A. Leadoff"
       assert reloaded.sport_state["defense"]["1"]["1B"] == "B. Slugger"
+      assert reloaded.sport_state["last_play"] == %{"notation" => "9", "result" => "single"}
+      assert has_element?(view, "#baseball-last-play", "9 · Single")
 
       assert reloaded.sport_state["active_batters"]["1"] == 0
       assert Enum.at(reloaded.sport_state["lineups"]["1"], 1)["at_bats"] == 1

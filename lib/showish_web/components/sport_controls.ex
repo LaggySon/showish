@@ -34,6 +34,7 @@ defmodule ShowishWeb.SportControls do
       |> assign(:roster_forms, roster_forms(teams, state))
       |> assign(:pitcher_forms, pitcher_forms(teams, state))
       |> assign(:bullpen_forms, bullpen_forms(teams, state))
+      |> assign(:play_form, play_form())
       |> assign(:highlight_form, highlight_form(state))
       |> assign(:highlight_options, highlight_options(state))
 
@@ -107,11 +108,11 @@ defmodule ShowishWeb.SportControls do
           </button>
         </div>
 
-        <div class="grid gap-px bg-white/10 lg:grid-cols-2">
+        <div class="grid gap-px bg-white/10 lg:grid-cols-[0.8fr_1.2fr]">
           <div class="bg-slate-950 p-4">
             <div class="flex items-center justify-between gap-2">
               <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Record pitch
+                Record pitch · optional
               </p>
               <span class="font-mono text-xs font-bold text-slate-400 tabular-nums">
                 Count {@state["balls"]}-{@state["strikes"]}
@@ -157,71 +158,179 @@ defmodule ShowishWeb.SportControls do
               <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
                 Finish plate appearance
               </p>
-              <span class="font-mono text-xs font-bold text-slate-400 tabular-nums">
-                {@state["outs"]} {if(@state["outs"] == 1, do: "out", else: "outs")}
-              </span>
+              <div class="text-right">
+                <span class="block font-mono text-xs font-bold text-slate-400 tabular-nums">
+                  {@state["outs"]} {if(@state["outs"] == 1, do: "out", else: "outs")}
+                </span>
+                <span
+                  :if={@state["last_play"]["result"] != ""}
+                  id="baseball-last-play"
+                  class="mt-0.5 block text-[10px] font-bold uppercase tracking-wider text-cyan-300"
+                >
+                  Last · {last_play_text(@state["last_play"])}
+                </span>
+              </div>
             </div>
-            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <.game_action
-                id="baseball-play-out"
-                action="record_play"
-                result="out"
-                label="Out"
-                tone="red"
+            <.form
+              for={@play_form}
+              id="baseball-play-form"
+              phx-submit="sport_action"
+              phx-value-action="record_play"
+            >
+              <label
+                for="baseball-play-notation"
+                class="mt-3 block text-[10px] font-black uppercase tracking-[0.14em] text-slate-400"
+              >
+                Scorebook notation
+                <span class="font-medium normal-case tracking-normal text-slate-600">· optional</span>
+              </label>
+              <.input
+                field={@play_form[:notation]}
+                id="baseball-play-notation"
+                type="text"
+                placeholder="463 becomes 4-6-3 · also accepts F8, 6-3, K"
+                class="mt-1 w-full rounded-md border border-white/15 bg-white/[0.06] px-3 py-2 text-sm font-bold text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
               />
-              <.game_action
-                id="baseball-play-single"
-                action="record_play"
-                result="single"
-                label="Single"
-                tone="blue"
-              />
-              <.game_action
-                id="baseball-play-double"
-                action="record_play"
-                result="double"
-                label="Double"
-                tone="blue"
-              />
-              <.game_action
-                id="baseball-play-triple"
-                action="record_play"
-                result="triple"
-                label="Triple"
-                tone="blue"
-              />
-              <.game_action
-                id="baseball-play-walk"
-                action="record_play"
-                result="walk"
-                label="Walk"
-                tone="green"
-              />
-              <.game_action
-                id="baseball-play-hit-by-pitch"
-                action="record_play"
-                result="hit_by_pitch"
-                label="Hit by pitch"
-                tone="green"
-              />
-              <.game_action
-                id="baseball-play-error"
-                action="record_play"
-                result="reached_on_error"
-                label="Reached on error"
-                tone="amber"
-              />
-              <.game_action
-                id="baseball-play-home-run"
-                action="record_play"
-                result="home_run"
-                label="Home run"
-                tone="amber"
-              />
-            </div>
-            <p class="mt-2 text-[10px] leading-relaxed text-slate-500">
-              Hits and errors are separate database events, so H–AB and highlights always agree. Use the score and runner controls for runs and unusual advancement.
-            </p>
+              <p class="mt-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                Most common · one tap
+              </p>
+              <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <.game_action
+                  id="baseball-play-out"
+                  action="record_play"
+                  result="out"
+                  label="Out"
+                  tone="red"
+                  size="primary"
+                />
+                <.game_action
+                  id="baseball-play-strikeout"
+                  action="record_play"
+                  result="strikeout"
+                  label="Strikeout"
+                  tone="red"
+                  size="primary"
+                />
+                <.game_action
+                  id="baseball-play-single"
+                  action="record_play"
+                  result="single"
+                  label="Single"
+                  tone="blue"
+                  size="primary"
+                />
+                <.game_action
+                  id="baseball-play-walk"
+                  action="record_play"
+                  result="walk"
+                  label="Walk"
+                  tone="green"
+                  size="primary"
+                />
+                <.game_action
+                  id="baseball-play-double"
+                  action="record_play"
+                  result="double"
+                  label="Double"
+                  tone="blue"
+                  size="primary"
+                />
+                <.game_action
+                  id="baseball-play-home-run"
+                  action="record_play"
+                  result="home_run"
+                  label="Home run"
+                  tone="amber"
+                  size="primary"
+                />
+              </div>
+
+              <details
+                id="baseball-more-results"
+                class="group mt-3 rounded-md border border-white/10 bg-white/[0.03]"
+              >
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-300 transition hover:bg-white/[0.05]">
+                  More results
+                  <.icon
+                    name="hero-chevron-down-mini"
+                    class="size-4 transition group-open:rotate-180"
+                  />
+                </summary>
+                <div class="grid grid-cols-2 gap-2 border-t border-white/10 p-3 sm:grid-cols-3">
+                  <.game_action
+                    id="baseball-play-triple"
+                    action="record_play"
+                    result="triple"
+                    label="Triple"
+                    tone="blue"
+                  />
+                  <.game_action
+                    id="baseball-play-hit-by-pitch"
+                    action="record_play"
+                    result="hit_by_pitch"
+                    label="Hit by pitch"
+                    tone="green"
+                  />
+                  <.game_action
+                    id="baseball-play-error"
+                    action="record_play"
+                    result="reached_on_error"
+                    label="Reached on error"
+                    tone="amber"
+                  />
+                  <.game_action
+                    id="baseball-play-fielders-choice"
+                    action="record_play"
+                    result="fielders_choice"
+                    label="Fielder's choice"
+                    tone="red"
+                    disabled={!Enum.any?(Map.values(@state["bases"]))}
+                  />
+                  <.game_action
+                    id="baseball-play-sac-fly"
+                    action="record_play"
+                    result="sacrifice_fly"
+                    label="Sac fly"
+                    tone="green"
+                    disabled={@state["outs"] == 2 or not @state["bases"]["third"]}
+                  />
+                  <.game_action
+                    id="baseball-play-sac-bunt"
+                    action="record_play"
+                    result="sacrifice_bunt"
+                    label="Sac bunt"
+                    tone="green"
+                    disabled={@state["outs"] == 2 or not Enum.any?(Map.values(@state["bases"]))}
+                  />
+                  <.game_action
+                    id="baseball-play-double-play"
+                    action="record_play"
+                    result="double_play"
+                    label="Double play"
+                    tone="red"
+                    disabled={@state["outs"] == 2 or not Enum.any?(Map.values(@state["bases"]))}
+                  />
+                  <.game_action
+                    id="baseball-play-interference"
+                    action="record_play"
+                    result="interference"
+                    label="Interference"
+                    tone="amber"
+                  />
+                  <.game_action
+                    id="baseball-play-strikeout-reached"
+                    action="record_play"
+                    result="strikeout_reached"
+                    label="K · reached"
+                    tone="amber"
+                    disabled={@state["bases"]["first"] and @state["outs"] < 2}
+                  />
+                </div>
+              </details>
+              <p class="mt-2 text-[10px] leading-relaxed text-slate-500">
+                Use Out for any routine batted out. Sac fly scores a runner from third automatically; use score and runner controls for unusual advancement. Undo reverses the entire last pitch or play.
+              </p>
+            </.form>
           </div>
         </div>
       </section>
@@ -582,19 +691,29 @@ defmodule ShowishWeb.SportControls do
   attr :result, :string, required: true
   attr :label, :string, required: true
   attr :tone, :string, required: true, values: ~w(green red amber blue)
+  attr :size, :string, default: "regular", values: ~w(regular primary)
+  attr :submit, :boolean, default: false
+  attr :disabled, :boolean, default: false
 
   defp game_action(assigns) do
+    assigns = assign(assigns, :submit, assigns.submit || assigns.action == "record_play")
+
     ~H"""
     <button
       id={@id}
-      type="button"
+      type={if(@submit, do: "submit", else: "button")}
+      name={if(@submit, do: "play[result]")}
+      value={if(@submit, do: @result)}
+      disabled={@disabled}
       class={[
-        "min-h-11 rounded-md border px-2 py-2 text-xs font-black uppercase tracking-[0.08em] shadow-sm transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 active:scale-[0.98]",
+        "rounded-md border px-2 font-black uppercase tracking-[0.08em] shadow-sm transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 active:scale-[0.98]",
+        "disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:translate-y-0 disabled:hover:brightness-100",
+        if(@size == "primary", do: "min-h-14 py-3 text-sm", else: "min-h-11 py-2 text-xs"),
         game_action_tone(@tone)
       ]}
-      phx-click="sport_action"
-      phx-value-action={@action}
-      phx-value-result={@result}
+      phx-click={if(!@submit, do: "sport_action")}
+      phx-value-action={if(!@submit, do: @action)}
+      phx-value-result={if(!@submit, do: @result)}
     >
       {@label}
     </button>
@@ -1004,6 +1123,21 @@ defmodule ShowishWeb.SportControls do
     </div>
     """
   end
+
+  defp play_form, do: to_form(%{"notation" => ""}, as: :play)
+
+  defp last_play_text(%{"result" => result, "notation" => notation}) do
+    label = result_label(result)
+    if notation == "", do: label, else: "#{notation} · #{label}"
+  end
+
+  defp result_label("reached_on_error"), do: "Error"
+  defp result_label("fielders_choice"), do: "Fielder's choice"
+  defp result_label("sacrifice_fly"), do: "Sac fly"
+  defp result_label("sacrifice_bunt"), do: "Sac bunt"
+  defp result_label("double_play"), do: "Double play"
+  defp result_label("strikeout_reached"), do: "K reached"
+  defp result_label(result), do: result |> String.replace("_", " ") |> String.capitalize()
 
   defp roster_forms(teams, state) do
     Map.new(teams, fn team ->

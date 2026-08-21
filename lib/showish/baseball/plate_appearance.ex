@@ -9,6 +9,7 @@ defmodule Showish.Baseball.PlateAppearance do
     field :inning, :integer
     field :half, :string
     field :result, :string
+    field :notation, :string, default: ""
     field :at_bat, :boolean, default: true
     field :hit_value, :integer, default: 0
     field :rbi, :integer, default: 0
@@ -24,7 +25,8 @@ defmodule Showish.Baseball.PlateAppearance do
   end
 
   @results ~w(single double triple home_run walk hit_by_pitch reached_on_error
-              fielders_choice sacrifice out strikeout)
+              fielders_choice sacrifice sacrifice_fly sacrifice_bunt double_play
+              interference out strikeout strikeout_reached)
 
   def changeset(appearance, attrs) do
     appearance
@@ -33,6 +35,7 @@ defmodule Showish.Baseball.PlateAppearance do
       :inning,
       :half,
       :result,
+      :notation,
       :at_bat,
       :hit_value,
       :rbi,
@@ -42,6 +45,7 @@ defmodule Showish.Baseball.PlateAppearance do
     |> validate_required([:sequence, :inning, :half, :result])
     |> validate_inclusion(:half, ~w(top bottom))
     |> validate_inclusion(:result, @results)
+    |> validate_length(:notation, max: 40)
     |> validate_number(:hit_value, greater_than_or_equal_to: 0, less_than_or_equal_to: 4)
     |> validate_number(:rbi, greater_than_or_equal_to: 0)
     |> validate_number(:runs_scored, greater_than_or_equal_to: 0)

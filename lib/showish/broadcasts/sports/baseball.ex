@@ -59,6 +59,7 @@ defmodule Showish.Broadcasts.Sports.Baseball do
         "stats" => []
       }
     },
+    "last_play" => %{"result" => "", "notation" => ""},
     "history" => []
   }
 
@@ -93,11 +94,21 @@ defmodule Showish.Broadcasts.Sports.Baseball do
       "bullpens" => bullpens(state["bullpens"]),
       "pitchers" => pitchers(state["pitchers"]),
       "graphics" => graphics(state["graphics"]),
+      "last_play" => last_play(state["last_play"]),
       "history" => history(state["history"])
     }
   end
 
   def normalize_state(_state), do: @default
+
+  defp last_play(play) when is_map(play) do
+    %{
+      "result" => clean_text(play["result"]),
+      "notation" => clean_text(play["notation"])
+    }
+  end
+
+  defp last_play(_play), do: @default["last_play"]
 
   @impl true
   def transition(state, "adjust_count", %{"kind" => kind, "delta" => delta})

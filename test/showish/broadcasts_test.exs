@@ -385,6 +385,119 @@ defmodule Showish.BroadcastsTest do
       assert show.sport_state["outs"] == 1
     end
 
+    test "special plate appearance outcomes preserve official at-bat semantics" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      for {result, expected} <- [
+            {"sacrifice_bunt", %{at_bats: 0, strikeouts: 0, outs: 1, first: false}},
+            {"interference", %{at_bats: 0, strikeouts: 0, outs: 0, first: true}},
+            {"strikeout_reached", %{at_bats: 1, strikeouts: 1, outs: 0, first: true}},
+            {"strikeout", %{at_bats: 1, strikeouts: 1, outs: 1, first: false}}
+          ] do
+        assert {:ok, played} =
+                 Broadcasts.apply_sport_action(show, "record_play", %{"result" => result})
+
+        [batter] = played.sport_state["lineups"]["1"]
+        assert batter["at_bats"] == expected.at_bats
+        assert batter["strikeouts"] == expected.strikeouts
+        assert played.sport_state["outs"] == expected.outs
+        assert played.sport_state["bases"]["first"] == expected.first
+
+        assert {:ok, undone} = Broadcasts.apply_sport_action(played, "undo")
+        [batter] = undone.sport_state["lineups"]["1"]
+        assert batter["at_bats"] == 0
+        assert batter["strikeouts"] == 0
+        assert undone.sport_state["outs"] == 0
+        refute undone.sport_state["bases"]["first"]
+      end
+    end
+
+    test "sacrifice flies and home runs update scores and undo atomically" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "toggle_base", %{"base" => "third"})
+
+      assert {:ok, sacrifice} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "result" => "sacrifice_fly"
+               })
+
+      [batter] = sacrifice.sport_state["lineups"]["1"]
+      assert batter["at_bats"] == 0
+      assert batter["rbi"] == 1
+      assert Show.team(sacrifice, 1).score == 1
+      assert sacrifice.sport_state["outs"] == 1
+      refute sacrifice.sport_state["bases"]["third"]
+
+      assert {:ok, undone} = Broadcasts.apply_sport_action(sacrifice, "undo")
+      assert Show.team(undone, 1).score == 0
+      assert undone.sport_state["outs"] == 0
+      assert undone.sport_state["bases"]["third"]
+      assert undone.baseball_game.plate_appearances == []
+
+      assert {:ok, homer} =
+               Broadcasts.apply_sport_action(undone, "record_play", %{
+                 "result" => "home_run"
+               })
+
+      assert Show.team(homer, 1).score == 2
+      assert {:ok, homer_undone} = Broadcasts.apply_sport_action(homer, "undo")
+      assert Show.team(homer_undone, 1).score == 0
+      assert homer_undone.sport_state["bases"]["third"]
+    end
+
+    test "walks force occupied runners and double plays record two outs" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      show =
+        Enum.reduce(~w(first second third), show, fn base, current ->
+          assert {:ok, updated} =
+                   Broadcasts.apply_sport_action(current, "toggle_base", %{"base" => base})
+
+          updated
+        end)
+
+      assert {:ok, walked} =
+               Broadcasts.apply_sport_action(show, "record_play", %{"result" => "walk"})
+
+      assert Show.team(walked, 1).score == 1
+      assert Enum.all?(Map.values(walked.sport_state["bases"]))
+
+      assert {:ok, reset} = Broadcasts.apply_sport_action(walked, "undo")
+
+      assert {:ok, doubled_up} =
+               Broadcasts.apply_sport_action(reset, "record_play", %{
+                 "result" => "double_play",
+                 "notation" => "463"
+               })
+
+      assert doubled_up.sport_state["outs"] == 2
+      refute doubled_up.sport_state["bases"]["first"]
+
+      assert doubled_up.sport_state["last_play"] == %{
+               "result" => "double_play",
+               "notation" => "4-6-3"
+             }
+
+      assert List.last(doubled_up.baseball_game.plate_appearances).notation == "4-6-3"
+    end
+
     test "hits, errors and walks derive different batting lines from plate appearances" do
       show = show_fixture(%{sport: "baseball"})
 

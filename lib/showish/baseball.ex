@@ -106,6 +106,7 @@ defmodule Showish.Baseball do
       "bullpens" => bullpen_projection(game, show),
       "pitchers" => pitchers,
       "graphics" => graphics_projection(game, show, stats),
+      "last_play" => last_play_projection(game),
       "history" =>
         game.events
         |> Enum.reject(&(&1.action == "legacy_import"))
@@ -268,7 +269,7 @@ defmodule Showish.Baseball do
 
   defp dispatch(game, show, "record_pitch", %{"result" => result} = params)
        when result in ~w(ball strike foul in_play) do
-    event = event!(game, "record_pitch", params)
+    event = event!(game, "record_pitch", params, show)
     identities = current_identities(game, show)
 
     %Pitch{
@@ -310,11 +311,16 @@ defmodule Showish.Baseball do
 
   defp dispatch(game, show, "record_play", %{"result" => result} = params)
        when result in ~w(reached single double triple home_run walk hit_by_pitch
-                         reached_on_error fielders_choice sacrifice out strikeout) do
+                         reached_on_error fielders_choice sacrifice sacrifice_fly
+                         sacrifice_bunt double_play interference out strikeout
+                         strikeout_reached) do
     result = if result == "reached", do: "single", else: result
-    event = event!(game, "record_play", Map.put(params, "result", result))
+    event = event!(game, "record_play", Map.put(params, "result", result), show)
     complete_appearance(game, show, event, result, params)
   end
+
+  defp dispatch(game, show, "record_play", %{"play" => params}) when is_map(params),
+    do: dispatch(game, show, "record_play", params)
 
   defp dispatch(game, _show, "adjust_count", %{"kind" => kind, "delta" => delta})
        when kind in ~w(balls strikes outs) do
@@ -343,7 +349,7 @@ defmodule Showish.Baseball do
   defp dispatch(game, _show, "next_half", _params), do: {:ok, advance_half(game)}
   defp dispatch(game, _show, "previous_half", _params), do: {:ok, previous_half(game)}
 
-  defp dispatch(game, _show, "undo", _params) do
+  defp dispatch(game, show, "undo", _params) do
     event =
       Event
       |> where([event], event.game_id == ^game.id and event.action != "legacy_import")
@@ -357,6 +363,7 @@ defmodule Showish.Baseball do
 
       event ->
         game = update_game!(game, atomize_game_state(event.state_before))
+        restore_scores!(show, event.state_before)
         Repo.delete!(event)
         {:ok, game}
     end
@@ -393,9 +400,10 @@ defmodule Showish.Baseball do
   defp complete_appearance(game, show, event, result, params) do
     identities = current_identities(game, show)
     scoring = scoring(result)
-    automatic_runs = if result == "home_run", do: occupied_bases(game) + 1, else: 0
+    automatic_runs = automatic_runs(game, result)
     runs_on_play = max(to_integer(Map.get(params, "runs", automatic_runs)), 0)
     rbi = max(to_integer(Map.get(params, "rbi", runs_on_play)), 0)
+    outs_recorded = min(scoring.outs, 3 - game.outs)
 
     %PlateAppearance{
       game_id: game.id,
@@ -409,11 +417,12 @@ defmodule Showish.Baseball do
       inning: game.inning,
       half: game.half,
       result: result,
+      notation: normalize_notation(Map.get(params, "notation", "")),
       at_bat: scoring.at_bat,
       hit_value: scoring.hit_value,
       rbi: rbi,
       runs_scored: max(to_integer(Map.get(params, "runs_scored", scoring.runs_scored)), 0),
-      outs_recorded: scoring.outs
+      outs_recorded: outs_recorded
     })
     |> Repo.insert!()
 
@@ -427,10 +436,10 @@ defmodule Showish.Baseball do
     game = update_game!(game, %{identities.batter_order_field => next, balls: 0, strikes: 0})
     game = place_batter(game, identities.batter_id, result)
 
-    if scoring.outs > 0 do
-      if game.outs + scoring.outs >= 3,
+    if outs_recorded > 0 do
+      if game.outs + outs_recorded >= 3,
         do: {:ok, advance_half(game)},
-        else: {:ok, update_game!(game, %{outs: game.outs + scoring.outs})}
+        else: {:ok, update_game!(game, %{outs: game.outs + outs_recorded})}
     else
       {:ok, game}
     end
@@ -444,42 +453,104 @@ defmodule Showish.Baseball do
   defp scoring(result) when result in ~w(walk hit_by_pitch),
     do: %{at_bat: false, hit_value: 0, outs: 0, rbi: 0, runs_scored: 0}
 
-  defp scoring("sacrifice"), do: %{at_bat: false, hit_value: 0, outs: 1, rbi: 0, runs_scored: 0}
+  defp scoring(result) when result in ~w(sacrifice sacrifice_fly sacrifice_bunt),
+    do: %{at_bat: false, hit_value: 0, outs: 1, rbi: 0, runs_scored: 0}
 
   defp scoring(result) when result in ~w(out strikeout fielders_choice),
     do: %{at_bat: true, hit_value: 0, outs: 1, rbi: 0, runs_scored: 0}
 
-  defp scoring("reached_on_error"),
+  defp scoring("double_play"),
+    do: %{at_bat: true, hit_value: 0, outs: 2, rbi: 0, runs_scored: 0}
+
+  defp scoring(result) when result in ~w(reached_on_error strikeout_reached),
     do: %{at_bat: true, hit_value: 0, outs: 0, rbi: 0, runs_scored: 0}
+
+  defp scoring("interference"),
+    do: %{at_bat: false, hit_value: 0, outs: 0, rbi: 0, runs_scored: 0}
+
+  defp automatic_runs(game, "home_run"), do: occupied_bases(game) + 1
+
+  defp automatic_runs(game, "double"),
+    do: Enum.count([game.second_occupied, game.third_occupied], & &1)
+
+  defp automatic_runs(game, "triple"), do: occupied_bases(game)
+  defp automatic_runs(game, "sacrifice_fly"), do: if(game.third_occupied, do: 1, else: 0)
+
+  defp automatic_runs(game, result) when result in ~w(walk hit_by_pitch interference),
+    do: if(game.first_occupied and game.second_occupied and game.third_occupied, do: 1, else: 0)
+
+  defp automatic_runs(_game, _result), do: 0
 
   defp place_batter(game, batter_id, result) do
     case result do
       "single" ->
-        update_game!(game, %{first_occupied: true, first_runner_id: batter_id})
+        force_batter_to_first(game, batter_id)
 
       "reached_on_error" ->
-        update_game!(game, %{first_occupied: true, first_runner_id: batter_id})
+        force_batter_to_first(game, batter_id)
 
       "fielders_choice" ->
         update_game!(game, %{first_occupied: true, first_runner_id: batter_id})
 
       "walk" ->
-        update_game!(game, %{first_occupied: true, first_runner_id: batter_id})
+        force_batter_to_first(game, batter_id)
 
       "hit_by_pitch" ->
-        update_game!(game, %{first_occupied: true, first_runner_id: batter_id})
+        force_batter_to_first(game, batter_id)
+
+      "interference" ->
+        force_batter_to_first(game, batter_id)
+
+      "strikeout_reached" ->
+        force_batter_to_first(game, batter_id)
 
       "double" ->
-        update_game!(game, %{second_occupied: true, second_runner_id: batter_id})
+        update_game!(game, %{
+          first_occupied: false,
+          first_runner_id: nil,
+          second_occupied: true,
+          second_runner_id: batter_id,
+          third_occupied: game.first_occupied,
+          third_runner_id: if(game.first_occupied, do: game.first_runner_id, else: nil)
+        })
 
       "triple" ->
-        update_game!(game, %{third_occupied: true, third_runner_id: batter_id})
+        update_game!(game, %{
+          first_occupied: false,
+          first_runner_id: nil,
+          second_occupied: false,
+          second_runner_id: nil,
+          third_occupied: true,
+          third_runner_id: batter_id
+        })
 
       "home_run" ->
         clear_bases(game)
 
+      "sacrifice_fly" when game.third_occupied ->
+        update_game!(game, %{third_occupied: false, third_runner_id: nil})
+
+      "double_play" ->
+        update_game!(game, %{first_occupied: false, first_runner_id: nil})
+
       _ ->
         game
+    end
+  end
+
+  defp force_batter_to_first(game, batter_id) do
+    if game.first_occupied do
+      update_game!(game, %{
+        first_occupied: true,
+        first_runner_id: batter_id,
+        second_occupied: true,
+        second_runner_id: game.first_runner_id,
+        third_occupied: game.second_occupied || game.third_occupied,
+        third_runner_id:
+          if(game.second_occupied, do: game.second_runner_id, else: game.third_runner_id)
+      })
+    else
+      update_game!(game, %{first_occupied: true, first_runner_id: batter_id})
     end
   end
 
@@ -596,15 +667,36 @@ defmodule Showish.Baseball do
     end)
   end
 
-  defp event!(game, action, params) do
+  defp event!(game, action, params, show) do
+    state_before =
+      Map.merge(game_state(game), %{
+        "away_score" => team!(show, "1").score,
+        "home_score" => team!(show, "2").score
+      })
+
     %Event{game_id: game.id}
     |> Event.changeset(%{
       sequence: next_sequence(Event, game.id),
       action: action,
       params: params,
-      state_before: game_state(game)
+      state_before: state_before
     })
     |> Repo.insert!()
+  end
+
+  defp restore_scores!(show, state) do
+    Enum.each([{"1", "away_score"}, {"2", "home_score"}], fn {position, key} ->
+      case Map.fetch(state, key) do
+        {:ok, score} ->
+          show
+          |> team!(position)
+          |> Team.changeset(%{score: score})
+          |> Repo.update!()
+
+        :error ->
+          :ok
+      end
+    end)
   end
 
   defp current_identities(game, show) do
@@ -652,7 +744,7 @@ defmodule Showish.Baseball do
       hit_by_pitch: if(appearance.result == "hit_by_pitch", do: 1, else: 0),
       rbi: appearance.rbi,
       runs: appearance.runs_scored,
-      strikeouts: if(appearance.result == "strikeout", do: 1, else: 0)
+      strikeouts: if(appearance.result in ~w(strikeout strikeout_reached), do: 1, else: 0)
     }
   end
 
@@ -700,6 +792,13 @@ defmodule Showish.Baseball do
       "1" => Map.get(totals, Show.team(show, 1).id, 0),
       "2" => Map.get(totals, Show.team(show, 2).id, 0)
     }
+  end
+
+  defp last_play_projection(game) do
+    case Enum.max_by(game.plate_appearances, & &1.sequence, fn -> nil end) do
+      nil -> %{"result" => "", "notation" => ""}
+      appearance -> %{"result" => appearance.result, "notation" => appearance.notation}
+    end
   end
 
   defp defense_projection(game, show) do
@@ -1016,6 +1115,16 @@ defmodule Showish.Baseball do
     case String.trim(to_string(value || "")) do
       "" -> fallback
       text -> text
+    end
+  end
+
+  defp normalize_notation(value) do
+    notation = value |> to_string() |> String.trim() |> String.upcase() |> String.slice(0, 40)
+
+    if Regex.match?(~r/^\d{2,6}$/u, notation) do
+      notation |> String.graphemes() |> Enum.join("-")
+    else
+      notation
     end
   end
 
