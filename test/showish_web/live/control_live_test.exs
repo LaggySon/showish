@@ -68,10 +68,65 @@ defmodule ShowishWeb.ControlLiveTest do
       assert has_element?(view, "#baseball-live-state")
       assert has_element?(view, "#baseball-inning")
       assert has_element?(view, "#baseball-rosters")
+      assert has_element?(view, "#baseball-graphics-controls")
       assert has_element?(view, "#baseball-lineup-form-1")
       assert has_element?(view, "#baseball-pitcher-form-2")
+      assert has_element?(view, "#baseball-defense-form-1")
+      assert has_element?(view, "#baseball-bullpen-form-2")
+      assert has_element?(view, "#baseball-single-stats-form")
+      assert has_element?(view, "#baseball-comparison-stats-form")
       refute has_element?(view, "#esports-controls")
       refute has_element?(view, "#add-game")
+    end
+
+    test "saves defensive, bullpen and stat graphic data", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view
+      |> form("#baseball-defense-form-1",
+        defense: %{position: "1", players: "P: Jordan Lee\nSS: Morgan Ellis"}
+      )
+      |> render_submit()
+
+      view
+      |> form("#baseball-bullpen-form-2",
+        bullpen: %{position: "2", pitchers: "Taylor Reed | Warming"}
+      )
+      |> render_submit()
+
+      view
+      |> form("#baseball-single-stats-form",
+        single: %{
+          kicker: "Player spotlight",
+          name: "Alex Cruz",
+          detail: "C · #12",
+          stats: "AVG | .312"
+        }
+      )
+      |> render_submit()
+
+      view
+      |> form("#baseball-comparison-stats-form",
+        comparison: %{
+          title: "Head to head",
+          left_name: "Alex Cruz",
+          left_detail: "C",
+          right_name: "Casey Park",
+          right_detail: "CF",
+          stats: "HR | 8 | 12"
+        }
+      )
+      |> render_submit()
+
+      state = Broadcasts.get_show!(scope, show.id).sport_state
+      assert state["defense"]["1"]["P"] == "Jordan Lee"
+      assert state["bullpens"]["2"] == [%{"name" => "Taylor Reed", "status" => "Warming"}]
+      assert state["graphics"]["single"]["stats"] == [%{"label" => "AVG", "value" => ".312"}]
+
+      assert state["graphics"]["comparison"]["stats"] == [
+               %{"label" => "HR", "left" => "8", "right" => "12"}
+             ]
     end
 
     test "updates runs, count, bases and half innings", %{conn: conn, scope: scope} do
@@ -141,6 +196,27 @@ defmodule ShowishWeb.ControlLiveTest do
       reloaded = Broadcasts.get_show!(scope, show.id)
       assert reloaded.sport_state["balls"] == 0
       assert reloaded.sport_state["pitchers"]["2"]["pitch_count"] == 0
+    end
+
+    test "shows the completed at-bat on the struck-out hitter's lineup row", %{
+      conn: conn,
+      scope: scope
+    } do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view
+      |> form("#baseball-lineup-form-1",
+        lineup: %{position: "1", names: "A. Leadoff\nB. Slugger"}
+      )
+      |> render_submit()
+
+      for _pitch <- 1..3 do
+        view |> element("#baseball-pitch-strike") |> render_click()
+      end
+
+      assert has_element?(view, "#baseball-batter-1-0", "A. Leadoff 0-1")
+      assert has_element?(view, "#baseball-batter-1-1", "B. Slugger 0-0")
     end
   end
 

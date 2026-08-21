@@ -33,6 +33,10 @@ defmodule ShowishWeb.SportControls do
       |> assign(:current_pitcher, state["pitchers"][fielding_key])
       |> assign(:lineup_forms, lineup_forms(teams, state))
       |> assign(:pitcher_forms, pitcher_forms(teams, state))
+      |> assign(:defense_forms, defense_forms(teams, state))
+      |> assign(:bullpen_forms, bullpen_forms(teams, state))
+      |> assign(:single_stats_form, single_stats_form(state))
+      |> assign(:comparison_stats_form, comparison_stats_form(state))
 
     ~H"""
     <div id="baseball-controls" class="space-y-4">
@@ -218,6 +222,34 @@ defmodule ShowishWeb.SportControls do
         </div>
       </section>
 
+      <section
+        id="baseball-graphics-controls"
+        class="overflow-hidden rounded-lg border border-base-300"
+      >
+        <div class="border-b border-base-300 bg-base-200/70 px-4 py-3">
+          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
+            Full-screen baseball graphics
+          </p>
+          <p class="mt-1 text-xs text-base-content/55">
+            Data for the defensive alignment, bullpen, player spotlight, and comparison browser sources.
+          </p>
+        </div>
+
+        <div class="grid gap-px bg-base-300 lg:grid-cols-2">
+          <.team_graphics_control
+            :for={team <- @teams}
+            team={team}
+            defense_form={@defense_forms[team.position]}
+            bullpen_form={@bullpen_forms[team.position]}
+          />
+        </div>
+
+        <div class="grid gap-px border-t border-base-300 bg-base-300 lg:grid-cols-2">
+          <.single_stats_control form={@single_stats_form} />
+          <.comparison_stats_control form={@comparison_stats_form} />
+        </div>
+      </section>
+
       <div class="grid gap-3 lg:grid-cols-[0.85fr_1.45fr_1fr]">
         <section class="rounded-lg border border-base-300 bg-base-200/45 p-4">
           <div class="flex items-center justify-between">
@@ -366,7 +398,152 @@ defmodule ShowishWeb.SportControls do
     """
   end
 
-  def panel(assigns) do
+  def panel(assigns), do: fallback_panel(assigns)
+
+  attr :team, :any, required: true
+  attr :defense_form, :any, required: true
+  attr :bullpen_form, :any, required: true
+
+  defp team_graphics_control(assigns) do
+    ~H"""
+    <div class="bg-base-100 p-4">
+      <div class="flex items-center gap-2">
+        <span class="size-2.5 rounded-full" style={"background: #{@team.primary_color}"}></span>
+        <p class="font-black">{Team.full_name(@team)}</p>
+      </div>
+
+      <.form
+        for={@defense_form}
+        id={"baseball-defense-form-#{@team.position}"}
+        phx-submit="sport_action"
+        phx-value-action="save_defense"
+        class="mt-4"
+      >
+        <.input field={@defense_form[:position]} type="hidden" />
+        <.input
+          field={@defense_form[:players]}
+          type="textarea"
+          rows="5"
+          label="Defensive alignment — POSITION: Player"
+          placeholder="P: Jordan Lee\nC: Alex Cruz\n1B: Morgan Ellis"
+        />
+        <button
+          id={"baseball-save-defense-#{@team.position}"}
+          type="submit"
+          class="mt-2 w-full rounded-md border border-base-300 bg-base-200 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition hover:bg-base-300"
+        >
+          Save defense
+        </button>
+      </.form>
+
+      <.form
+        for={@bullpen_form}
+        id={"baseball-bullpen-form-#{@team.position}"}
+        phx-submit="sport_action"
+        phx-value-action="save_bullpen"
+        class="mt-4 border-t border-base-300 pt-4"
+      >
+        <.input field={@bullpen_form[:position]} type="hidden" />
+        <.input
+          field={@bullpen_form[:pitchers]}
+          type="textarea"
+          rows="4"
+          label="Bullpen — Pitcher | Status"
+          placeholder="Taylor Reed | Warming\nCasey Park | Ready"
+        />
+        <button
+          id={"baseball-save-bullpen-#{@team.position}"}
+          type="submit"
+          class="mt-2 w-full rounded-md border border-base-300 bg-base-200 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition hover:bg-base-300"
+        >
+          Save bullpen
+        </button>
+      </.form>
+    </div>
+    """
+  end
+
+  attr :form, :any, required: true
+
+  defp single_stats_control(assigns) do
+    ~H"""
+    <div class="bg-base-100 p-4">
+      <p class="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
+        Player spotlight
+      </p>
+      <.form
+        for={@form}
+        id="baseball-single-stats-form"
+        phx-submit="sport_action"
+        phx-value-action="save_single_stats"
+        class="mt-3 space-y-3"
+      >
+        <.input field={@form[:kicker]} label="Graphic title" />
+        <div class="grid gap-3 sm:grid-cols-2">
+          <.input field={@form[:name]} label="Player name" />
+          <.input field={@form[:detail]} label="Position / detail" placeholder="CF · #24" />
+        </div>
+        <.input
+          field={@form[:stats]}
+          type="textarea"
+          rows="4"
+          label="Stats — Label | Value"
+          placeholder="AVG | .312\nHR | 18\nRBI | 64"
+        />
+        <button
+          id="baseball-save-single-stats"
+          type="submit"
+          class="w-full rounded-md bg-primary px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110"
+        >
+          Save spotlight
+        </button>
+      </.form>
+    </div>
+    """
+  end
+
+  attr :form, :any, required: true
+
+  defp comparison_stats_control(assigns) do
+    ~H"""
+    <div class="bg-base-100 p-4">
+      <p class="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
+        Player comparison
+      </p>
+      <.form
+        for={@form}
+        id="baseball-comparison-stats-form"
+        phx-submit="sport_action"
+        phx-value-action="save_comparison_stats"
+        class="mt-3 space-y-3"
+      >
+        <.input field={@form[:title]} label="Graphic title" />
+        <div class="grid grid-cols-2 gap-3">
+          <.input field={@form[:left_name]} label="Left player" />
+          <.input field={@form[:right_name]} label="Right player" />
+          <.input field={@form[:left_detail]} label="Left detail" placeholder="SP · #31" />
+          <.input field={@form[:right_detail]} label="Right detail" placeholder="DH · #9" />
+        </div>
+        <.input
+          field={@form[:stats]}
+          type="textarea"
+          rows="4"
+          label="Stats — Label | Left | Right"
+          placeholder="AVG | .312 | .298\nHR | 18 | 21"
+        />
+        <button
+          id="baseball-save-comparison-stats"
+          type="submit"
+          class="w-full rounded-md bg-primary px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110"
+        >
+          Save comparison
+        </button>
+      </.form>
+    </div>
+    """
+  end
+
+  defp fallback_panel(assigns) do
     assigns = assign(assigns, :teams, sorted_teams(assigns.show))
 
     ~H"""
@@ -883,6 +1060,64 @@ defmodule ShowishWeb.SportControls do
          as: :pitcher
        )}
     end)
+  end
+
+  defp defense_forms(teams, state) do
+    order = ~w(P C 1B 2B 3B SS LF CF RF)
+
+    Map.new(teams, fn team ->
+      position = to_string(team.position)
+
+      players =
+        Enum.map_join(order, "\n", fn field_position ->
+          "#{field_position}: #{state["defense"][position][field_position]}"
+        end)
+
+      {team.position, to_form(%{"position" => position, "players" => players}, as: :defense)}
+    end)
+  end
+
+  defp bullpen_forms(teams, state) do
+    Map.new(teams, fn team ->
+      position = to_string(team.position)
+
+      pitchers =
+        Enum.map_join(state["bullpens"][position], "\n", fn pitcher ->
+          [pitcher["name"], pitcher["status"]]
+          |> Enum.reject(&(&1 == ""))
+          |> Enum.join(" | ")
+        end)
+
+      {team.position, to_form(%{"position" => position, "pitchers" => pitchers}, as: :bullpen)}
+    end)
+  end
+
+  defp single_stats_form(state) do
+    graphic = state["graphics"]["single"]
+
+    params =
+      graphic
+      |> Map.take(~w(kicker name detail))
+      |> Map.put(
+        "stats",
+        Enum.map_join(graphic["stats"], "\n", &"#{&1["label"]} | #{&1["value"]}")
+      )
+
+    to_form(params, as: :single)
+  end
+
+  defp comparison_stats_form(state) do
+    graphic = state["graphics"]["comparison"]
+
+    params =
+      graphic
+      |> Map.take(~w(title left_name left_detail right_name right_detail))
+      |> Map.put(
+        "stats",
+        Enum.map_join(graphic["stats"], "\n", &"#{&1["label"]} | #{&1["left"]} | #{&1["right"]}")
+      )
+
+    to_form(params, as: :comparison)
   end
 
   defp sorted_teams(show), do: show.teams |> List.wrap() |> Enum.sort_by(& &1.position)

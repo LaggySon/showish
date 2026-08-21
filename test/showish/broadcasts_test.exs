@@ -313,6 +313,63 @@ defmodule Showish.BroadcastsTest do
       assert show.sport_state["pitchers"]["2"]["pitch_count"] == 1
     end
 
+    test "baseball scene data is parsed into safe structured fields" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_defense", %{
+                 "defense" => %{
+                   "position" => "1",
+                   "players" => "P: Jordan Lee\nSS: Morgan Ellis\nNOPE: Ignored"
+                 }
+               })
+
+      assert show.sport_state["defense"]["1"]["P"] == "Jordan Lee"
+      assert show.sport_state["defense"]["1"]["SS"] == "Morgan Ellis"
+      refute Map.has_key?(show.sport_state["defense"]["1"], "NOPE")
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_bullpen", %{
+                 "bullpen" => %{
+                   "position" => "2",
+                   "pitchers" => "Taylor Reed | Warming\nCasey Park"
+                 }
+               })
+
+      assert show.sport_state["bullpens"]["2"] == [
+               %{"name" => "Taylor Reed", "status" => "Warming"},
+               %{"name" => "Casey Park", "status" => ""}
+             ]
+    end
+
+    test "a strikeout records an at-bat before advancing the lineup" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "A. Leadoff\nB. Slugger"}
+               })
+
+      show =
+        Enum.reduce(1..3, show, fn _pitch, current_show ->
+          assert {:ok, updated_show} =
+                   Broadcasts.apply_sport_action(current_show, "record_pitch", %{
+                     "result" => "strike"
+                   })
+
+          updated_show
+        end)
+
+      assert Enum.at(show.sport_state["lineups"]["1"], 0) == %{
+               "name" => "A. Leadoff",
+               "hits" => 0,
+               "at_bats" => 1
+             }
+
+      assert show.sport_state["active_batters"]["1"] == 1
+      assert show.sport_state["outs"] == 1
+    end
+
     test "resetting a baseball game clears state and runs together" do
       show = show_fixture(%{sport: "baseball"})
       {:ok, show} = Broadcasts.adjust_score(show, 1, 4)

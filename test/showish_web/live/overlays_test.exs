@@ -37,7 +37,7 @@ defmodule ShowishWeb.OverlaysTest do
   end
 
   test "every scene renders on a transparent 1920x1080 stage", %{conn: conn, show: show} do
-    for scene <- Scenes.all() do
+    for scene <- Scenes.for_sport(show.sport) do
       {:ok, view, html} = live(conn, Scenes.path(show.slug, scene.key))
 
       assert html =~ "overlay-stage"
@@ -137,6 +137,65 @@ defmodule ShowishWeb.OverlaysTest do
   test "sport-aware scene lists hide the esports series board" do
     assert Enum.any?(Scenes.for_sport("esports"), &(&1.key == "series"))
     refute Enum.any?(Scenes.for_sport("baseball"), &(&1.key == "series"))
+    assert Enum.any?(Scenes.for_sport("baseball"), &(&1.key == "baseball-defense"))
+    refute Enum.any?(Scenes.for_sport("esports"), &(&1.key == "baseball-defense"))
+  end
+
+  test "baseball production scenes render configured roster and stat data", %{
+    conn: conn,
+    scope: scope,
+    show: show
+  } do
+    {:ok, show} = Broadcasts.update_show(scope, show, %{"sport" => "baseball"})
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_lineup", %{
+        "lineup" => %{"position" => "1", "names" => "A. Leadoff\nB. Slugger"}
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_defense", %{
+        "defense" => %{"position" => "2", "players" => "P: Phillips\nCF: Casey Park"}
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_bullpen", %{
+        "bullpen" => %{"position" => "1", "pitchers" => "Taylor Reed | Warming"}
+      })
+
+    {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_single_stats", %{
+        "single" => %{
+          "kicker" => "Player spotlight",
+          "name" => "A. Leadoff",
+          "detail" => "CF",
+          "stats" => "AVG | .312"
+        }
+      })
+
+    {:ok, _show} =
+      Broadcasts.apply_sport_action(show, "save_comparison_stats", %{
+        "comparison" => %{
+          "title" => "Head to head",
+          "left_name" => "A. Leadoff",
+          "left_detail" => "CF",
+          "right_name" => "B. Slugger",
+          "right_detail" => "1B",
+          "stats" => "HR | 18 | 21"
+        }
+      })
+
+    for {scene, selector, copy} <- [
+          {"baseball-lineup", "#baseball-lineup-scene", "A. Leadoff"},
+          {"baseball-defense", "#baseball-defense-scene", "Phillips"},
+          {"baseball-bullpen", "#baseball-bullpen-scene", "Taylor Reed"},
+          {"baseball-player", "#baseball-player-scene", ".312"},
+          {"baseball-comparison", "#baseball-comparison-scene", "Head to head"}
+        ] do
+      {:ok, view, html} = live(conn, Scenes.path(show.slug, scene))
+      assert has_element?(view, selector)
+      assert html =~ copy
+    end
   end
 
   test "swapping sides reorders the scorebug", %{conn: conn, show: show} do

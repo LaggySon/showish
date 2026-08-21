@@ -14,9 +14,50 @@ defmodule Showish.Broadcasts.Sports.Baseball do
     "errors" => %{"1" => 0, "2" => 0},
     "lineups" => %{"1" => [], "2" => []},
     "active_batters" => %{"1" => 0, "2" => 0},
+    "defense" => %{
+      "1" => %{
+        "P" => "",
+        "C" => "",
+        "1B" => "",
+        "2B" => "",
+        "3B" => "",
+        "SS" => "",
+        "LF" => "",
+        "CF" => "",
+        "RF" => ""
+      },
+      "2" => %{
+        "P" => "",
+        "C" => "",
+        "1B" => "",
+        "2B" => "",
+        "3B" => "",
+        "SS" => "",
+        "LF" => "",
+        "CF" => "",
+        "RF" => ""
+      }
+    },
+    "bullpens" => %{"1" => [], "2" => []},
     "pitchers" => %{
       "1" => %{"name" => "", "pitch_count" => 0},
       "2" => %{"name" => "", "pitch_count" => 0}
+    },
+    "graphics" => %{
+      "single" => %{
+        "kicker" => "PLAYER SPOTLIGHT",
+        "name" => "",
+        "detail" => "",
+        "stats" => []
+      },
+      "comparison" => %{
+        "title" => "PLAYER COMPARISON",
+        "left_name" => "",
+        "left_detail" => "",
+        "right_name" => "",
+        "right_detail" => "",
+        "stats" => []
+      }
     },
     "history" => []
   }
@@ -48,7 +89,10 @@ defmodule Showish.Broadcasts.Sports.Baseball do
       "errors" => counters(state["errors"]),
       "lineups" => lineups(state["lineups"]),
       "active_batters" => active_batters(state["active_batters"], state["lineups"]),
+      "defense" => defense(state["defense"]),
+      "bullpens" => bullpens(state["bullpens"]),
       "pitchers" => pitchers(state["pitchers"]),
+      "graphics" => graphics(state["graphics"]),
       "history" => history(state["history"])
     }
   end
@@ -160,6 +204,51 @@ defmodule Showish.Broadcasts.Sports.Baseball do
     {:ok, put_in(state, ["pitchers", position, "name"], String.trim(name))}
   end
 
+  def transition(state, "save_defense", %{
+        "defense" => %{"position" => position, "players" => players}
+      })
+      when position in ~w(1 2) and is_binary(players) do
+    state = normalize_state(state)
+    {:ok, put_in(state, ["defense", position], parse_defense(players))}
+  end
+
+  def transition(state, "save_bullpen", %{
+        "bullpen" => %{"position" => position, "pitchers" => pitchers}
+      })
+      when position in ~w(1 2) and is_binary(pitchers) do
+    state = normalize_state(state)
+    {:ok, put_in(state, ["bullpens", position], parse_bullpen(pitchers))}
+  end
+
+  def transition(state, "save_single_stats", %{"single" => params}) when is_map(params) do
+    state = normalize_state(state)
+
+    single = %{
+      "kicker" => clean_text(params["kicker"], "PLAYER SPOTLIGHT"),
+      "name" => clean_text(params["name"]),
+      "detail" => clean_text(params["detail"]),
+      "stats" => parse_single_stats(params["stats"])
+    }
+
+    {:ok, put_in(state, ["graphics", "single"], single)}
+  end
+
+  def transition(state, "save_comparison_stats", %{"comparison" => params})
+      when is_map(params) do
+    state = normalize_state(state)
+
+    comparison = %{
+      "title" => clean_text(params["title"], "PLAYER COMPARISON"),
+      "left_name" => clean_text(params["left_name"]),
+      "left_detail" => clean_text(params["left_detail"]),
+      "right_name" => clean_text(params["right_name"]),
+      "right_detail" => clean_text(params["right_detail"]),
+      "stats" => parse_comparison_stats(params["stats"])
+    }
+
+    {:ok, put_in(state, ["graphics", "comparison"], comparison)}
+  end
+
   def transition(state, "adjust_pitch_count", %{"position" => position, "delta" => delta})
       when position in ~w(1 2) do
     state = normalize_state(state)
@@ -236,7 +325,14 @@ defmodule Showish.Broadcasts.Sports.Baseball do
         {position, Map.put(pitcher, "pitch_count", 0)}
       end)
 
-    {:ok, Map.merge(@default, %{"lineups" => lineups, "pitchers" => pitchers})}
+    {:ok,
+     Map.merge(@default, %{
+       "lineups" => lineups,
+       "pitchers" => pitchers,
+       "defense" => state["defense"],
+       "bullpens" => state["bullpens"],
+       "graphics" => state["graphics"]
+     })}
   end
 
   def transition(_state, _action, _params), do: {:error, :unsupported_sport_action}
@@ -349,6 +445,193 @@ defmodule Showish.Broadcasts.Sports.Baseball do
 
   defp pitchers(_map), do: @default["pitchers"]
 
+  defp defense(map) when is_map(map) do
+    Map.new(~w(1 2), fn position ->
+      raw = Map.get(map, position, %{})
+
+      players =
+        Map.new(~w(P C 1B 2B 3B SS LF CF RF), fn field_position ->
+          name = if is_map(raw), do: Map.get(raw, field_position, ""), else: ""
+          {field_position, clean_text(name)}
+        end)
+
+      {position, players}
+    end)
+  end
+
+  defp defense(_map), do: @default["defense"]
+
+  defp bullpens(map) when is_map(map) do
+    Map.new(~w(1 2), fn position ->
+      entries =
+        map
+        |> Map.get(position, [])
+        |> List.wrap()
+        |> Enum.flat_map(fn
+          %{"name" => name} = entry ->
+            name = clean_text(name)
+
+            if name == "" do
+              []
+            else
+              [%{"name" => name, "status" => clean_text(entry["status"])}]
+            end
+
+          _ ->
+            []
+        end)
+        |> Enum.take(12)
+
+      {position, entries}
+    end)
+  end
+
+  defp bullpens(_map), do: @default["bullpens"]
+
+  defp graphics(map) when is_map(map) do
+    single = map |> Map.get("single", %{}) |> map_or_empty()
+    comparison = map |> Map.get("comparison", %{}) |> map_or_empty()
+
+    %{
+      "single" => %{
+        "kicker" => clean_text(single["kicker"], "PLAYER SPOTLIGHT"),
+        "name" => clean_text(single["name"]),
+        "detail" => clean_text(single["detail"]),
+        "stats" => normalize_single_stats(single["stats"])
+      },
+      "comparison" => %{
+        "title" => clean_text(comparison["title"], "PLAYER COMPARISON"),
+        "left_name" => clean_text(comparison["left_name"]),
+        "left_detail" => clean_text(comparison["left_detail"]),
+        "right_name" => clean_text(comparison["right_name"]),
+        "right_detail" => clean_text(comparison["right_detail"]),
+        "stats" => normalize_comparison_stats(comparison["stats"])
+      }
+    }
+  end
+
+  defp graphics(_map), do: @default["graphics"]
+
+  defp parse_defense(text) do
+    empty = @default["defense"]["1"]
+
+    text
+    |> lines()
+    |> Enum.reduce(empty, fn line, players ->
+      case String.split(line, ~r/\s*[:|]\s*/, parts: 2) do
+        [position, name] ->
+          position = String.upcase(String.trim(position))
+
+          if Map.has_key?(players, position),
+            do: Map.put(players, position, clean_text(name)),
+            else: players
+
+        _ ->
+          players
+      end
+    end)
+  end
+
+  defp parse_bullpen(text) do
+    text
+    |> lines()
+    |> Enum.map(fn line ->
+      case String.split(line, ~r/\s*\|\s*/, parts: 2) do
+        [name, status] -> %{"name" => clean_text(name), "status" => clean_text(status)}
+        [name] -> %{"name" => clean_text(name), "status" => ""}
+      end
+    end)
+    |> Enum.reject(&(&1["name"] == ""))
+    |> Enum.take(12)
+  end
+
+  defp parse_single_stats(text) when is_binary(text) do
+    text
+    |> lines()
+    |> Enum.flat_map(fn line ->
+      case String.split(line, ~r/\s*\|\s*/, parts: 2) do
+        [label, value] -> [%{"label" => clean_text(label), "value" => clean_text(value)}]
+        _ -> []
+      end
+    end)
+    |> normalize_single_stats()
+  end
+
+  defp parse_single_stats(_text), do: []
+
+  defp normalize_single_stats(stats) do
+    stats
+    |> List.wrap()
+    |> Enum.flat_map(fn
+      %{"label" => label, "value" => value} ->
+        label = clean_text(label)
+        if label == "", do: [], else: [%{"label" => label, "value" => clean_text(value)}]
+
+      _ ->
+        []
+    end)
+    |> Enum.take(8)
+  end
+
+  defp parse_comparison_stats(text) when is_binary(text) do
+    text
+    |> lines()
+    |> Enum.flat_map(fn line ->
+      case String.split(line, ~r/\s*\|\s*/, parts: 3) do
+        [label, left, right] ->
+          [
+            %{
+              "label" => clean_text(label),
+              "left" => clean_text(left),
+              "right" => clean_text(right)
+            }
+          ]
+
+        _ ->
+          []
+      end
+    end)
+    |> normalize_comparison_stats()
+  end
+
+  defp parse_comparison_stats(_text), do: []
+
+  defp normalize_comparison_stats(stats) do
+    stats
+    |> List.wrap()
+    |> Enum.flat_map(fn
+      %{"label" => label, "left" => left, "right" => right} ->
+        label = clean_text(label)
+
+        if label == "" do
+          []
+        else
+          [%{"label" => label, "left" => clean_text(left), "right" => clean_text(right)}]
+        end
+
+      _ ->
+        []
+    end)
+    |> Enum.take(8)
+  end
+
+  defp lines(text) do
+    text
+    |> String.split(~r/\R/u)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp clean_text(value, fallback \\ "") do
+    case value |> to_string() |> String.trim() |> String.slice(0, 100) do
+      "" -> fallback
+      text -> text
+    end
+  end
+
+  defp map_or_empty(value) when is_map(value), do: value
+  defp map_or_empty(_value), do: %{}
+
   defp history(value) when is_list(value), do: value |> Enum.filter(&is_map/1) |> Enum.take(25)
   defp history(_value), do: []
 
@@ -370,6 +653,7 @@ defmodule Showish.Broadcasts.Sports.Baseball do
 
     state =
       state
+      |> record_batter_result(batting_position, current, result)
       |> put_in(["active_batters", batting_position], next)
       |> Map.merge(%{"balls" => 0, "strikes" => 0})
 
@@ -389,6 +673,31 @@ defmodule Showish.Broadcasts.Sports.Baseball do
       end
     else
       state
+    end
+  end
+
+  defp record_batter_result(state, batting_position, index, result) do
+    case Enum.at(state["lineups"][batting_position], index) do
+      nil ->
+        state
+
+      player ->
+        player =
+          case result do
+            result when result in ~w(out reached) ->
+              Map.update!(player, "at_bats", &(&1 + 1))
+
+            "home_run" ->
+              player
+              |> Map.update!("at_bats", &(&1 + 1))
+              |> Map.update!("hits", &(&1 + 1))
+
+            "walk" ->
+              player
+          end
+
+        lineup = List.replace_at(state["lineups"][batting_position], index, player)
+        put_in(state, ["lineups", batting_position], lineup)
     end
   end
 
