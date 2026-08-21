@@ -191,6 +191,15 @@ defmodule ShowishWeb.SportControls do
                 placeholder="463 becomes 4-6-3 · also accepts F8, 6-3, K"
                 class="mt-1 w-full rounded-md border border-white/15 bg-white/[0.06] px-3 py-2 text-sm font-bold text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
               />
+              <button
+                id="baseball-record-notation"
+                type="submit"
+                name="play[result]"
+                value="auto"
+                class="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-200 transition hover:border-cyan-300/60 hover:bg-cyan-400/20 active:scale-[0.99]"
+              >
+                <.icon name="hero-pencil-square-mini" class="size-4" /> Record notation
+              </button>
               <p class="mt-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
                 Most common · one tap
               </p>
@@ -309,6 +318,14 @@ defmodule ShowishWeb.SportControls do
                     label="Double play"
                     tone="red"
                     disabled={@state["outs"] == 2 or not Enum.any?(Map.values(@state["bases"]))}
+                  />
+                  <.game_action
+                    id="baseball-play-triple-play"
+                    action="record_play"
+                    result="triple_play"
+                    label="Triple play"
+                    tone="red"
+                    disabled={@state["outs"] > 0 or Enum.count(Map.values(@state["bases"]), & &1) < 2}
                   />
                   <.game_action
                     id="baseball-play-interference"

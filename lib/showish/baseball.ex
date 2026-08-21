@@ -7,6 +7,7 @@ defmodule Showish.Baseball do
   alias Showish.Baseball.Event
   alias Showish.Baseball.Game
   alias Showish.Baseball.LineupSpot
+  alias Showish.Baseball.Notation
   alias Showish.Baseball.Pitch
   alias Showish.Baseball.PlateAppearance
   alias Showish.Baseball.Player
@@ -309,18 +310,28 @@ defmodule Showish.Baseball do
     end
   end
 
+  defp dispatch(game, show, "record_play", %{"play" => params}) when is_map(params) do
+    with {:ok, play} <- Notation.interpret(params["notation"], params["result"]) do
+      params =
+        params
+        |> Map.put("result", play.result)
+        |> Map.put("notation", play.notation)
+
+      dispatch(game, show, "record_play", params)
+    end
+  end
+
   defp dispatch(game, show, "record_play", %{"result" => result} = params)
        when result in ~w(reached single double triple home_run walk hit_by_pitch
                          reached_on_error fielders_choice sacrifice sacrifice_fly
-                         sacrifice_bunt double_play interference out strikeout
+                         sacrifice_bunt double_play triple_play interference out strikeout
                          strikeout_reached) do
-    result = if result == "reached", do: "single", else: result
-    event = event!(game, "record_play", Map.put(params, "result", result), show)
-    complete_appearance(game, show, event, result, params)
+    with {:ok, play} <- Notation.interpret(params["notation"], result) do
+      params = Map.merge(params, %{"result" => play.result, "notation" => play.notation})
+      event = event!(game, "record_play", params, show)
+      complete_appearance(game, show, event, play.result, params)
+    end
   end
-
-  defp dispatch(game, show, "record_play", %{"play" => params}) when is_map(params),
-    do: dispatch(game, show, "record_play", params)
 
   defp dispatch(game, _show, "adjust_count", %{"kind" => kind, "delta" => delta})
        when kind in ~w(balls strikes outs) do
@@ -417,7 +428,7 @@ defmodule Showish.Baseball do
       inning: game.inning,
       half: game.half,
       result: result,
-      notation: normalize_notation(Map.get(params, "notation", "")),
+      notation: Map.get(params, "notation", ""),
       at_bat: scoring.at_bat,
       hit_value: scoring.hit_value,
       rbi: rbi,
@@ -461,6 +472,9 @@ defmodule Showish.Baseball do
 
   defp scoring("double_play"),
     do: %{at_bat: true, hit_value: 0, outs: 2, rbi: 0, runs_scored: 0}
+
+  defp scoring("triple_play"),
+    do: %{at_bat: true, hit_value: 0, outs: 3, rbi: 0, runs_scored: 0}
 
   defp scoring(result) when result in ~w(reached_on_error strikeout_reached),
     do: %{at_bat: true, hit_value: 0, outs: 0, rbi: 0, runs_scored: 0}
@@ -532,6 +546,9 @@ defmodule Showish.Baseball do
 
       "double_play" ->
         update_game!(game, %{first_occupied: false, first_runner_id: nil})
+
+      "triple_play" ->
+        clear_bases(game)
 
       _ ->
         game
@@ -1115,16 +1132,6 @@ defmodule Showish.Baseball do
     case String.trim(to_string(value || "")) do
       "" -> fallback
       text -> text
-    end
-  end
-
-  defp normalize_notation(value) do
-    notation = value |> to_string() |> String.trim() |> String.upcase() |> String.slice(0, 40)
-
-    if Regex.match?(~r/^\d{2,6}$/u, notation) do
-      notation |> String.graphemes() |> Enum.join("-")
-    else
-      notation
     end
   end
 

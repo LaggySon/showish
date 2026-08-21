@@ -26,7 +26,7 @@ defmodule Showish.Baseball.PlateAppearance do
 
   @results ~w(single double triple home_run walk hit_by_pitch reached_on_error
               fielders_choice sacrifice sacrifice_fly sacrifice_bunt double_play
-              interference out strikeout strikeout_reached)
+              triple_play interference out strikeout strikeout_reached)
 
   def changeset(appearance, attrs) do
     appearance

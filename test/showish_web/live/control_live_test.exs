@@ -79,7 +79,9 @@ defmodule ShowishWeb.ControlLiveTest do
       assert has_element?(view, "#baseball-play-fielders-choice")
       assert has_element?(view, "#baseball-play-sac-fly")
       assert has_element?(view, "#baseball-play-double-play")
+      assert has_element?(view, "#baseball-play-triple-play")
       assert has_element?(view, "#baseball-play-interference")
+      assert has_element?(view, "#baseball-record-notation")
       refute has_element?(view, "#baseball-single-stats-form")
       refute has_element?(view, "#esports-controls")
       refute has_element?(view, "#add-game")
@@ -140,6 +142,29 @@ defmodule ShowishWeb.ControlLiveTest do
       refute reloaded.sport_state["bases"]["first"]
       assert has_element?(view, "#baseball-inning")
       assert has_element?(view, "#baseball-advance-half")
+    end
+
+    test "treats entered scorebook notation as authoritative", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view
+      |> form("#baseball-roster-form-1",
+        roster: %{position: "1", entries: "1. Error Batter | SS"}
+      )
+      |> render_submit()
+
+      view
+      |> element("#baseball-play-form")
+      |> render_submit(%{"play" => %{"notation" => "E1", "result" => "out"}})
+
+      reloaded = Broadcasts.get_show!(scope, show.id)
+      [batter] = reloaded.sport_state["lineups"]["1"]
+
+      assert {batter["hits"], batter["at_bats"]} == {0, 1}
+      assert reloaded.sport_state["outs"] == 0
+      assert reloaded.sport_state["bases"]["first"]
+      assert has_element?(view, "#baseball-last-play", "E1 · Error")
     end
 
     test "manages lineups, the active batter and pitching", %{conn: conn, scope: scope} do

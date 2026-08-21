@@ -498,6 +498,48 @@ defmodule Showish.BroadcastsTest do
       assert List.last(doubled_up.baseball_game.plate_appearances).notation == "4-6-3"
     end
 
+    test "scorebook notation overrides a mismatched quick-result button" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Error Batter"}
+               })
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "E1"}
+               })
+
+      [batter] = played.sport_state["lineups"]["1"]
+      assert {batter["hits"], batter["at_bats"]} == {0, 1}
+      assert played.sport_state["outs"] == 0
+      assert played.sport_state["bases"]["first"]
+      assert played.sport_state["errors"]["2"] == 1
+
+      assert played.sport_state["last_play"] == %{
+               "result" => "reached_on_error",
+               "notation" => "E1"
+             }
+    end
+
+    test "notation-only submissions infer a complete plate appearance" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Batter"}
+               })
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "auto", "notation" => "F8"}
+               })
+
+      assert played.sport_state["outs"] == 1
+      assert played.sport_state["last_play"] == %{"result" => "out", "notation" => "F8"}
+    end
+
     test "hits, errors and walks derive different batting lines from plate appearances" do
       show = show_fixture(%{sport: "baseball"})
 
