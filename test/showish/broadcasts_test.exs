@@ -269,6 +269,31 @@ defmodule Showish.BroadcastsTest do
              }
     end
 
+    test "a combined roster paste saves batting order and defensive alignment" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_roster", %{
+                 "roster" => %{
+                   "position" => "1",
+                   "entries" =>
+                     "1. A. Leadoff | CF\n2) B. Slugger, 1B\nC. Shortstop - SS\nP: D. Pitcher"
+                 }
+               })
+
+      assert Enum.map(show.sport_state["lineups"]["1"], & &1["name"]) == [
+               "A. Leadoff",
+               "B. Slugger",
+               "C. Shortstop"
+             ]
+
+      assert show.sport_state["defense"]["1"]["CF"] == "A. Leadoff"
+      assert show.sport_state["defense"]["1"]["1B"] == "B. Slugger"
+      assert show.sport_state["defense"]["1"]["SS"] == "C. Shortstop"
+      assert show.sport_state["defense"]["1"]["P"] == "D. Pitcher"
+      assert Enum.at(show.sport_state["lineups"]["1"], 0)["field_position"] == "CF"
+    end
+
     test "live pitch actions advance the count, pitcher and inning and can be undone" do
       show = show_fixture(%{sport: "baseball"})
 

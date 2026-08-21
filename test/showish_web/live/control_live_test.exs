@@ -69,9 +69,9 @@ defmodule ShowishWeb.ControlLiveTest do
       assert has_element?(view, "#baseball-inning")
       assert has_element?(view, "#baseball-rosters")
       assert has_element?(view, "#baseball-graphics-controls")
-      assert has_element?(view, "#baseball-lineup-form-1")
+      assert has_element?(view, "#baseball-roster-form-1")
       assert has_element?(view, "#baseball-pitcher-form-2")
-      assert has_element?(view, "#baseball-defense-form-1")
+      refute has_element?(view, "#baseball-defense-form-1")
       assert has_element?(view, "#baseball-bullpen-form-2")
       assert has_element?(view, "#baseball-play-single")
       assert has_element?(view, "#baseball-play-error")
@@ -88,12 +88,11 @@ defmodule ShowishWeb.ControlLiveTest do
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
       view
-      |> form("#baseball-lineup-form-1", lineup: %{position: "1", names: "Alex Cruz"})
-      |> render_submit()
-
-      view
-      |> form("#baseball-defense-form-1",
-        defense: %{position: "1", players: "P: Jordan Lee\nSS: Morgan Ellis"}
+      |> form("#baseball-roster-form-1",
+        roster: %{
+          position: "1",
+          entries: "1. Alex Cruz | SS\nP: Jordan Lee"
+        }
       )
       |> render_submit()
 
@@ -107,6 +106,8 @@ defmodule ShowishWeb.ControlLiveTest do
 
       state = Broadcasts.get_show!(scope, show.id).sport_state
       assert state["defense"]["1"]["P"] == "Jordan Lee"
+      assert state["defense"]["1"]["SS"] == "Alex Cruz"
+      assert Enum.map(state["lineups"]["1"], & &1["name"]) == ["Alex Cruz"]
 
       assert Enum.map(state["bullpens"]["2"], &Map.take(&1, ~w(name status))) == [
                %{"name" => "Taylor Reed", "status" => "Warming"}
@@ -139,8 +140,8 @@ defmodule ShowishWeb.ControlLiveTest do
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
       view
-      |> form("#baseball-lineup-form-1",
-        lineup: %{position: "1", names: "A. Leadoff\nB. Slugger"}
+      |> form("#baseball-roster-form-1",
+        roster: %{position: "1", entries: "1. A. Leadoff | CF\n2. B. Slugger | 1B"}
       )
       |> render_submit()
 
@@ -158,6 +159,9 @@ defmodule ShowishWeb.ControlLiveTest do
                "A. Leadoff",
                "B. Slugger"
              ]
+
+      assert reloaded.sport_state["defense"]["1"]["CF"] == "A. Leadoff"
+      assert reloaded.sport_state["defense"]["1"]["1B"] == "B. Slugger"
 
       assert reloaded.sport_state["active_batters"]["1"] == 0
       assert Enum.at(reloaded.sport_state["lineups"]["1"], 1)["at_bats"] == 1
@@ -198,8 +202,8 @@ defmodule ShowishWeb.ControlLiveTest do
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
       view
-      |> form("#baseball-lineup-form-1",
-        lineup: %{position: "1", names: "A. Leadoff\nB. Slugger"}
+      |> form("#baseball-roster-form-1",
+        roster: %{position: "1", entries: "A. Leadoff | CF\nB. Slugger | 1B"}
       )
       |> render_submit()
 
@@ -207,8 +211,8 @@ defmodule ShowishWeb.ControlLiveTest do
         view |> element("#baseball-pitch-strike") |> render_click()
       end
 
-      assert has_element?(view, "#baseball-batter-1-0", "A. Leadoff 0-1")
-      assert has_element?(view, "#baseball-batter-1-1", "B. Slugger 0-0")
+      assert has_element?(view, "#baseball-batter-1-0 span.font-mono", "0-1")
+      assert has_element?(view, "#baseball-batter-1-1 span.font-mono", "0-0")
     end
   end
 

@@ -31,9 +31,8 @@ defmodule ShowishWeb.SportControls do
       |> assign(:batting_team, Enum.find(teams, &(&1.position == batting_position)))
       |> assign(:active_batter, active_batter)
       |> assign(:current_pitcher, state["pitchers"][fielding_key])
-      |> assign(:lineup_forms, lineup_forms(teams, state))
+      |> assign(:roster_forms, roster_forms(teams, state))
       |> assign(:pitcher_forms, pitcher_forms(teams, state))
-      |> assign(:defense_forms, defense_forms(teams, state))
       |> assign(:bullpen_forms, bullpen_forms(teams, state))
       |> assign(:highlight_form, highlight_form(state))
       |> assign(:highlight_options, highlight_options(state))
@@ -233,7 +232,7 @@ defmodule ShowishWeb.SportControls do
             Lineups & pitching
           </p>
           <p class="mt-1 text-xs text-base-content/55">
-            Enter one batter per line, choose who is at bat, and set each team's current pitcher.
+            Paste each batting order with defensive positions, choose who is at bat, and set each team's current pitcher.
           </p>
         </div>
         <div class="grid gap-px bg-base-300 lg:grid-cols-2">
@@ -244,7 +243,7 @@ defmodule ShowishWeb.SportControls do
             active_index={@state["active_batters"][to_string(team.position)]}
             pitcher={@state["pitchers"][to_string(team.position)]}
             batting?={team.position == @batting_position}
-            lineup_form={@lineup_forms[team.position]}
+            roster_form={@roster_forms[team.position]}
             pitcher_form={@pitcher_forms[team.position]}
           />
         </div>
@@ -259,7 +258,7 @@ defmodule ShowishWeb.SportControls do
             Full-screen baseball graphics
           </p>
           <p class="mt-1 text-xs text-base-content/55">
-            Data for the defensive alignment, bullpen, player spotlight, and comparison browser sources.
+            Defensive alignments come from the combined roster above. Manage bullpen, spotlight, and comparison browser sources here.
           </p>
         </div>
 
@@ -267,7 +266,6 @@ defmodule ShowishWeb.SportControls do
           <.team_graphics_control
             :for={team <- @teams}
             team={team}
-            defense_form={@defense_forms[team.position]}
             bullpen_form={@bullpen_forms[team.position]}
           />
         </div>
@@ -488,7 +486,6 @@ defmodule ShowishWeb.SportControls do
   def panel(assigns), do: fallback_panel(assigns)
 
   attr :team, :any, required: true
-  attr :defense_form, :any, required: true
   attr :bullpen_form, :any, required: true
 
   defp team_graphics_control(assigns) do
@@ -500,40 +497,11 @@ defmodule ShowishWeb.SportControls do
       </div>
 
       <.form
-        for={@defense_form}
-        id={"baseball-defense-form-#{@team.position}"}
-        phx-submit="sport_action"
-        phx-value-action="save_defense"
-        class="mt-4"
-      >
-        <.input
-          field={@defense_form[:position]}
-          id={"baseball-defense-position-#{@team.position}"}
-          type="hidden"
-        />
-        <.input
-          field={@defense_form[:players]}
-          id={"baseball-defense-players-#{@team.position}"}
-          type="textarea"
-          rows="5"
-          label="Defensive alignment — POSITION: Player"
-          placeholder="P: Jordan Lee\nC: Alex Cruz\n1B: Morgan Ellis"
-        />
-        <button
-          id={"baseball-save-defense-#{@team.position}"}
-          type="submit"
-          class="mt-2 w-full rounded-md border border-base-300 bg-base-200 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition hover:bg-base-300"
-        >
-          Save defense
-        </button>
-      </.form>
-
-      <.form
         for={@bullpen_form}
         id={"baseball-bullpen-form-#{@team.position}"}
         phx-submit="sport_action"
         phx-value-action="save_bullpen"
-        class="mt-4 border-t border-base-300 pt-4"
+        class="mt-4"
       >
         <.input
           field={@bullpen_form[:position]}
@@ -643,7 +611,7 @@ defmodule ShowishWeb.SportControls do
   attr :active_index, :integer, required: true
   attr :pitcher, :map, required: true
   attr :batting?, :boolean, required: true
-  attr :lineup_form, :any, required: true
+  attr :roster_form, :any, required: true
   attr :pitcher_form, :any, required: true
 
   defp roster_control(assigns) do
@@ -663,31 +631,36 @@ defmodule ShowishWeb.SportControls do
       </div>
 
       <.form
-        for={@lineup_form}
-        id={"baseball-lineup-form-#{@team.position}"}
+        for={@roster_form}
+        id={"baseball-roster-form-#{@team.position}"}
         phx-submit="sport_action"
-        phx-value-action="save_lineup"
+        phx-value-action="save_roster"
         class="mt-3"
       >
         <.input
-          field={@lineup_form[:position]}
-          id={"baseball-lineup-position-#{@team.position}"}
+          field={@roster_form[:position]}
+          id={"baseball-roster-position-#{@team.position}"}
           type="hidden"
         />
         <.input
-          field={@lineup_form[:names]}
-          id={"baseball-lineup-names-#{@team.position}"}
+          field={@roster_form[:entries]}
+          id={"baseball-roster-entries-#{@team.position}"}
           type="textarea"
-          rows="5"
-          label="Batting order — one player per line"
-          placeholder="1. Player name\n2. Player name\n3. Player name"
+          rows="9"
+          label="Lineup & defense — BATTER | POSITION"
+          placeholder="1. Alex Cruz | SS\n2. Morgan Ellis | CF\n3. Sam Rivera | 1B\nP: Jordan Lee"
         />
+        <p class="mt-1.5 text-[10px] leading-relaxed text-base-content/50">
+          Line order sets the batting order. Position is optional. Use
+          <span class="font-bold">P: Name</span>
+          for a defense-only player when using a DH.
+        </p>
         <button
-          id={"baseball-save-lineup-#{@team.position}"}
+          id={"baseball-save-roster-#{@team.position}"}
           type="submit"
           class="mt-2 w-full rounded-md bg-primary px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110 active:scale-[0.99]"
         >
-          Save lineup
+          Save lineup & defense
         </button>
       </.form>
 
@@ -703,7 +676,7 @@ defmodule ShowishWeb.SportControls do
           id={"baseball-batter-#{@team.position}-#{index}"}
           type="button"
           class={[
-            "grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition",
+            "grid w-full grid-cols-[24px_minmax(0,1fr)_32px_auto] items-center gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition",
             index == @active_index && "border-primary bg-primary/10",
             index != @active_index &&
               "border-base-300 hover:border-base-content/30 hover:bg-base-200/60"
@@ -715,6 +688,9 @@ defmodule ShowishWeb.SportControls do
         >
           <span class="text-center text-xs font-black text-base-content/40">{index + 1}</span>
           <span class="truncate font-bold">{player["name"]}</span>
+          <span class="text-center text-[10px] font-black uppercase text-primary">
+            {player["field_position"]}
+          </span>
           <span class="font-mono text-xs font-bold tabular-nums">
             {player["hits"]}-{player["at_bats"]}
           </span>
@@ -1029,11 +1005,36 @@ defmodule ShowishWeb.SportControls do
     """
   end
 
-  defp lineup_forms(teams, state) do
+  defp roster_forms(teams, state) do
     Map.new(teams, fn team ->
       position = to_string(team.position)
-      names = state["lineups"][position] |> Enum.map_join("\n", & &1["name"])
-      {team.position, to_form(%{"position" => position, "names" => names}, as: :lineup)}
+      lineup = state["lineups"][position]
+      lineup_names = MapSet.new(lineup, & &1["name"])
+
+      batting_entries =
+        lineup
+        |> Enum.with_index(1)
+        |> Enum.map(fn {player, order} ->
+          ["#{order}. #{player["name"]}", player["field_position"]]
+          |> Enum.reject(&(&1 in [nil, ""]))
+          |> Enum.join(" | ")
+        end)
+
+      defense_only_entries =
+        ~w(P C 1B 2B 3B SS LF CF RF)
+        |> Enum.flat_map(fn field_position ->
+          name = state["defense"][position][field_position]
+
+          if name in [nil, ""] or MapSet.member?(lineup_names, name) do
+            []
+          else
+            ["#{field_position}: #{name}"]
+          end
+        end)
+
+      entries = Enum.join(batting_entries ++ defense_only_entries, "\n")
+
+      {team.position, to_form(%{"position" => position, "entries" => entries}, as: :roster)}
     end)
   end
 
@@ -1045,21 +1046,6 @@ defmodule ShowishWeb.SportControls do
        to_form(%{"position" => position, "name" => state["pitchers"][position]["name"]},
          as: :pitcher
        )}
-    end)
-  end
-
-  defp defense_forms(teams, state) do
-    order = ~w(P C 1B 2B 3B SS LF CF RF)
-
-    Map.new(teams, fn team ->
-      position = to_string(team.position)
-
-      players =
-        Enum.map_join(order, "\n", fn field_position ->
-          "#{field_position}: #{state["defense"][position][field_position]}"
-        end)
-
-      {team.position, to_form(%{"position" => position, "players" => players}, as: :defense)}
     end)
   end
 

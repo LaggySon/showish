@@ -115,6 +115,33 @@ defmodule Showish.Baseball do
 
   def project(%Show{} = show), do: show.sport_state
 
+  defp dispatch(game, show, "save_roster", %{
+         "roster" => %{"position" => position, "entries" => entries}
+       })
+       when position in ~w(1 2) and is_binary(entries) do
+    team = team!(show, position)
+
+    LineupSpot
+    |> where(game_id: ^game.id, team_id: ^team.id)
+    |> Repo.update_all(set: [batting_order: nil, field_position: ""])
+
+    entries
+    |> parse_roster()
+    |> Enum.each(fn entry ->
+      player = player!(team.id, entry.name)
+
+      upsert_spot!(game.id, team.id, player.id, %{
+        batting_order: entry.batting_order,
+        field_position: entry.field_position
+      })
+    end)
+
+    max_order = max_lineup_order(game.id, team.id)
+    order_field = batter_order_field(position)
+    game = update_game!(game, %{order_field => min(Map.fetch!(game, order_field), max_order)})
+    {:ok, game}
+  end
+
   defp dispatch(game, show, "save_lineup", %{
          "lineup" => %{"position" => position, "names" => names}
        })
@@ -924,6 +951,65 @@ defmodule Showish.Baseball do
         _ -> []
       end
     end)
+  end
+
+  defp parse_roster(text) do
+    {entries, _next_order} =
+      text
+      |> lines()
+      |> Enum.reduce({[], 1}, fn line, {entries, next_order} ->
+        case defense_only_entry(line) do
+          {:ok, field_position, name} ->
+            entry = %{name: name, batting_order: nil, field_position: field_position}
+            {[entry | entries], next_order}
+
+          :error ->
+            {name, field_position} = batting_entry(line)
+
+            if name == "" do
+              {entries, next_order}
+            else
+              entry = %{
+                name: name,
+                batting_order: next_order,
+                field_position: field_position
+              }
+
+              {[entry | entries], next_order + 1}
+            end
+        end
+      end)
+
+    entries |> Enum.reverse() |> Enum.take(30)
+  end
+
+  defp defense_only_entry(line) do
+    case Regex.run(~r/^\s*([A-Z0-9]+)\s*:\s*(.+)$/iu, line, capture: :all_but_first) do
+      [field_position, name] ->
+        field_position = String.upcase(field_position)
+
+        if field_position in @positions and String.trim(name) != "" do
+          {:ok, field_position, String.trim(name)}
+        else
+          :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  defp batting_entry(line) do
+    line = String.replace(line, ~r/^\s*\d+\s*[.)-]?\s*/u, "")
+
+    case Regex.run(
+           ~r/^(.*?)\s*(?:\||\t|\s+-\s+|,)\s*(P|C|1B|2B|3B|SS|LF|CF|RF|DH)\s*$/iu,
+           line,
+           capture: :all_but_first
+         ) do
+      [name, field_position] -> {String.trim(name), String.upcase(field_position)}
+      _ -> {String.trim(line), ""}
+    end
   end
 
   defp blank_default(value, fallback) do
