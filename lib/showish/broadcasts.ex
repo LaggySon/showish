@@ -28,6 +28,8 @@ defmodule Showish.Broadcasts do
 
   alias Showish.Accounts.Scope
   alias Showish.Accounts.User
+  alias Showish.Baseball
+  alias Showish.Baseball.Game, as: BaseballGame
   alias Showish.Broadcasts.Game
   alias Showish.Broadcasts.NotOwnerError
   alias Showish.Broadcasts.Show
@@ -72,11 +74,15 @@ defmodule Showish.Broadcasts do
     |> order_by(desc: :updated_at)
     |> Repo.all()
     |> Repo.preload(preloads())
+    |> Enum.map(&hydrate_baseball/1)
   end
 
   @doc "Fetches one of the scope's shows by id, raising if there is no such show."
   def get_show!(%Scope{user: %User{id: user_id}}, id) do
-    Show |> Repo.get_by!(id: id, user_id: user_id) |> Repo.preload(preloads())
+    Show
+    |> Repo.get_by!(id: id, user_id: user_id)
+    |> Repo.preload(preloads())
+    |> hydrate_baseball()
   end
 
   @doc """
@@ -87,7 +93,10 @@ defmodule Showish.Broadcasts do
   room that does not exist.
   """
   def get_show_by_slug!(%Scope{user: %User{id: user_id}}, slug) do
-    Show |> Repo.get_by!(slug: slug, user_id: user_id) |> Repo.preload(preloads())
+    Show
+    |> Repo.get_by!(slug: slug, user_id: user_id)
+    |> Repo.preload(preloads())
+    |> hydrate_baseball()
   end
 
   @doc """
@@ -96,7 +105,7 @@ defmodule Showish.Broadcasts do
   For overlays and the JSON snapshot only — see "Who can see what" above.
   """
   def get_public_show_by_slug!(slug) when is_binary(slug) do
-    Show |> Repo.get_by!(slug: slug) |> Repo.preload(preloads())
+    Show |> Repo.get_by!(slug: slug) |> Repo.preload(preloads()) |> hydrate_baseball()
   end
 
   @doc "Like `get_public_show_by_slug!/1`, but `nil` rather than raising."
@@ -105,13 +114,13 @@ defmodule Showish.Broadcasts do
   end
 
   defp preload_maybe(nil), do: nil
-  defp preload_maybe(%Show{} = show), do: Repo.preload(show, preloads())
+  defp preload_maybe(%Show{} = show), do: show |> Repo.preload(preloads()) |> hydrate_baseball()
 
-  defp preloads, do: [:teams, :games, :talents]
+  defp preloads, do: [:teams, :games, :talents, baseball_game: Baseball.preloads()]
 
   @doc "Reloads a show along with all of its children."
   def reload(%Show{} = show) do
-    Show |> Repo.get!(show.id) |> Repo.preload(preloads())
+    Show |> Repo.get!(show.id) |> Repo.preload(preloads()) |> hydrate_baseball()
   end
 
   ## Writing
@@ -215,13 +224,47 @@ defmodule Showish.Broadcasts do
 
   @doc "Applies a sport-specific operator action and broadcasts the new state."
   def apply_sport_action(%Show{} = show, action, params \\ %{}) when is_binary(action) do
-    with {:ok, state} <- Sport.transition(show.sport, show.sport_state, action, params) do
-      write_show(show, %{"sport_state" => state})
+    if show.sport == "baseball" do
+      case Baseball.apply_action(show, action, params) do
+        {:ok, _game} -> {:ok, show |> reload() |> broadcast_show()}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      with {:ok, state} <- Sport.transition(show.sport, show.sport_state, action, params) do
+        write_show(show, %{"sport_state" => state})
+      end
     end
   end
 
   @doc "Resets sport state and both team scores as one operator action."
   def reset_sport(%Show{} = show) do
+    if show.sport == "baseball" do
+      reset_baseball(show)
+    else
+      reset_legacy_sport(show)
+    end
+  end
+
+  defp reset_baseball(show) do
+    result =
+      Repo.transaction(fn ->
+        Enum.each(List.wrap(show.teams), fn team ->
+          team |> Team.changeset(%{"score" => 0}) |> Repo.update!()
+        end)
+
+        case Baseball.apply_action(show, "reset", %{}) do
+          {:ok, game} -> game
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+
+    case result do
+      {:ok, _game} -> {:ok, show |> reload() |> broadcast_show()}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp reset_legacy_sport(show) do
     result =
       Repo.transaction(fn ->
         Enum.each(List.wrap(show.teams), fn team ->
@@ -423,6 +466,12 @@ defmodule Showish.Broadcasts do
       }
     ]
   end
+
+  defp hydrate_baseball(%Show{sport: "baseball", baseball_game: %BaseballGame{}} = show) do
+    %{show | sport_state: Baseball.project(show)}
+  end
+
+  defp hydrate_baseball(%Show{} = show), do: show
 
   # Forms hand us string keys and tests hand us atoms; Ecto insists on one or
   # the other, so normalise the top level (nested maps are cast on their own).

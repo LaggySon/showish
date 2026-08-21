@@ -45,7 +45,7 @@ defmodule ShowishWeb.ShowLive.Control do
             <span class="size-2 animate-pulse rounded-full bg-success"></span> Live — changes go
             straight to air
           </span>
-           <.link navigate={~p"/shows/#{@show.slug}"} class="btn btn-sm">Overlay URLs</.link>
+          <.link navigate={~p"/shows/#{@show.slug}"} class="btn btn-sm">Overlay URLs</.link>
         </div>
       </div>
 

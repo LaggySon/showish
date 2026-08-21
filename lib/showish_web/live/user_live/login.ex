@@ -25,12 +25,12 @@ defmodule ShowishWeb.UserLive.Login do
     <Layouts.app flash={@flash} current_scope={@current_scope} max_width="max-w-md">
       <div class="rounded-box border border-base-300 bg-base-100 p-8">
         <h1 class="text-2xl font-black tracking-tight">Sign in</h1>
-        
+
         <p class="mt-1 text-sm text-base-content/70">
           Your shows, your overlay URLs, your control room. Overlays keep running
           while you are away — you only need this to change them.
         </p>
-        
+
         <a
           :if={@configured?}
           href={~p"/auth/google"}
@@ -42,13 +42,13 @@ defmodule ShowishWeb.UserLive.Login do
         <p :if={@configured? and @restricted?} class="mt-3 text-center text-xs text-base-content/60">
           This server only signs in invited accounts.
         </p>
-        
+
         <div
           :if={!@configured?}
           class="mt-6 rounded-box border border-warning/40 bg-warning/10 p-4 text-sm"
         >
           <p class="font-semibold">Google sign-in is not set up on this server.</p>
-          
+
           <p class="mt-1 text-base-content/70">
             Create an OAuth client in the Google Cloud console, then set
             <code class="rounded bg-base-200 px-1">GOOGLE_CLIENT_ID</code>

@@ -50,7 +50,9 @@ defmodule ShowishWeb.Overlays.Talent do
         :if={@talents == []}
         class="absolute inset-x-0 bottom-[96px] flex justify-center text-[22px] text-slate-300 overlay-in-up"
       >
-        <div class="overlay-panel overlay-round-card px-12 py-8">No talent has been added to this show.</div>
+        <div class="overlay-panel overlay-round-card px-12 py-8">
+          No talent has been added to this show.
+        </div>
       </div>
     </.stage>
     """

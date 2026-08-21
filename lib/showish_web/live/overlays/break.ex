@@ -48,9 +48,13 @@ defmodule ShowishWeb.Overlays.Break do
         >
           <.break_side team={@left} align="right" />
           <div class="tabular flex items-center gap-6 text-[64px] font-black leading-none">
-            <span class="overlay-scoreplate" style={"--score-color: #{primary(@left)}"}>{score(@left)}</span>
+            <span class="overlay-scoreplate" style={"--score-color: #{primary(@left)}"}>
+              {score(@left)}
+            </span>
             <span class="overlay-vs text-[32px] text-slate-500">–</span>
-            <span class="overlay-scoreplate" style={"--score-color: #{primary(@right)}"}>{score(@right)}</span>
+            <span class="overlay-scoreplate" style={"--score-color: #{primary(@right)}"}>
+              {score(@right)}
+            </span>
           </div>
           <.break_side team={@right} align="left" />
         </div>

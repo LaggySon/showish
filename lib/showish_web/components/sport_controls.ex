@@ -15,7 +15,7 @@ defmodule ShowishWeb.SportControls do
   attr :show, :any, required: true
 
   def panel(%{show: %{sport: "baseball"}} = assigns) do
-    state = Baseball.normalize_state(assigns.show.sport_state)
+    state = baseball_state(assigns.show)
     teams = sorted_teams(assigns.show)
     batting_position = if state["half"] == "top", do: 1, else: 2
     fielding_position = if batting_position == 1, do: 2, else: 1
@@ -35,8 +35,8 @@ defmodule ShowishWeb.SportControls do
       |> assign(:pitcher_forms, pitcher_forms(teams, state))
       |> assign(:defense_forms, defense_forms(teams, state))
       |> assign(:bullpen_forms, bullpen_forms(teams, state))
-      |> assign(:single_stats_form, single_stats_form(state))
-      |> assign(:comparison_stats_form, comparison_stats_form(state))
+      |> assign(:highlight_form, highlight_form(state))
+      |> assign(:highlight_options, highlight_options(state))
 
     ~H"""
     <div id="baseball-controls" class="space-y-4">
@@ -162,7 +162,7 @@ defmodule ShowishWeb.SportControls do
                 {@state["outs"]} {if(@state["outs"] == 1, do: "out", else: "outs")}
               </span>
             </div>
-            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <.game_action
                 id="baseball-play-out"
                 action="record_play"
@@ -171,18 +171,46 @@ defmodule ShowishWeb.SportControls do
                 tone="red"
               />
               <.game_action
-                id="baseball-play-reached"
+                id="baseball-play-single"
                 action="record_play"
-                result="reached"
-                label="Hit / error"
+                result="single"
+                label="Single"
+                tone="blue"
+              />
+              <.game_action
+                id="baseball-play-double"
+                action="record_play"
+                result="double"
+                label="Double"
+                tone="blue"
+              />
+              <.game_action
+                id="baseball-play-triple"
+                action="record_play"
+                result="triple"
+                label="Triple"
                 tone="blue"
               />
               <.game_action
                 id="baseball-play-walk"
                 action="record_play"
                 result="walk"
-                label="Walk / HBP"
+                label="Walk"
                 tone="green"
+              />
+              <.game_action
+                id="baseball-play-hit-by-pitch"
+                action="record_play"
+                result="hit_by_pitch"
+                label="Hit by pitch"
+                tone="green"
+              />
+              <.game_action
+                id="baseball-play-error"
+                action="record_play"
+                result="reached_on_error"
+                label="Reached on error"
+                tone="amber"
               />
               <.game_action
                 id="baseball-play-home-run"
@@ -193,7 +221,7 @@ defmodule ShowishWeb.SportControls do
               />
             </div>
             <p class="mt-2 text-[10px] leading-relaxed text-slate-500">
-              These advance the lineup and clear the count. Use the score and runner controls for the exact play result.
+              Hits and errors are separate database events, so H–AB and highlights always agree. Use the score and runner controls for runs and unusual advancement.
             </p>
           </div>
         </div>
@@ -244,9 +272,68 @@ defmodule ShowishWeb.SportControls do
           />
         </div>
 
+        <div class="border-t border-base-300 bg-base-100 p-4">
+          <.form
+            for={@highlight_form}
+            id="baseball-highlight-selection-form"
+            phx-submit="sport_action"
+            phx-value-action="select_highlights"
+          >
+            <div class="grid gap-3 lg:grid-cols-3">
+              <.input
+                field={@highlight_form[:spotlight_player_id]}
+                type="select"
+                label="Spotlight player"
+                options={[{"Automatic game leader", ""} | @highlight_options.all]}
+              />
+              <.input
+                field={@highlight_form[:comparison_left_player_id]}
+                type="select"
+                label="Away comparison player"
+                options={[{"Automatic away leader", ""} | @highlight_options.away]}
+              />
+              <.input
+                field={@highlight_form[:comparison_right_player_id]}
+                type="select"
+                label="Home comparison player"
+                options={[{"Automatic home leader", ""} | @highlight_options.home]}
+              />
+            </div>
+            <button
+              id="baseball-save-highlight-selection"
+              type="submit"
+              class="mt-3 rounded-md bg-primary px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110"
+            >
+              Update highlight players
+            </button>
+          </.form>
+        </div>
+
         <div class="grid gap-px border-t border-base-300 bg-base-300 lg:grid-cols-2">
-          <.single_stats_control form={@single_stats_form} />
-          <.comparison_stats_control form={@comparison_stats_form} />
+          <div class="bg-base-100 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
+              Player spotlight · automatic
+            </p>
+            <p class="mt-2 text-sm font-black">
+              {display_name(@state["graphics"]["single"]["name"])}
+            </p>
+            <p class="mt-1 text-xs leading-relaxed text-base-content/55">
+              Selected from the game ledger using hits, home runs, RBI, and walks. Its H–AB, AVG, HR, RBI, BB, and SO rows update after every plate appearance.
+            </p>
+          </div>
+          <div class="bg-base-100 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
+              Player comparison · automatic
+            </p>
+            <p class="mt-2 text-sm font-black">
+              {display_name(@state["graphics"]["comparison"]["left_name"])}
+              <span class="px-1 text-base-content/35">vs.</span>
+              {display_name(@state["graphics"]["comparison"]["right_name"])}
+            </p>
+            <p class="mt-1 text-xs leading-relaxed text-base-content/55">
+              The current statistical leader from each team is compared directly from recorded plate appearances.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -419,9 +506,14 @@ defmodule ShowishWeb.SportControls do
         phx-value-action="save_defense"
         class="mt-4"
       >
-        <.input field={@defense_form[:position]} type="hidden" />
+        <.input
+          field={@defense_form[:position]}
+          id={"baseball-defense-position-#{@team.position}"}
+          type="hidden"
+        />
         <.input
           field={@defense_form[:players]}
+          id={"baseball-defense-players-#{@team.position}"}
           type="textarea"
           rows="5"
           label="Defensive alignment — POSITION: Player"
@@ -443,9 +535,14 @@ defmodule ShowishWeb.SportControls do
         phx-value-action="save_bullpen"
         class="mt-4 border-t border-base-300 pt-4"
       >
-        <.input field={@bullpen_form[:position]} type="hidden" />
+        <.input
+          field={@bullpen_form[:position]}
+          id={"baseball-bullpen-position-#{@team.position}"}
+          type="hidden"
+        />
         <.input
           field={@bullpen_form[:pitchers]}
+          id={"baseball-bullpen-pitchers-#{@team.position}"}
           type="textarea"
           rows="4"
           label="Bullpen — Pitcher | Status"
@@ -457,86 +554,6 @@ defmodule ShowishWeb.SportControls do
           class="mt-2 w-full rounded-md border border-base-300 bg-base-200 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition hover:bg-base-300"
         >
           Save bullpen
-        </button>
-      </.form>
-    </div>
-    """
-  end
-
-  attr :form, :any, required: true
-
-  defp single_stats_control(assigns) do
-    ~H"""
-    <div class="bg-base-100 p-4">
-      <p class="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
-        Player spotlight
-      </p>
-      <.form
-        for={@form}
-        id="baseball-single-stats-form"
-        phx-submit="sport_action"
-        phx-value-action="save_single_stats"
-        class="mt-3 space-y-3"
-      >
-        <.input field={@form[:kicker]} label="Graphic title" />
-        <div class="grid gap-3 sm:grid-cols-2">
-          <.input field={@form[:name]} label="Player name" />
-          <.input field={@form[:detail]} label="Position / detail" placeholder="CF · #24" />
-        </div>
-        <.input
-          field={@form[:stats]}
-          type="textarea"
-          rows="4"
-          label="Stats — Label | Value"
-          placeholder="AVG | .312\nHR | 18\nRBI | 64"
-        />
-        <button
-          id="baseball-save-single-stats"
-          type="submit"
-          class="w-full rounded-md bg-primary px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110"
-        >
-          Save spotlight
-        </button>
-      </.form>
-    </div>
-    """
-  end
-
-  attr :form, :any, required: true
-
-  defp comparison_stats_control(assigns) do
-    ~H"""
-    <div class="bg-base-100 p-4">
-      <p class="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
-        Player comparison
-      </p>
-      <.form
-        for={@form}
-        id="baseball-comparison-stats-form"
-        phx-submit="sport_action"
-        phx-value-action="save_comparison_stats"
-        class="mt-3 space-y-3"
-      >
-        <.input field={@form[:title]} label="Graphic title" />
-        <div class="grid grid-cols-2 gap-3">
-          <.input field={@form[:left_name]} label="Left player" />
-          <.input field={@form[:right_name]} label="Right player" />
-          <.input field={@form[:left_detail]} label="Left detail" placeholder="SP · #31" />
-          <.input field={@form[:right_detail]} label="Right detail" placeholder="DH · #9" />
-        </div>
-        <.input
-          field={@form[:stats]}
-          type="textarea"
-          rows="4"
-          label="Stats — Label | Left | Right"
-          placeholder="AVG | .312 | .298\nHR | 18 | 21"
-        />
-        <button
-          id="baseball-save-comparison-stats"
-          type="submit"
-          class="w-full rounded-md bg-primary px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110"
-        >
-          Save comparison
         </button>
       </.form>
     </div>
@@ -652,9 +669,14 @@ defmodule ShowishWeb.SportControls do
         phx-value-action="save_lineup"
         class="mt-3"
       >
-        <.input field={@lineup_form[:position]} type="hidden" />
+        <.input
+          field={@lineup_form[:position]}
+          id={"baseball-lineup-position-#{@team.position}"}
+          type="hidden"
+        />
         <.input
           field={@lineup_form[:names]}
+          id={"baseball-lineup-names-#{@team.position}"}
           type="textarea"
           rows="5"
           label="Batting order — one player per line"
@@ -741,8 +763,17 @@ defmodule ShowishWeb.SportControls do
         phx-value-action="save_pitcher"
         class="mt-4 border-t border-base-300 pt-4"
       >
-        <.input field={@pitcher_form[:position]} type="hidden" />
-        <.input field={@pitcher_form[:name]} label="Current pitcher" placeholder="Pitcher name" />
+        <.input
+          field={@pitcher_form[:position]}
+          id={"baseball-pitcher-position-#{@team.position}"}
+          type="hidden"
+        />
+        <.input
+          field={@pitcher_form[:name]}
+          id={"baseball-pitcher-name-#{@team.position}"}
+          label="Current pitcher"
+          placeholder="Pitcher name"
+        />
         <button
           id={"baseball-save-pitcher-#{@team.position}"}
           type="submit"
@@ -964,34 +995,13 @@ defmodule ShowishWeb.SportControls do
 
   defp stat_control(assigns) do
     ~H"""
-    <div class="flex items-center justify-center gap-1.5">
-      <button
-        id={"baseball-#{@stat}-down-#{@position}"}
-        type="button"
-        class="grid size-7 place-items-center rounded border border-base-300 text-sm font-bold transition hover:bg-base-200"
-        phx-click="sport_action"
-        phx-value-action="adjust_stat"
-        phx-value-stat={@stat}
-        phx-value-position={@position}
-        phx-value-delta="-1"
+    <div class="flex items-center justify-center">
+      <span
+        id={"baseball-#{@stat}-#{@position}"}
+        class="rounded bg-base-200 px-3 py-1 text-center font-black tabular-nums"
       >
-        −
-      </button>
-      <span id={"baseball-#{@stat}-#{@position}"} class="w-6 text-center font-black tabular-nums">
         {@value}
       </span>
-      <button
-        id={"baseball-#{@stat}-up-#{@position}"}
-        type="button"
-        class="grid size-7 place-items-center rounded border border-base-300 text-sm font-bold transition hover:bg-base-200"
-        phx-click="sport_action"
-        phx-value-action="adjust_stat"
-        phx-value-stat={@stat}
-        phx-value-position={@position}
-        phx-value-delta="1"
-      >
-        +
-      </button>
     </div>
     """
   end
@@ -1007,37 +1017,13 @@ defmodule ShowishWeb.SportControls do
       <span class="block text-center text-[9px] font-black uppercase tracking-wider text-base-content/45">
         {@label}
       </span>
-      <div class="mt-1 flex items-center justify-center gap-1.5">
-        <button
-          id={"baseball-batter-#{@stat}-down-#{@position}"}
-          type="button"
-          class="grid size-7 place-items-center rounded border border-base-300 font-bold transition hover:bg-base-200"
-          phx-click="sport_action"
-          phx-value-action="adjust_batter_stat"
-          phx-value-position={@position}
-          phx-value-stat={@stat}
-          phx-value-delta="-1"
-        >
-          −
-        </button>
+      <div class="mt-1 flex items-center justify-center">
         <span
           id={"baseball-batter-#{@stat}-#{@position}"}
-          class="w-6 text-center font-black tabular-nums"
+          class="text-lg font-black tabular-nums"
         >
           {@value}
         </span>
-        <button
-          id={"baseball-batter-#{@stat}-up-#{@position}"}
-          type="button"
-          class="grid size-7 place-items-center rounded bg-primary font-bold text-primary-content transition hover:brightness-110"
-          phx-click="sport_action"
-          phx-value-action="adjust_batter_stat"
-          phx-value-position={@position}
-          phx-value-stat={@stat}
-          phx-value-delta="1"
-        >
-          +
-        </button>
       </div>
     </div>
     """
@@ -1092,33 +1078,37 @@ defmodule ShowishWeb.SportControls do
     end)
   end
 
-  defp single_stats_form(state) do
-    graphic = state["graphics"]["single"]
+  defp highlight_form(state) do
+    single = state["graphics"]["single"]
+    comparison = state["graphics"]["comparison"]
 
-    params =
-      graphic
-      |> Map.take(~w(kicker name detail))
-      |> Map.put(
-        "stats",
-        Enum.map_join(graphic["stats"], "\n", &"#{&1["label"]} | #{&1["value"]}")
-      )
-
-    to_form(params, as: :single)
+    to_form(
+      %{
+        "spotlight_player_id" => Map.get(single, "selected_player_id"),
+        "comparison_left_player_id" => Map.get(comparison, "selected_left_player_id"),
+        "comparison_right_player_id" => Map.get(comparison, "selected_right_player_id")
+      },
+      as: :highlight
+    )
   end
 
-  defp comparison_stats_form(state) do
-    graphic = state["graphics"]["comparison"]
+  defp highlight_options(state) do
+    away = player_options(state["lineups"]["1"])
+    home = player_options(state["lineups"]["2"])
+    %{away: away, home: home, all: away ++ home}
+  end
 
-    params =
-      graphic
-      |> Map.take(~w(title left_name left_detail right_name right_detail))
-      |> Map.put(
-        "stats",
-        Enum.map_join(graphic["stats"], "\n", &"#{&1["label"]} | #{&1["left"]} | #{&1["right"]}")
-      )
-
-    to_form(params, as: :comparison)
+  defp player_options(players) do
+    players
+    |> Enum.filter(&Map.get(&1, "id"))
+    |> Enum.map(&{&1["name"], &1["id"]})
   end
 
   defp sorted_teams(show), do: show.teams |> List.wrap() |> Enum.sort_by(& &1.position)
+
+  defp display_name(""), do: "Waiting for game events"
+  defp display_name(name), do: name
+
+  defp baseball_state(%{baseball_game: %Showish.Baseball.Game{}} = show), do: show.sport_state
+  defp baseball_state(show), do: Baseball.normalize_state(show.sport_state)
 end

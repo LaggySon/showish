@@ -203,14 +203,7 @@ defmodule Showish.BroadcastsTest do
 
       assert show.sport_state["bases"]["first"]
 
-      assert {:ok, show} =
-               Broadcasts.apply_sport_action(show, "adjust_stat", %{
-                 "stat" => "hits",
-                 "position" => "2",
-                 "delta" => "1"
-               })
-
-      assert show.sport_state["hits"]["2"] == 1
+      assert show.baseball_game
     end
 
     test "advancing a half inning clears transient game state" do
@@ -254,13 +247,10 @@ defmodule Showish.BroadcastsTest do
                })
 
       assert {:ok, show} =
-               Broadcasts.apply_sport_action(show, "adjust_batter_stat", %{
-                 "position" => "1",
-                 "stat" => "at_bats",
-                 "delta" => "3"
-               })
+               Broadcasts.apply_sport_action(show, "record_play", %{"result" => "single"})
 
-      assert Enum.at(show.sport_state["lineups"]["1"], 1)["at_bats"] == 3
+      assert Enum.at(show.sport_state["lineups"]["1"], 1)["at_bats"] == 1
+      assert Enum.at(show.sport_state["lineups"]["1"], 1)["hits"] == 1
 
       assert {:ok, show} =
                Broadcasts.apply_sport_action(show, "save_pitcher", %{
@@ -273,7 +263,7 @@ defmodule Showish.BroadcastsTest do
                  "delta" => "30"
                })
 
-      assert show.sport_state["pitchers"]["2"] == %{
+      assert Map.take(show.sport_state["pitchers"]["2"], ~w(name pitch_count)) == %{
                "name" => "Phillips",
                "pitch_count" => 30
              }
@@ -336,9 +326,9 @@ defmodule Showish.BroadcastsTest do
                  }
                })
 
-      assert show.sport_state["bullpens"]["2"] == [
+      assert Enum.map(show.sport_state["bullpens"]["2"], &Map.take(&1, ~w(name status))) == [
                %{"name" => "Taylor Reed", "status" => "Warming"},
-               %{"name" => "Casey Park", "status" => ""}
+               %{"name" => "Casey Park", "status" => "Available"}
              ]
     end
 
@@ -360,7 +350,7 @@ defmodule Showish.BroadcastsTest do
           updated_show
         end)
 
-      assert Enum.at(show.sport_state["lineups"]["1"], 0) == %{
+      assert Map.take(Enum.at(show.sport_state["lineups"]["1"], 0), ~w(name hits at_bats)) == %{
                "name" => "A. Leadoff",
                "hits" => 0,
                "at_bats" => 1
@@ -370,20 +360,41 @@ defmodule Showish.BroadcastsTest do
       assert show.sport_state["outs"] == 1
     end
 
+    test "hits, errors and walks derive different batting lines from plate appearances" do
+      show = show_fixture(%{sport: "baseball"})
+
+      {:ok, show} =
+        Broadcasts.apply_sport_action(show, "save_lineup", %{
+          "lineup" => %{"position" => "1", "names" => "Hit Batter\nError Batter\nWalk Batter"}
+        })
+
+      {:ok, show} = Broadcasts.apply_sport_action(show, "record_play", %{"result" => "single"})
+
+      {:ok, show} =
+        Broadcasts.apply_sport_action(show, "record_play", %{"result" => "reached_on_error"})
+
+      {:ok, show} = Broadcasts.apply_sport_action(show, "record_play", %{"result" => "walk"})
+
+      [hit, error, walk] = show.sport_state["lineups"]["1"]
+      assert {hit["hits"], hit["at_bats"]} == {1, 1}
+      assert {error["hits"], error["at_bats"]} == {0, 1}
+      assert {walk["hits"], walk["at_bats"]} == {0, 0}
+      assert show.sport_state["hits"]["1"] == 1
+      assert show.sport_state["errors"]["2"] == 1
+      assert show.sport_state["graphics"]["single"]["name"] == "Hit Batter"
+      assert length(show.baseball_game.plate_appearances) == 3
+    end
+
     test "resetting a baseball game clears state and runs together" do
       show = show_fixture(%{sport: "baseball"})
       {:ok, show} = Broadcasts.adjust_score(show, 1, 4)
 
-      {:ok, show} =
-        Broadcasts.apply_sport_action(show, "adjust_stat", %{
-          "stat" => "errors",
-          "position" => "2",
-          "delta" => "2"
-        })
-
       assert {:ok, show} = Broadcasts.reset_sport(show)
       assert Enum.map(show.teams, & &1.score) == [0, 0]
-      assert show.sport_state == Sport.default_state("baseball")
+      assert show.sport_state["inning"] == 1
+      assert show.sport_state["hits"] == %{"1" => 0, "2" => 0}
+      assert show.sport_state["errors"] == %{"1" => 0, "2" => 0}
+      assert show.baseball_game.plate_appearances == []
     end
   end
 

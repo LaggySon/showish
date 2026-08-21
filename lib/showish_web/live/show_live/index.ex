@@ -99,7 +99,7 @@ defmodule ShowishWeb.ShowLive.Index do
             <.link navigate={~p"/shows/#{show.slug}/control"} class="btn btn-sm btn-primary">
               Control room
             </.link>
-             <.link navigate={~p"/shows/#{show.slug}"} class="btn btn-sm">Overlay URLs</.link>
+            <.link navigate={~p"/shows/#{show.slug}"} class="btn btn-sm">Overlay URLs</.link>
             <button
               type="button"
               class="btn btn-sm btn-ghost text-error"

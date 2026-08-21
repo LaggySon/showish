@@ -86,7 +86,7 @@ defmodule ShowishWeb.OverlaysTest do
     assert has_element?(view, "#baseball-overlay-pitcher", "PITCHER P: 0")
     assert has_element?(view, "#baseball-overlay-batter", "BATTER —")
 
-    {:ok, show} = Broadcasts.adjust_score(show, 1, 2)
+    {:ok, _show} = Broadcasts.adjust_score(show, 1, 2)
 
     assert has_element?(view, "#baseball-overlay-runs-1", "2")
   end
@@ -114,19 +114,24 @@ defmodule ShowishWeb.OverlaysTest do
         "delta" => "30"
       })
 
-    {:ok, show} =
-      Broadcasts.apply_sport_action(show, "adjust_batter_stat", %{
-        "position" => "1",
-        "stat" => "at_bats",
-        "delta" => "4"
-      })
+    results = ~w(single reached_on_error reached_on_error reached_on_error)
+
+    show =
+      Enum.reduce(results, show, fn result, current_show ->
+        {:ok, current_show} =
+          Broadcasts.apply_sport_action(current_show, "set_batter", %{
+            "position" => "1",
+            "index" => "0"
+          })
+
+        {:ok, current_show} =
+          Broadcasts.apply_sport_action(current_show, "record_play", %{"result" => result})
+
+        current_show
+      end)
 
     {:ok, show} =
-      Broadcasts.apply_sport_action(show, "adjust_batter_stat", %{
-        "position" => "1",
-        "stat" => "hits",
-        "delta" => "1"
-      })
+      Broadcasts.apply_sport_action(show, "set_batter", %{"position" => "1", "index" => "0"})
 
     {:ok, view, _html} = live(conn, Scenes.path(show.slug, "scorebug"))
 
@@ -154,6 +159,11 @@ defmodule ShowishWeb.OverlaysTest do
       })
 
     {:ok, show} =
+      Broadcasts.apply_sport_action(show, "save_lineup", %{
+        "lineup" => %{"position" => "2", "names" => "Casey Park\nJordan Lee"}
+      })
+
+    {:ok, show} =
       Broadcasts.apply_sport_action(show, "save_defense", %{
         "defense" => %{"position" => "2", "players" => "P: Phillips\nCF: Casey Park"}
       })
@@ -163,34 +173,15 @@ defmodule ShowishWeb.OverlaysTest do
         "bullpen" => %{"position" => "1", "pitchers" => "Taylor Reed | Warming"}
       })
 
-    {:ok, show} =
-      Broadcasts.apply_sport_action(show, "save_single_stats", %{
-        "single" => %{
-          "kicker" => "Player spotlight",
-          "name" => "A. Leadoff",
-          "detail" => "CF",
-          "stats" => "AVG | .312"
-        }
-      })
-
     {:ok, _show} =
-      Broadcasts.apply_sport_action(show, "save_comparison_stats", %{
-        "comparison" => %{
-          "title" => "Head to head",
-          "left_name" => "A. Leadoff",
-          "left_detail" => "CF",
-          "right_name" => "B. Slugger",
-          "right_detail" => "1B",
-          "stats" => "HR | 18 | 21"
-        }
-      })
+      Broadcasts.apply_sport_action(show, "record_play", %{"result" => "single"})
 
     for {scene, selector, copy} <- [
           {"baseball-lineup", "#baseball-lineup-scene", "A. Leadoff"},
           {"baseball-defense", "#baseball-defense-scene", "Phillips"},
           {"baseball-bullpen", "#baseball-bullpen-scene", "Taylor Reed"},
-          {"baseball-player", "#baseball-player-scene", ".312"},
-          {"baseball-comparison", "#baseball-comparison-scene", "Head to head"}
+          {"baseball-player", "#baseball-player-scene", "1-1"},
+          {"baseball-comparison", "#baseball-comparison-scene", "A. Leadoff"}
         ] do
       {:ok, view, html} = live(conn, Scenes.path(show.slug, scene))
       assert has_element?(view, selector)

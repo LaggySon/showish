@@ -52,6 +52,7 @@ defmodule Showish.Broadcasts.Show do
     has_many :teams, Team, on_replace: :delete, preload_order: [asc: :position]
     has_many :games, Game, on_replace: :delete, preload_order: [asc: :position]
     has_many :talents, Talent, on_replace: :delete, preload_order: [asc: :position]
+    has_one :baseball_game, Showish.Baseball.Game
 
     timestamps(type: :utc_datetime)
   end
