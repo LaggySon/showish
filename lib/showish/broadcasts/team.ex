@@ -11,6 +11,8 @@ defmodule Showish.Broadcasts.Team do
 
   import Ecto.Changeset
 
+  alias Showish.Text
+
   @type t :: %__MODULE__{}
 
   schema "teams" do
@@ -48,17 +50,13 @@ defmodule Showish.Broadcasts.Team do
   is most likely to have filled in.
   """
   def display_name(%__MODULE__{} = team) do
-    [team.short_name, team.code, team.name]
-    |> Enum.map(&String.trim(&1 || ""))
-    |> Enum.find("TBD", &(&1 != ""))
+    Text.first_present([team.short_name, team.code, team.name], "TBD")
   end
 
   @doc """
   The full name, used where there is room for it (standby, series, credits).
   """
   def full_name(%__MODULE__{} = team) do
-    [team.name, team.short_name, team.code]
-    |> Enum.map(&String.trim(&1 || ""))
-    |> Enum.find("TBD", &(&1 != ""))
+    Text.first_present([team.name, team.short_name, team.code], "TBD")
   end
 end

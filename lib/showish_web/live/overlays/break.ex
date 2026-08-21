@@ -6,17 +6,10 @@ defmodule ShowishWeb.Overlays.Break do
 
   use ShowishWeb.OverlayLive
 
-  alias Showish.Broadcasts.Show
+  alias Showish.Text
 
   @impl Phoenix.LiveView
   def render(assigns) do
-    {left, right} = Show.sides(assigns.show)
-
-    assigns =
-      assigns
-      |> assign(:left, left)
-      |> assign(:right, right)
-
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
       <div class="absolute inset-0 bg-slate-950/88 overlay-in-fade"></div>
@@ -25,7 +18,7 @@ defmodule ShowishWeb.Overlays.Break do
         <div class="flex flex-col items-center gap-5 overlay-in-down" style="--overlay-delay: 120ms">
           <.eyebrow color={@show.accent_color}>Intermission</.eyebrow>
           <h1 class="max-w-[1400px] text-center text-[64px] font-black uppercase leading-[1.05]">
-            {display(@show.break_message, "We'll be right back")}
+            {Text.presence(@show.break_message, "We'll be right back")}
           </h1>
         </div>
 
@@ -60,16 +53,7 @@ defmodule ShowishWeb.Overlays.Break do
         </div>
       </div>
 
-      <div
-        :if={@show.ticker not in [nil, ""]}
-        class="absolute inset-x-0 bottom-0 overflow-hidden border-t border-white/10 bg-slate-950/90 py-5 overlay-in-up"
-        style="--overlay-delay: 480ms"
-      >
-        <div class="overlay-marquee text-[22px] font-medium uppercase tracking-[0.2em] text-slate-300">
-          <span class="px-12">{@show.ticker}</span>
-          <span class="px-12">{@show.ticker}</span>
-        </div>
-      </div>
+      <.ticker_bar text={@show.ticker} delay={480} />
     </.stage>
     """
   end
@@ -90,12 +74,5 @@ defmodule ShowishWeb.Overlays.Break do
       </div>
     </div>
     """
-  end
-
-  defp display(value, fallback) do
-    case String.trim(to_string(value || "")) do
-      "" -> fallback
-      text -> text
-    end
   end
 end

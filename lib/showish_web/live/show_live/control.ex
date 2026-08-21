@@ -11,6 +11,7 @@ defmodule ShowishWeb.ShowLive.Control do
   use ShowishWeb, :live_view
 
   alias Showish.Broadcasts
+  alias Showish.Broadcasts.Preset
   alias Showish.Broadcasts.Show
   alias Showish.Broadcasts.Sport
   alias ShowishWeb.SportControls
@@ -66,7 +67,6 @@ defmodule ShowishWeb.ShowLive.Control do
                     Part of every overlay URL for this show — changing it moves them all.
                   </p>
                 </div>
-
                 <.input
                   field={@form[:stage]}
                   label="Stage"
@@ -102,7 +102,7 @@ defmodule ShowishWeb.ShowLive.Control do
                   field={@form[:preset]}
                   type="select"
                   label="Look"
-                  options={Showish.Broadcasts.Preset.options()}
+                  options={Preset.options()}
                 />
                 <.input
                   field={@form[:break_message]}
@@ -119,20 +119,21 @@ defmodule ShowishWeb.ShowLive.Control do
                 phx-debounce="500"
               />
               <div class="mt-2 grid gap-4 sm:grid-cols-3">
-                <div>
-                  <.input field={@form[:status_left]} label="Status — left" phx-debounce="500" />
-                  <.input field={@form[:show_status_left]} type="checkbox" label="Show on air" />
-                </div>
-
-                <div>
-                  <.input field={@form[:status_center]} label="Status — centre" phx-debounce="500" />
-                  <.input field={@form[:show_status_center]} type="checkbox" label="Show on air" />
-                </div>
-
-                <div>
-                  <.input field={@form[:status_right]} label="Status — right" phx-debounce="500" />
-                  <.input field={@form[:show_status_right]} type="checkbox" label="Show on air" />
-                </div>
+                <.status_field
+                  label="Status — left"
+                  field={@form[:status_left]}
+                  toggle={@form[:show_status_left]}
+                />
+                <.status_field
+                  label="Status — centre"
+                  field={@form[:status_center]}
+                  toggle={@form[:show_status_center]}
+                />
+                <.status_field
+                  label="Status — right"
+                  field={@form[:status_right]}
+                  toggle={@form[:show_status_right]}
+                />
               </div>
 
               <p class="mt-1 text-xs text-base-content/60">
@@ -202,34 +203,7 @@ defmodule ShowishWeb.ShowLive.Control do
                     >
                       Make current
                     </button>
-                    <div class="ml-auto flex gap-1">
-                      <button
-                        type="button"
-                        class="btn btn-xs btn-ghost"
-                        phx-click="move_game"
-                        phx-value-id={game_id(gf)}
-                        phx-value-delta="-1"
-                      >
-                        <.icon name="hero-arrow-up-mini" class="size-3" />
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-xs btn-ghost"
-                        phx-click="move_game"
-                        phx-value-id={game_id(gf)}
-                        phx-value-delta="1"
-                      >
-                        <.icon name="hero-arrow-down-mini" class="size-3" />
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-xs btn-ghost text-error"
-                        phx-click="delete_game"
-                        phx-value-id={game_id(gf)}
-                      >
-                        Remove
-                      </button>
-                    </div>
+                    <.row_actions kind="game" id={row_id(gf)} />
                   </div>
 
                   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -264,34 +238,7 @@ defmodule ShowishWeb.ShowLive.Control do
                 <div class="rounded-box mb-3 border border-base-300 p-4">
                   <div class="mb-3 flex items-center gap-2">
                     <span class="font-bold">#{pf.index + 1}</span>
-                    <div class="ml-auto flex gap-1">
-                      <button
-                        type="button"
-                        class="btn btn-xs btn-ghost"
-                        phx-click="move_talent"
-                        phx-value-id={talent_id(pf)}
-                        phx-value-delta="-1"
-                      >
-                        <.icon name="hero-arrow-up-mini" class="size-3" />
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-xs btn-ghost"
-                        phx-click="move_talent"
-                        phx-value-id={talent_id(pf)}
-                        phx-value-delta="1"
-                      >
-                        <.icon name="hero-arrow-down-mini" class="size-3" />
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-xs btn-ghost text-error"
-                        phx-click="delete_talent"
-                        phx-value-id={talent_id(pf)}
-                      >
-                        Remove
-                      </button>
-                    </div>
+                    <.row_actions kind="talent" id={row_id(pf)} />
                   </div>
 
                   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -303,7 +250,8 @@ defmodule ShowishWeb.ShowLive.Control do
                       label="Social"
                       placeholder="@handle"
                       phx-debounce="500"
-                    /> <.input field={pf[:on_cam]} type="checkbox" label="On camera" />
+                    />
+                    <.input field={pf[:on_cam]} type="checkbox" label="On camera" />
                   </div>
                 </div>
               </.inputs_for>
@@ -482,6 +430,59 @@ defmodule ShowishWeb.ShowLive.Control do
     """
   end
 
+  attr :label, :string, required: true
+  attr :field, Phoenix.HTML.FormField, required: true
+  attr :toggle, Phoenix.HTML.FormField, required: true
+
+  @doc false
+  def status_field(assigns) do
+    ~H"""
+    <div>
+      <.input field={@field} label={@label} phx-debounce="500" />
+      <.input field={@toggle} type="checkbox" label="Show on air" />
+    </div>
+    """
+  end
+
+  attr :kind, :string, required: true, values: ~w(game talent)
+  attr :id, :any, required: true
+
+  @doc false
+  def row_actions(assigns) do
+    ~H"""
+    <div class="ml-auto flex gap-1">
+      <button
+        type="button"
+        class="btn btn-xs btn-ghost"
+        phx-click={"move_#{@kind}"}
+        phx-value-id={@id}
+        phx-value-delta="-1"
+        aria-label={"Move this #{@kind} earlier"}
+      >
+        <.icon name="hero-arrow-up-mini" class="size-3" />
+      </button>
+      <button
+        type="button"
+        class="btn btn-xs btn-ghost"
+        phx-click={"move_#{@kind}"}
+        phx-value-id={@id}
+        phx-value-delta="1"
+        aria-label={"Move this #{@kind} later"}
+      >
+        <.icon name="hero-arrow-down-mini" class="size-3" />
+      </button>
+      <button
+        type="button"
+        class="btn btn-xs btn-ghost text-error"
+        phx-click={"delete_#{@kind}"}
+        phx-value-id={@id}
+      >
+        Remove
+      </button>
+    </div>
+    """
+  end
+
   ## Helpers
 
   defp assign_show(socket, %Show{} = show) do
@@ -505,6 +506,8 @@ defmodule ShowishWeb.ShowLive.Control do
   defp apply_result({:error, reason}, socket),
     do: {:noreply, put_flash(socket, :error, "Could not apply that change (#{inspect(reason)}).")}
 
-  defp game_id(form), do: form.data.id
-  defp talent_id(form), do: form.data.id
+  # The database id of the row behind a nested form, which is what the row
+  # buttons send back — the form's index would move under them the moment a row
+  # above it was removed.
+  defp row_id(form), do: form.data.id
 end

@@ -57,17 +57,6 @@ if preview_auth != [] do
   config :showish, Showish.Accounts.PreviewAuth, preview_auth
 end
 
-# Who may sign in, comma separated. Leave it unset and anyone with a verified
-# Google address gets an account, which is what a local checkout and the
-# production deployment want; the dev deployment sets it so that a second copy
-# of the app on a public URL is not an open door.
-#
-# The string goes through as-is; `Showish.Accounts.Allowlist` does the splitting
-# so that nothing in here has to call application code at boot.
-if allowed_emails = System.get_env("ALLOWED_GOOGLE_EMAILS") do
-  config :showish, Showish.Accounts.Allowlist, emails: allowed_emails
-end
-
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

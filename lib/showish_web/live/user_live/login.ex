@@ -15,8 +15,7 @@ defmodule ShowishWeb.UserLive.Login do
     {:ok,
      socket
      |> assign(:page_title, "Sign in")
-     |> assign(:configured?, Google.configured?() or PreviewAuth.configured?())
-     |> assign(:restricted?, Allowlist.enforced?())}
+     |> assign(:configured?, Google.configured?() or PreviewAuth.configured?())}
   end
 
   @impl true

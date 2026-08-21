@@ -198,6 +198,12 @@ defmodule Showish.Broadcasts do
   #
   # These are the buttons an operator hits mid-match, when there is no time to
   # tab through a form.
+  #
+  # Games and talent are edited the same way — appended, deleted, reordered — so
+  # each of those actions is written once against a child collection, and the
+  # public function names the collection it works on.
+
+  @child_schemas %{games: Game, talents: Talent}
 
   @doc "Adds `delta` to a team's score, clamped at zero."
   def adjust_score(%Show{} = show, position, delta) when position in [1, 2] do
@@ -209,13 +215,13 @@ defmodule Showish.Broadcasts do
         |> after_write(show)
 
       nil ->
-        {:error, :no_such_team}
+        {:error, :not_found}
     end
   end
 
   @doc "Sets both teams back to zero."
   def reset_scores(%Show{} = show) do
-    Enum.each(List.wrap(show.teams), fn team ->
+    Enum.each(Show.teams(show), fn team ->
       team |> Team.changeset(%{"score" => 0}) |> Repo.update()
     end)
 
@@ -289,7 +295,7 @@ defmodule Showish.Broadcasts do
 
   @doc "Moves the series pointer, clamped to the games that exist."
   def move_current_game(%Show{} = show, delta) do
-    count = max(length(List.wrap(show.games)), 1)
+    count = max(length(Show.games(show)), 1)
     next = show.current_game + delta
 
     write_show(show, %{"current_game" => next |> max(1) |> min(count)})
@@ -307,66 +313,28 @@ defmodule Showish.Broadcasts do
   and undoes a call.
   """
   def set_game_winner(%Show{} = show, game_id, winner) when winner in ["a", "b", "draw"] do
-    case find_game(show, game_id) do
-      %Game{} = game ->
-        attrs =
-          if game.winner == winner,
-            do: %{"winner" => "", "completed" => false},
-            else: %{"winner" => winner, "completed" => true}
-
-        game
-        |> Game.changeset(attrs)
-        |> Repo.update()
-        |> after_write(show)
-
-      nil ->
-        {:error, :no_such_game}
-    end
+    with_child(show, :games, game_id, fn game ->
+      game
+      |> Game.changeset(winner_attrs(game, winner))
+      |> Repo.update()
+      |> after_write(show)
+    end)
   end
+
+  defp winner_attrs(%Game{winner: winner}, winner), do: %{"winner" => "", "completed" => false}
+  defp winner_attrs(%Game{}, winner), do: %{"winner" => winner, "completed" => true}
 
   @doc "Appends an empty game to the series."
-  def add_game(%Show{} = show) do
-    show
-    |> Ecto.build_assoc(:games)
-    |> Game.changeset(%{"position" => length(List.wrap(show.games))})
-    |> Repo.insert()
-    |> after_write(show)
-  end
+  def add_game(%Show{} = show), do: add_child(show, :games)
 
   @doc "Appends an empty talent row."
-  def add_talent(%Show{} = show) do
-    show
-    |> Ecto.build_assoc(:talents)
-    |> Talent.changeset(%{"position" => length(List.wrap(show.talents))})
-    |> Repo.insert()
-    |> after_write(show)
-  end
+  def add_talent(%Show{} = show), do: add_child(show, :talents)
 
   @doc "Removes a game from the series and renumbers what is left."
-  def delete_game(%Show{} = show, game_id) do
-    case find_game(show, game_id) do
-      %Game{} = game ->
-        Repo.delete(game)
-        renumber(Game, show.id)
-        {:ok, show |> reload() |> broadcast_show()}
-
-      nil ->
-        {:error, :no_such_game}
-    end
-  end
+  def delete_game(%Show{} = show, game_id), do: delete_child(show, :games, game_id)
 
   @doc "Removes a talent row and renumbers what is left."
-  def delete_talent(%Show{} = show, talent_id) do
-    case find_talent(show, talent_id) do
-      %Talent{} = talent ->
-        Repo.delete(talent)
-        renumber(Talent, show.id)
-        {:ok, show |> reload() |> broadcast_show()}
-
-      nil ->
-        {:error, :no_such_talent}
-    end
-  end
+  def delete_talent(%Show{} = show, talent_id), do: delete_child(show, :talents, talent_id)
 
   @doc """
   Moves a game up (`-1`) or down (`+1`) the running order.
@@ -380,9 +348,28 @@ defmodule Showish.Broadcasts do
   def move_talent(%Show{} = show, talent_id, delta),
     do: move_child(show, :talents, talent_id, delta)
 
+  defp add_child(%Show{} = show, key) do
+    schema = schema_for(key)
+
+    show
+    |> Ecto.build_assoc(key)
+    |> schema.changeset(%{"position" => length(Show.children(show, key))})
+    |> Repo.insert()
+    |> after_write(show)
+  end
+
+  defp delete_child(%Show{} = show, key, id) do
+    with_child(show, key, id, fn row ->
+      Repo.delete(row)
+      renumber(schema_for(key), show.id)
+
+      {:ok, show |> reload() |> broadcast_show()}
+    end)
+  end
+
   defp move_child(%Show{} = show, key, id, delta) do
     id = to_integer(id)
-    rows = show |> Map.fetch!(key) |> List.wrap()
+    rows = Show.children(show, key)
     index = Enum.find_index(rows, &(&1.id == id))
     target_index = index && index + delta
 
@@ -406,15 +393,23 @@ defmodule Showish.Broadcasts do
     end
   end
 
-  defp find_game(%Show{} = show, id) do
-    id = to_integer(id)
-    show.games |> List.wrap() |> Enum.find(&(&1.id == id))
+  # Every row action starts by finding the row on the show it was handed. A row
+  # that is not there means a control room got ahead of itself — an operator who
+  # hit remove twice — which is a stale click rather than something to raise on.
+  defp with_child(%Show{} = show, key, id, action) do
+    case find_child(show, key, id) do
+      nil -> {:error, :not_found}
+      row -> action.(row)
+    end
   end
 
-  defp find_talent(%Show{} = show, id) do
+  defp find_child(%Show{} = show, key, id) do
     id = to_integer(id)
-    show.talents |> List.wrap() |> Enum.find(&(&1.id == id))
+
+    show |> Show.children(key) |> Enum.find(&(&1.id == id))
   end
+
+  defp schema_for(key), do: Map.fetch!(@child_schemas, key)
 
   defp to_integer(id) when is_integer(id), do: id
 
