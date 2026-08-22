@@ -66,6 +66,11 @@ defmodule ShowishWeb.ControlLiveTest do
 
       assert has_element?(view, "#baseball-controls")
       assert has_element?(view, "#baseball-live-state")
+      assert has_element?(view, "#baseball-quick-changes")
+      assert has_element?(view, "details#baseball-pitching-change")
+      assert has_element?(view, "details#baseball-player-substitution")
+      assert has_element?(view, "#baseball-quick-pitcher-form-2")
+      assert has_element?(view, "#baseball-substitution-form-1")
       assert has_element?(view, "#baseball-inning")
       assert has_element?(view, "#baseball-rosters")
       assert has_element?(view, "#baseball-graphics-controls")
@@ -90,6 +95,44 @@ defmodule ShowishWeb.ControlLiveTest do
       refute has_element?(view, "#baseball-single-stats-form")
       refute has_element?(view, "#esports-controls")
       refute has_element?(view, "#add-game")
+    end
+
+    test "quick pitching changes and substitutions write through", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view
+      |> form("#baseball-roster-form-1",
+        roster: %{position: "1", entries: "1. Starter | CF\n2. Slugger | 1B"}
+      )
+      |> render_submit()
+
+      view
+      |> form("#baseball-quick-pitcher-form-2",
+        pitcher_change: %{position: "2", player_id: "", name: "Reliever"}
+      )
+      |> render_submit()
+
+      outgoing_id =
+        Broadcasts.get_show!(scope, show.id).sport_state["lineups"]["1"]
+        |> hd()
+        |> Map.fetch!("id")
+
+      view
+      |> form("#baseball-substitution-form-1",
+        substitution: %{
+          position: "1",
+          outgoing_player_id: to_string(outgoing_id),
+          incoming_player_id: "",
+          name: "Pinch Runner",
+          field_position: "RF"
+        }
+      )
+      |> render_submit()
+
+      state = Broadcasts.get_show!(scope, show.id).sport_state
+      assert state["pitchers"]["2"]["name"] == "Reliever"
+      assert hd(state["lineups"]["1"])["name"] == "Pinch Runner"
     end
 
     test "saves defensive and bullpen data while deriving highlight data", %{

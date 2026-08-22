@@ -6,6 +6,36 @@
 @source "../js";
 @source "../../lib/showish_web";
 
+@keyframes shortcut-confirmation {
+  0% { transform: scale(0.985); }
+  55% { transform: scale(0.995); }
+  100% { transform: scale(1); }
+}
+
+#control-room button.shortcut-confirmed {
+  border-color: color-mix(in oklab, var(--color-success) 35%, transparent);
+  background-color: color-mix(in oklab, var(--color-success) 8%, var(--color-base-100));
+  animation: shortcut-confirmation 180ms ease-out;
+}
+
+#control-room .optimistic-value {
+  color: color-mix(in oklab, var(--color-success) 72%, currentColor);
+  transform: scale(1.03);
+  transition: color 120ms ease, transform 120ms ease;
+}
+
+#control-room button.optimistic-base-occupied {
+  border-color: var(--color-warning);
+  background: var(--color-warning);
+  box-shadow: 0 0 16px color-mix(in oklab, var(--color-warning) 55%, transparent);
+}
+
+#control-room button.optimistic-base-empty {
+  border-color: color-mix(in oklab, var(--color-base-content) 25%, transparent);
+  background: var(--color-base-100);
+  box-shadow: none;
+}
+
 /* A Tailwind plugin that makes "hero-#{ICON}" classes available.
    The heroicons installation itself is managed by your mix.exs */
 @plugin "../vendor/heroicons";

@@ -81,6 +81,132 @@ topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
+const optimisticTimer = new WeakMap()
+
+const markOptimistic = element => {
+  if (!element) { return }
+  element.classList.remove("optimistic-value")
+  window.requestAnimationFrame(() => element.classList.add("optimistic-value"))
+  window.clearTimeout(optimisticTimer.get(element))
+  optimisticTimer.set(element, window.setTimeout(() => {
+    element.classList.remove("optimistic-value")
+  }, 1100))
+}
+
+const setOptimisticNumber = (selector, value, minimum = 0, maximum = Number.MAX_SAFE_INTEGER) => {
+  const element = document.querySelector(selector)
+  if (!element) { return }
+  const next = Math.max(minimum, Math.min(maximum, value))
+  element.textContent = String(next)
+  markOptimistic(element)
+}
+
+const bumpOptimisticNumber = (selector, delta, minimum = 0, maximum = Number.MAX_SAFE_INTEGER) => {
+  const element = document.querySelector(selector)
+  if (!element) { return }
+  const current = Number.parseInt(element.textContent, 10) || 0
+  setOptimisticNumber(selector, current + delta, minimum, maximum)
+}
+
+const setOptimisticBase = (button, occupied) => {
+  if (!button) { return }
+  button.setAttribute("aria-pressed", String(occupied))
+  button.classList.toggle("optimistic-base-occupied", occupied)
+  button.classList.toggle("optimistic-base-empty", !occupied)
+}
+
+const predictControlAction = button => {
+  const click = button.getAttribute("phx-click")
+  const action = button.getAttribute("phx-value-action")
+
+  if (click === "score") {
+    const position = button.getAttribute("phx-value-position")
+    const delta = Number.parseInt(button.getAttribute("phx-value-delta"), 10) || 0
+    const prefix = button.closest("#baseball-controls") ? "#baseball-runs-" : "#score-value-"
+    bumpOptimisticNumber(`${prefix}${position}`, delta)
+    return
+  }
+
+  if (action === "adjust_count") {
+    const kind = button.getAttribute("phx-value-kind")
+    const delta = Number.parseInt(button.getAttribute("phx-value-delta"), 10) || 0
+    bumpOptimisticNumber(`#baseball-${kind}`, delta, 0, kind === "balls" ? 3 : 2)
+    return
+  }
+
+  if (action === "adjust_pitch_count") {
+    const position = button.getAttribute("phx-value-position")
+    const delta = Number.parseInt(button.getAttribute("phx-value-delta"), 10) || 0
+    bumpOptimisticNumber(`#baseball-pitches-${position}`, delta)
+    return
+  }
+
+  if (action === "toggle_base") {
+    setOptimisticBase(button, button.getAttribute("aria-pressed") !== "true")
+    return
+  }
+
+  if (action === "clear_count") {
+    setOptimisticNumber("#baseball-balls", 0)
+    setOptimisticNumber("#baseball-strikes", 0)
+    return
+  }
+
+  if (action === "clear_bases") {
+    document.querySelectorAll("#baseball-controls [id^='baseball-base-']")
+      .forEach(base => setOptimisticBase(base, false))
+    return
+  }
+
+  if (action === "record_pitch") {
+    const fieldingPosition = document.querySelector("#baseball-live-state")?.dataset.fieldingPosition
+    if (fieldingPosition) { bumpOptimisticNumber(`#baseball-pitches-${fieldingPosition}`, 1) }
+
+    const result = button.getAttribute("phx-value-result")
+    const balls = Number.parseInt(document.querySelector("#baseball-balls")?.textContent, 10) || 0
+    const strikes = Number.parseInt(document.querySelector("#baseball-strikes")?.textContent, 10) || 0
+
+    if (result === "ball") {
+      if (balls === 3) {
+        setOptimisticNumber("#baseball-balls", 0)
+        setOptimisticNumber("#baseball-strikes", 0)
+      } else {
+        setOptimisticNumber("#baseball-balls", balls + 1, 0, 3)
+      }
+    } else if (result === "strike") {
+      if (strikes === 2) {
+        setOptimisticNumber("#baseball-balls", 0)
+        setOptimisticNumber("#baseball-strikes", 0)
+        bumpOptimisticNumber("#baseball-outs", 1, 0, 2)
+      } else {
+        setOptimisticNumber("#baseball-strikes", strikes + 1, 0, 2)
+      }
+    } else if (result === "foul" && strikes < 2) {
+      setOptimisticNumber("#baseball-strikes", strikes + 1, 0, 2)
+    }
+    return
+  }
+
+  if (button.closest("#baseball-play-form") && button.type === "submit") {
+    setOptimisticNumber("#baseball-balls", 0)
+    setOptimisticNumber("#baseball-strikes", 0)
+  }
+}
+
+// Every control-room shortcut acknowledges the operator and predicts simple
+// counters immediately. The next LiveView patch remains authoritative and
+// naturally reconciles any prediction affected by baseball rules or another
+// connected operator.
+document.addEventListener("click", event => {
+  const button = event.target.closest("#control-room button")
+  if (!button || button.disabled) { return }
+
+  predictControlAction(button)
+  button.classList.remove("shortcut-confirmed")
+  window.requestAnimationFrame(() => button.classList.add("shortcut-confirmed"))
+  window.setTimeout(() => button.classList.remove("shortcut-confirmed"), 300)
+})
+
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 

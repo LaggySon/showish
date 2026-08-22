@@ -158,6 +158,39 @@ defmodule Showish.BroadcastsTest do
     end
   end
 
+  describe "team library" do
+    test "saves a team identity once and applies it to another show" do
+      scope = user_scope_fixture()
+
+      source =
+        show_fixture(scope, %{
+          teams: [
+            %{
+              position: 1,
+              name: "Harbour Kings",
+              short_name: "Kings",
+              code: "HBR",
+              primary_color: "#123456",
+              secondary_color: "#ffffff"
+            },
+            %{position: 2, name: "Visitors"}
+          ]
+        })
+
+      target = show_fixture(scope)
+
+      assert {:ok, profile} =
+               Broadcasts.save_team_profile(scope, Show.team(source, 1))
+
+      assert [saved] = Broadcasts.list_team_profiles(scope)
+      assert saved.id == profile.id
+
+      assert {:ok, updated} = Broadcasts.apply_team_profile(scope, target, 2, profile.id)
+      team = Show.team(updated, 2)
+      assert {team.name, team.code, team.primary_color} == {"Harbour Kings", "HBR", "#123456"}
+    end
+  end
+
   describe "scores" do
     test "adjust_score/3 moves one team and clamps at zero" do
       show = show_fixture()
@@ -267,6 +300,82 @@ defmodule Showish.BroadcastsTest do
                "name" => "Phillips",
                "pitch_count" => 30
              }
+    end
+
+    test "pitching changes preserve each pitcher's own count" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "change_pitcher", %{
+                 "pitcher_change" => %{"position" => "2", "name" => "First Arm"}
+               })
+
+      first_id = show.sport_state["pitchers"]["2"]["id"]
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "adjust_pitch_count", %{
+                 "position" => "2",
+                 "delta" => "12"
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "change_pitcher", %{
+                 "pitcher_change" => %{"position" => "2", "name" => "Second Arm"}
+               })
+
+      assert show.sport_state["pitchers"]["2"]["pitch_count"] == 0
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "adjust_pitch_count", %{
+                 "position" => "2",
+                 "delta" => "4"
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "change_pitcher", %{
+                 "pitcher_change" => %{
+                   "position" => "2",
+                   "player_id" => to_string(first_id),
+                   "name" => ""
+                 }
+               })
+
+      assert Map.take(show.sport_state["pitchers"]["2"], ~w(name pitch_count)) == %{
+               "name" => "First Arm",
+               "pitch_count" => 12
+             }
+    end
+
+    test "a quick substitution replaces the lineup spot and defensive assignment" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_roster", %{
+                 "roster" => %{
+                   "position" => "1",
+                   "entries" => "1. A. Leadoff | CF\n2. B. Slugger | 1B"
+                 }
+               })
+
+      outgoing_id = hd(show.sport_state["lineups"]["1"])["id"]
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "substitute_player", %{
+                 "substitution" => %{
+                   "position" => "1",
+                   "outgoing_player_id" => to_string(outgoing_id),
+                   "name" => "C. Pinch Runner",
+                   "field_position" => "RF"
+                 }
+               })
+
+      assert Enum.map(show.sport_state["lineups"]["1"], & &1["name"]) == [
+               "C. Pinch Runner",
+               "B. Slugger"
+             ]
+
+      assert show.sport_state["defense"]["1"]["RF"] == "C. Pinch Runner"
+      assert show.sport_state["defense"]["1"]["CF"] == ""
     end
 
     test "a combined roster paste saves batting order and defensive alignment" do
