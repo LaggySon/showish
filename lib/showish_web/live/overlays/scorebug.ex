@@ -433,23 +433,20 @@ defmodule ShowishWeb.Overlays.Scorebug do
     """
   end
 
-  defp gradient_angle("right"), do: "270deg"
-  defp gradient_angle(_align), do: "90deg"
-
   defp baseball_team_name_style(team) do
-    "#{team_vars(team)} background: linear-gradient(90deg, color-mix(in oklab, var(--team-primary) 64%, #071d33) 0%, color-mix(in oklab, var(--team-primary) 24%, #071d33) 78%, #071d33 100%); box-shadow: inset 6px 0 0 var(--team-secondary);"
+    "#{team_vars(team)} background: var(--team-primary); color: #{contrast(team)}; box-shadow: inset 6px 0 0 var(--team-secondary);"
   end
 
   defp baseball_team_score_style(team) do
-    "#{team_vars(team)} background: linear-gradient(135deg, color-mix(in oklab, var(--team-primary) 72%, #04111f), color-mix(in oklab, var(--team-secondary) 24%, #04111f)); box-shadow: inset 0 -5px 0 color-mix(in oklab, var(--team-secondary) 78%, transparent);"
+    "#{team_vars(team)} background: var(--team-primary); color: #{contrast(team)}; box-shadow: inset 0 -5px 0 var(--team-secondary);"
   end
 
-  defp team_plate_style(team, align) do
-    "#{team_vars(team)} background: linear-gradient(#{gradient_angle(align)}, color-mix(in oklab, var(--team-primary) 82%, #090c12) 0%, color-mix(in oklab, var(--team-primary) 38%, #090c12) 66%, color-mix(in oklab, var(--team-secondary) 22%, #090c12) 100%); box-shadow: inset 0 -5px 0 var(--team-secondary);"
+  defp team_plate_style(team, _align) do
+    "#{team_vars(team)} background: var(--team-primary); color: #{contrast(team)}; box-shadow: inset 0 -5px 0 var(--team-secondary);"
   end
 
   defp score_box_style(team, delay) do
-    "#{team_vars(team)} background: linear-gradient(145deg, var(--team-primary), color-mix(in oklab, var(--team-secondary) 20%, var(--team-primary))); color: #{contrast(team)}; box-shadow: inset 0 -5px 0 var(--team-secondary); --overlay-delay: #{delay}ms;"
+    "#{team_vars(team)} background: var(--team-primary); color: #{contrast(team)}; box-shadow: inset 0 -5px 0 var(--team-secondary); --overlay-delay: #{delay}ms;"
   end
 
   # The round being played, or the week it is part of if the operator named only
