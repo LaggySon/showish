@@ -204,7 +204,7 @@ document.addEventListener("click", event => {
   predictControlAction(button)
   button.classList.remove("shortcut-confirmed")
   window.requestAnimationFrame(() => button.classList.add("shortcut-confirmed"))
-  window.setTimeout(() => button.classList.remove("shortcut-confirmed"), 850)
+  window.setTimeout(() => button.classList.remove("shortcut-confirmed"), 300)
 })
 
 // connect if there are any LiveViews on the page
