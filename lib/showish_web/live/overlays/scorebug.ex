@@ -112,11 +112,13 @@ defmodule ShowishWeb.Overlays.Scorebug do
   defp baseball_team(assigns) do
     ~H"""
     <div class="contents">
-      <div class={[
-        "relative flex min-w-0 items-center px-6",
-        @position == 1 && "border-b-2 border-white/20"
-      ]}>
-        <span class="absolute inset-y-0 left-0 w-1" style={"background: #{primary(@team)}"}></span>
+      <div
+        class={[
+          "relative flex min-w-0 items-center px-6",
+          @position == 1 && "border-b-2 border-white/20"
+        ]}
+        style={baseball_team_name_style(@team)}
+      >
         <span class="truncate text-[34px] font-semibold uppercase leading-none tracking-[0.08em]">
           {team_code(@team)}
         </span>
@@ -127,6 +129,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
           "flex items-center justify-center border-l-2 border-white/20 text-[46px] font-bold leading-none tabular-nums",
           @position == 1 && "border-b-2"
         ]}
+        style={baseball_team_score_style(@team)}
       >
         {@runs}
       </span>
@@ -372,7 +375,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
         @align == "right" && "justify-end ",
         @align == "left" && "flex-row-reverse justify-end "
       ]}
-      style={"background: linear-gradient(#{gradient_angle(@align)}, #{wash(@team, 0.9)} 0%, rgba(9, 12, 18, 0.92) 78%);"}
+      style={team_plate_style(@team, @align)}
     >
       <div class={["flex min-w-0 flex-col gap-1", @align == "right" && "items-end"]}>
         <div class="truncate text-[34px] font-black uppercase leading-none tracking-tight">
@@ -408,7 +411,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
     ~H"""
     <div
       class="tabular overlay-in-pop flex w-[104px] items-center justify-center text-[54px] font-black leading-none"
-      style={"background: #{primary(@team)}; color: #{contrast(@team)}; --overlay-delay: #{@delay}ms;"}
+      style={score_box_style(@team, @delay)}
     >
       {score(@team)}
     </div>
@@ -432,6 +435,22 @@ defmodule ShowishWeb.Overlays.Scorebug do
 
   defp gradient_angle("right"), do: "270deg"
   defp gradient_angle(_align), do: "90deg"
+
+  defp baseball_team_name_style(team) do
+    "#{team_vars(team)} background: linear-gradient(90deg, color-mix(in oklab, var(--team-primary) 64%, #071d33) 0%, color-mix(in oklab, var(--team-primary) 24%, #071d33) 78%, #071d33 100%); box-shadow: inset 6px 0 0 var(--team-secondary);"
+  end
+
+  defp baseball_team_score_style(team) do
+    "#{team_vars(team)} background: linear-gradient(135deg, color-mix(in oklab, var(--team-primary) 72%, #04111f), color-mix(in oklab, var(--team-secondary) 24%, #04111f)); box-shadow: inset 0 -5px 0 color-mix(in oklab, var(--team-secondary) 78%, transparent);"
+  end
+
+  defp team_plate_style(team, align) do
+    "#{team_vars(team)} background: linear-gradient(#{gradient_angle(align)}, color-mix(in oklab, var(--team-primary) 82%, #090c12) 0%, color-mix(in oklab, var(--team-primary) 38%, #090c12) 66%, color-mix(in oklab, var(--team-secondary) 22%, #090c12) 100%); box-shadow: inset 0 -5px 0 var(--team-secondary);"
+  end
+
+  defp score_box_style(team, delay) do
+    "#{team_vars(team)} background: linear-gradient(145deg, var(--team-primary), color-mix(in oklab, var(--team-secondary) 20%, var(--team-primary))); color: #{contrast(team)}; box-shadow: inset 0 -5px 0 var(--team-secondary); --overlay-delay: #{delay}ms;"
+  end
 
   # The round being played, or the week it is part of if the operator named only
   # that.
