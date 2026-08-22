@@ -111,25 +111,21 @@ defmodule ShowishWeb.Overlays.Scorebug do
 
   defp baseball_team(assigns) do
     ~H"""
-    <div class="contents">
-      <div
-        class={[
-          "relative flex min-w-0 items-center px-6",
-          @position == 1 && "border-b-2 border-white/20"
-        ]}
-        style={baseball_team_name_style(@team)}
-      >
+    <div
+      class={[
+        "col-span-2 grid grid-cols-[1fr_92px]",
+        @position == 1 && "border-b-2 border-white/20"
+      ]}
+      style={baseball_team_style(@team)}
+    >
+      <div class="relative flex min-w-0 items-center px-6">
         <span class="truncate text-[34px] font-semibold uppercase leading-none tracking-[0.08em]">
           {team_code(@team)}
         </span>
       </div>
       <span
         id={"baseball-overlay-runs-#{@position}"}
-        class={[
-          "flex items-center justify-center border-l-2 border-white/20 text-[46px] font-bold leading-none tabular-nums",
-          @position == 1 && "border-b-2"
-        ]}
-        style={baseball_team_score_style(@team)}
+        class="flex items-center justify-center text-[46px] font-bold leading-none tabular-nums"
       >
         {@runs}
       </span>
@@ -433,12 +429,8 @@ defmodule ShowishWeb.Overlays.Scorebug do
     """
   end
 
-  defp baseball_team_name_style(team) do
+  defp baseball_team_style(team) do
     "#{team_vars(team)} background: var(--team-primary); color: #{contrast(team)}; box-shadow: inset 6px 0 0 var(--team-secondary);"
-  end
-
-  defp baseball_team_score_style(team) do
-    "#{team_vars(team)} background: var(--team-primary); color: #{contrast(team)}; box-shadow: inset 0 -5px 0 var(--team-secondary);"
   end
 
   defp team_plate_style(team, _align) do
