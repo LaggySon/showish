@@ -88,6 +88,20 @@ defmodule Showish.Baseball do
       "2" => pitcher_projection(game.home_pitcher, game.home_pitch_count)
     }
 
+    rosters =
+      Map.new(~w(1 2), fn position ->
+        team = Show.team(show, String.to_integer(position))
+
+        players =
+          Player
+          |> where(team_id: ^team.id, active: true)
+          |> Repo.all()
+          |> Enum.sort_by(& &1.name)
+          |> Enum.map(&%{"id" => &1.id, "name" => &1.name})
+
+        {position, players}
+      end)
+
     %{
       "inning" => game.inning,
       "half" => game.half,
@@ -106,6 +120,7 @@ defmodule Showish.Baseball do
       "defense" => defense_projection(game, show),
       "bullpens" => bullpen_projection(game, show),
       "pitchers" => pitchers,
+      "rosters" => rosters,
       "graphics" => graphics_projection(game, show, stats),
       "last_play" => last_play_projection(game),
       "history" =>
@@ -225,7 +240,82 @@ defmodule Showish.Baseball do
        when position in ~w(1 2) and is_binary(name) do
     team = team!(show, position)
     player = if String.trim(name) == "", do: nil, else: player!(team.id, name)
-    {:ok, update_game!(game, %{pitcher_field(position) => player && player.id})}
+
+    count =
+      if player do
+        clear_pitcher_assignment!(game.id, team.id)
+        spot = upsert_spot!(game.id, team.id, player.id, %{field_position: "P"})
+        spot.pitch_count
+      else
+        0
+      end
+
+    {:ok,
+     update_game!(game, %{
+       pitcher_field(position) => player && player.id,
+       pitch_count_field(position) => count
+     })}
+  end
+
+  defp dispatch(game, show, "change_pitcher", %{"pitcher_change" => params})
+       when is_map(params) do
+    position = params["position"]
+
+    if position in ~w(1 2) do
+      team = team!(show, position)
+      player = selected_or_named_player(team.id, params["player_id"], params["name"])
+
+      if player do
+        clear_pitcher_assignment!(game.id, team.id)
+        spot = upsert_spot!(game.id, team.id, player.id, %{field_position: "P", starter: false})
+
+        {:ok,
+         update_game!(game, %{
+           pitcher_field(position) => player.id,
+           pitch_count_field(position) => spot.pitch_count
+         })}
+      else
+        {:error, :pitcher_required}
+      end
+    else
+      {:error, :invalid_team}
+    end
+  end
+
+  defp dispatch(game, show, "substitute_player", %{"substitution" => params})
+       when is_map(params) do
+    position = params["position"]
+
+    with true <- position in ~w(1 2),
+         team = team!(show, position),
+         outgoing_id when not is_nil(outgoing_id) <-
+           optional_integer(params["outgoing_player_id"]),
+         %LineupSpot{} = outgoing <-
+           Repo.get_by(LineupSpot, game_id: game.id, team_id: team.id, player_id: outgoing_id),
+         %Player{} = incoming <-
+           selected_or_named_player(team.id, params["incoming_player_id"], params["name"]) do
+      if incoming.id == outgoing.player_id do
+        {:error, :different_substitute_required}
+      else
+        batting_order = outgoing.batting_order
+        field_position = blank_default(params["field_position"], outgoing.field_position)
+
+        outgoing
+        |> LineupSpot.changeset(%{batting_order: nil, field_position: ""})
+        |> Repo.update!()
+
+        upsert_spot!(game.id, team.id, incoming.id, %{
+          batting_order: batting_order,
+          field_position: field_position,
+          starter: false
+        })
+
+        {:ok, game}
+      end
+    else
+      false -> {:error, :invalid_team}
+      _ -> {:error, :invalid_substitution}
+    end
   end
 
   defp dispatch(game, _show, "set_batter", %{"position" => position, "index" => index})
@@ -253,7 +343,10 @@ defmodule Showish.Baseball do
        })
        when position in ~w(1 2) do
     field = pitch_count_field(position)
-    {:ok, update_game!(game, %{field => max(Map.fetch!(game, field) + to_integer(delta), 0)})}
+    count = max(Map.fetch!(game, field) + to_integer(delta), 0)
+    game = update_game!(game, %{field => count})
+    persist_pitch_count!(game, Map.fetch!(game, pitcher_field(position)), count)
+    {:ok, game}
   end
 
   defp dispatch(game, show, "select_highlights", %{"highlight" => params})
@@ -381,6 +474,8 @@ defmodule Showish.Baseball do
 
       event ->
         game = update_game!(game, atomize_game_state(event.state_before))
+        persist_pitch_count!(game, game.away_pitcher_id, game.away_pitch_count)
+        persist_pitch_count!(game, game.home_pitcher_id, game.home_pitch_count)
         restore_scores!(show, event.state_before)
         Repo.delete!(event)
         {:ok, game}
@@ -389,6 +484,10 @@ defmodule Showish.Baseball do
 
   defp dispatch(game, _show, "reset", _params) do
     Repo.delete_all(from event in Event, where: event.game_id == ^game.id)
+
+    LineupSpot
+    |> where(game_id: ^game.id)
+    |> Repo.update_all(set: [pitch_count: 0])
 
     {:ok,
      update_game!(game, %{
@@ -1190,10 +1289,9 @@ defmodule Showish.Baseball do
   end
 
   defp pitcher_pitch_count(game, pitcher_id) do
-    cond do
-      game.away_pitcher_id == pitcher_id -> game.away_pitch_count
-      game.home_pitcher_id == pitcher_id -> game.home_pitch_count
-      true -> Enum.count(game.pitches, &(&1.pitcher_id == pitcher_id))
+    case Enum.find(game.lineup_spots, &(&1.player_id == pitcher_id)) do
+      nil -> Enum.count(game.pitches, &(&1.pitcher_id == pitcher_id))
+      spot -> spot.pitch_count
     end
   end
 
@@ -1202,11 +1300,19 @@ defmodule Showish.Baseball do
   defp pitcher_projection(player, count),
     do: %{"id" => player.id, "name" => player.name, "pitch_count" => count}
 
-  defp increment_current_pitch_count(%Game{half: "top"} = game),
-    do: update_game!(game, %{home_pitch_count: game.home_pitch_count + 1})
+  defp increment_current_pitch_count(%Game{half: "top"} = game) do
+    count = game.home_pitch_count + 1
+    game = update_game!(game, %{home_pitch_count: count})
+    persist_pitch_count!(game, game.home_pitcher_id, count)
+    game
+  end
 
-  defp increment_current_pitch_count(game),
-    do: update_game!(game, %{away_pitch_count: game.away_pitch_count + 1})
+  defp increment_current_pitch_count(game) do
+    count = game.away_pitch_count + 1
+    game = update_game!(game, %{away_pitch_count: count})
+    persist_pitch_count!(game, game.away_pitcher_id, count)
+    game
+  end
 
   defp advance_half(%Game{half: "top"} = game),
     do: game |> update_game!(%{half: "bottom"}) |> reset_half()
@@ -1257,6 +1363,31 @@ defmodule Showish.Baseball do
 
     Repo.get_by(Player, team_id: team_id, name: name) ||
       %Player{team_id: team_id} |> Player.changeset(%{name: name}) |> Repo.insert!()
+  end
+
+  defp selected_or_named_player(team_id, player_id, name) do
+    selected = optional_integer(player_id)
+
+    cond do
+      selected -> Repo.get_by(Player, id: selected, team_id: team_id)
+      String.trim(to_string(name || "")) != "" -> player!(team_id, name)
+      true -> nil
+    end
+  end
+
+  defp clear_pitcher_assignment!(game_id, team_id) do
+    LineupSpot
+    |> where(game_id: ^game_id, team_id: ^team_id, field_position: "P")
+    |> Repo.update_all(set: [field_position: ""])
+  end
+
+  defp persist_pitch_count!(_game, nil, _count), do: :ok
+
+  defp persist_pitch_count!(game, player_id, count) do
+    case Repo.get_by(LineupSpot, game_id: game.id, player_id: player_id) do
+      nil -> :ok
+      spot -> spot |> LineupSpot.changeset(%{pitch_count: count}) |> Repo.update!()
+    end
   end
 
   defp team!(show, position), do: Show.team(show, String.to_integer(position))

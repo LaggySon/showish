@@ -30,12 +30,14 @@ defmodule Showish.Broadcasts do
   alias Showish.Accounts.User
   alias Showish.Baseball
   alias Showish.Baseball.Game, as: BaseballGame
+  alias Showish.Baseball.Player
   alias Showish.Broadcasts.Game
   alias Showish.Broadcasts.NotOwnerError
   alias Showish.Broadcasts.Show
   alias Showish.Broadcasts.Sport
   alias Showish.Broadcasts.Talent
   alias Showish.Broadcasts.Team
+  alias Showish.Broadcasts.TeamProfile
   alias Showish.Repo
 
   @pubsub Showish.PubSub
@@ -194,6 +196,70 @@ defmodule Showish.Broadcasts do
     Show.changeset(show, stringify_keys(attrs))
   end
 
+  @doc "Lists the reusable teams saved by an account."
+  def list_team_profiles(%Scope{user: %User{id: user_id}}) do
+    TeamProfile
+    |> where(user_id: ^user_id)
+    |> order_by(asc: :name)
+    |> Repo.all()
+  end
+
+  @doc "Saves the current team identity to the account library, updating a same-named entry."
+  def save_team_profile(%Scope{user: %User{id: user_id}}, %Team{} = team) do
+    profile =
+      Repo.get_by(TeamProfile, user_id: user_id, name: team.name) ||
+        %TeamProfile{user_id: user_id}
+
+    attrs =
+      team
+      |> Map.from_struct()
+      |> Map.take(~w(name short_name code logo_url record primary_color secondary_color)a)
+      |> Map.put(:roster, %{
+        "players" =>
+          Player
+          |> where(team_id: ^team.id)
+          |> order_by(asc: :name)
+          |> Repo.all()
+          |> Enum.map(&Map.take(&1, ~w(name jersey_number bats throws active)a))
+      })
+
+    profile |> TeamProfile.changeset(attrs) |> Repo.insert_or_update()
+  end
+
+  @doc "Copies a saved team identity into one of a show's two live team slots."
+  def apply_team_profile(
+        %Scope{user: %User{id: user_id}} = scope,
+        %Show{} = show,
+        position,
+        profile_id
+      )
+      when position in [1, 2] do
+    show = owned!(show, scope)
+
+    with %Team{} = team <- Show.team(show, position),
+         %TeamProfile{} = profile <- Repo.get_by(TeamProfile, id: profile_id, user_id: user_id) do
+      result =
+        Repo.transaction(fn ->
+          team = team |> Team.changeset(TeamProfile.team_attrs(profile)) |> Repo.update!()
+
+          profile.roster
+          |> Map.get("players", [])
+          |> Enum.each(fn attrs ->
+            case Repo.get_by(Player, team_id: team.id, name: attrs["name"]) do
+              nil -> %Player{team_id: team.id} |> Player.changeset(attrs) |> Repo.insert!()
+              player -> player |> Player.changeset(attrs) |> Repo.update!()
+            end
+          end)
+
+          team
+        end)
+
+      after_write(result, show)
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
   ## Operator actions
   #
   # These are the buttons an operator hits mid-match, when there is no time to
@@ -232,7 +298,7 @@ defmodule Showish.Broadcasts do
   def apply_sport_action(%Show{} = show, action, params \\ %{}) when is_binary(action) do
     if show.sport == "baseball" do
       case Baseball.apply_action(show, action, params) do
-        {:ok, _game} -> {:ok, show |> reload() |> broadcast_show()}
+        {:ok, game} -> {:ok, show |> refresh_baseball(game) |> broadcast_show()}
         {:error, reason} -> {:error, reason}
       end
     else
@@ -467,6 +533,23 @@ defmodule Showish.Broadcasts do
   end
 
   defp hydrate_baseball(%Show{} = show), do: show
+
+  # Live baseball controls are the hottest write path in the app. The show,
+  # series, and talent rows are already present on the socket and cannot have
+  # changed inside a baseball action, so only refresh the game ledger and team
+  # scores needed to build the next authoritative projection.
+  defp refresh_baseball(%Show{} = show, %BaseballGame{} = game) do
+    game = Repo.preload(game, Baseball.preloads(), force: true)
+
+    teams =
+      Team
+      |> where(show_id: ^show.id)
+      |> order_by(asc: :position)
+      |> Repo.all()
+
+    %{show | teams: teams, baseball_game: game}
+    |> hydrate_baseball()
+  end
 
   # Forms hand us string keys and tests hand us atoms; Ecto insists on one or
   # the other, so normalise the top level (nested maps are cast on their own).

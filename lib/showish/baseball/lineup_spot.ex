@@ -8,6 +8,7 @@ defmodule Showish.Baseball.LineupSpot do
     field :batting_order, :integer
     field :field_position, :string, default: ""
     field :starter, :boolean, default: true
+    field :pitch_count, :integer, default: 0
 
     belongs_to :game, Showish.Baseball.Game
     belongs_to :team, Showish.Broadcasts.Team
@@ -17,7 +18,8 @@ defmodule Showish.Baseball.LineupSpot do
 
   def changeset(spot, attrs) do
     spot
-    |> cast(attrs, [:batting_order, :field_position, :starter])
+    |> cast(attrs, [:batting_order, :field_position, :starter, :pitch_count])
+    |> validate_number(:pitch_count, greater_than_or_equal_to: 0)
     |> validate_number(:batting_order, greater_than_or_equal_to: 1, less_than_or_equal_to: 20)
     |> validate_inclusion(:field_position, [
       "",

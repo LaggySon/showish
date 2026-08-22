@@ -27,6 +27,7 @@ defmodule ShowishWeb.ShowLive.Control do
      socket
      |> assign(:page_title, "Control · #{show.title}")
      |> assign(:preview_scene, "scorebug")
+     |> assign(:team_profiles, Broadcasts.list_team_profiles(socket.assigns.current_scope))
      |> assign_show(show)}
   end
 
@@ -50,7 +51,7 @@ defmodule ShowishWeb.ShowLive.Control do
         </div>
       </div>
 
-      <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_560px]">
+      <div id="control-room" class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_560px]">
         <div class="space-y-6">
           <% sport = Sport.fetch(@show.sport) %>
           <.panel title={sport.control_title} subtitle={sport.control_summary}>
@@ -67,6 +68,7 @@ defmodule ShowishWeb.ShowLive.Control do
                     Part of every overlay URL for this show — changing it moves them all.
                   </p>
                 </div>
+
                 <.input
                   field={@form[:stage]}
                   label="Stage"
@@ -96,8 +98,7 @@ defmodule ShowishWeb.ShowLive.Control do
                   type="number"
                   min="1"
                   label="Best of"
-                />
-                <.input field={@form[:accent_color]} type="color" label="Accent color" />
+                /> <.input field={@form[:accent_color]} type="color" label="Accent color" />
                 <.input
                   field={@form[:preset]}
                   type="select"
@@ -173,10 +174,45 @@ defmodule ShowishWeb.ShowLive.Control do
                       type="number"
                       min="0"
                       label={if(@show.sport == "baseball", do: "Runs", else: "Series score")}
-                    />
-                    <.input field={tf[:primary_color]} type="color" label="Primary color" />
+                    /> <.input field={tf[:primary_color]} type="color" label="Primary color" />
                     <.input field={tf[:secondary_color]} type="color" label="Secondary color" />
                     <.input field={tf[:logo_url]} label="Logo URL" phx-debounce="blur" />
+                  </div>
+
+                  <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-base-300 pt-3">
+                    <button
+                      id={"save-team-profile-#{tf.data.position}"}
+                      type="button"
+                      class="btn btn-sm btn-primary"
+                      phx-click="save_team_profile"
+                      phx-value-position={tf.data.position}
+                    >
+                      <.icon name="hero-bookmark-mini" class="size-4" /> Save to team library
+                    </button>
+                    <details :if={@team_profiles != []} class="dropdown">
+                      <summary class="btn btn-sm">Use saved team</summary>
+                      <div class="dropdown-content z-20 mt-2 w-64 rounded-box border border-base-300 bg-base-100 p-2 shadow-xl">
+                        <button
+                          :for={profile <- @team_profiles}
+                          id={"apply-team-profile-#{tf.data.position}-#{profile.id}"}
+                          type="button"
+                          class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-bold transition hover:bg-base-200"
+                          phx-click="apply_team_profile"
+                          phx-value-position={tf.data.position}
+                          phx-value-profile-id={profile.id}
+                        >
+                          <span
+                            class="size-2.5 rounded-full"
+                            style={"background: #{profile.primary_color}"}
+                          >
+                          </span>
+                          {profile.name}
+                        </button>
+                      </div>
+                    </details>
+                    <span class="text-xs text-base-content/50">
+                      Saved branding and rosters are reusable in every show on this account.
+                    </span>
                   </div>
                 </div>
               </.inputs_for>
@@ -250,8 +286,7 @@ defmodule ShowishWeb.ShowLive.Control do
                       label="Social"
                       placeholder="@handle"
                       phx-debounce="500"
-                    />
-                    <.input field={pf[:on_cam]} type="checkbox" label="On camera" />
+                    /> <.input field={pf[:on_cam]} type="checkbox" label="On camera" />
                   </div>
                 </div>
               </.inputs_for>
@@ -345,6 +380,36 @@ defmodule ShowishWeb.ShowLive.Control do
   def handle_event("sport_action", %{"action" => action} = params, socket) do
     socket.assigns.show
     |> Broadcasts.apply_sport_action(action, Map.delete(params, "action"))
+    |> apply_result(socket)
+  end
+
+  def handle_event("save_team_profile", %{"position" => position}, socket) do
+    team = Show.team(socket.assigns.show, String.to_integer(position))
+
+    case Broadcasts.save_team_profile(socket.assigns.current_scope, team) do
+      {:ok, _profile} ->
+        {:noreply,
+         socket
+         |> assign(:team_profiles, Broadcasts.list_team_profiles(socket.assigns.current_scope))
+         |> put_flash(:info, "#{team.name} saved to the team library.")}
+
+      {:error, changeset} ->
+        {:noreply,
+         put_flash(socket, :error, "Could not save that team (#{inspect(changeset.errors)}).")}
+    end
+  end
+
+  def handle_event(
+        "apply_team_profile",
+        %{"position" => position, "profile-id" => profile_id},
+        socket
+      ) do
+    Broadcasts.apply_team_profile(
+      socket.assigns.current_scope,
+      socket.assigns.show,
+      String.to_integer(position),
+      profile_id
+    )
     |> apply_result(socket)
   end
 

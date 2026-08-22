@@ -15,7 +15,7 @@ defmodule ShowishWeb.SportControls do
   attr :show, :any, required: true
 
   def panel(%{show: %{sport: "baseball"}} = assigns) do
-    state = baseball_state(assigns.show)
+    state = assigns.show |> baseball_state() |> with_rosters()
     teams = sorted_teams(assigns.show)
     batting_position = if state["half"] == "top", do: 1, else: 2
     fielding_position = if batting_position == 1, do: 2, else: 1
@@ -33,6 +33,8 @@ defmodule ShowishWeb.SportControls do
       |> assign(:current_pitcher, state["pitchers"][fielding_key])
       |> assign(:roster_forms, roster_forms(teams, state))
       |> assign(:pitcher_forms, pitcher_forms(teams, state))
+      |> assign(:pitcher_change_forms, pitcher_change_forms(teams))
+      |> assign(:substitution_forms, substitution_forms(teams))
       |> assign(:bullpen_forms, bullpen_forms(teams, state))
       |> assign(:play_form, play_form())
       |> assign(:highlight_form, highlight_form(state))
@@ -42,25 +44,29 @@ defmodule ShowishWeb.SportControls do
     <div id="baseball-controls" class="space-y-4">
       <div
         id="baseball-live-state"
+        data-fielding-position={if(@batting_position == 1, do: 2, else: 1)}
         class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-white shadow-sm"
       >
         <div class="flex items-center gap-3">
           <span class="relative flex size-2.5">
             <span class="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-50">
-            </span>
-            <span class="relative inline-flex size-2.5 rounded-full bg-emerald-400"></span>
+            </span> <span class="relative inline-flex size-2.5 rounded-full bg-emerald-400"></span>
           </span>
           <div>
             <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
               Live game state
             </p>
+
             <p class="font-black uppercase tracking-wide">
               {if(@state["half"] == "top", do: "Top", else: "Bottom")} {@state["inning"]}
-              <span class="px-1.5 text-slate-600">/</span>
-              {if(@batting_team, do: Team.full_name(@batting_team), else: "Away")} batting
+              <span class="px-1.5 text-slate-600">/</span> {if(@batting_team,
+                do: Team.full_name(@batting_team),
+                else: "Away"
+              )} batting
             </p>
           </div>
         </div>
+
         <div class="flex items-center gap-2 font-mono text-sm font-bold tabular-nums">
           <span class="rounded bg-white/8 px-2.5 py-1">{@state["balls"]}-{@state["strikes"]}</span>
           <span class="rounded bg-white/8 px-2.5 py-1">
@@ -68,6 +74,71 @@ defmodule ShowishWeb.SportControls do
           </span>
         </div>
       </div>
+
+      <section
+        id="baseball-quick-changes"
+        class="overflow-hidden rounded-lg border border-amber-400/35 bg-amber-50/70 shadow-sm dark:bg-amber-950/20"
+      >
+        <div class="flex items-center gap-3 border-b border-amber-400/25 px-4 py-3">
+          <span class="grid size-9 place-items-center rounded-lg bg-amber-400/15 text-amber-700 dark:text-amber-300">
+            <.icon name="hero-bolt-mini" class="size-5" />
+          </span>
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+              Quick changes
+            </p>
+            <p class="text-xs text-base-content/60">
+              Make an on-field change without leaving the live controls.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-px bg-amber-400/20 lg:grid-cols-2">
+          <details id="baseball-pitching-change" class="group bg-base-100">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 font-black transition hover:bg-base-200/70 [&::-webkit-details-marker]:hidden">
+              <span class="grid size-9 place-items-center rounded-md bg-primary/10 text-primary">
+                <.icon name="hero-arrow-path-rounded-square-mini" class="size-5" />
+              </span>
+              <span class="flex-1">Pitching change</span>
+              <span class="text-[10px] font-black uppercase tracking-wider text-base-content/45 group-open:hidden">
+                Open
+              </span>
+              <.icon name="hero-chevron-up-mini" class="hidden size-4 group-open:block" />
+            </summary>
+            <div class="grid gap-3 border-t border-base-300 p-3 sm:grid-cols-2">
+              <.quick_pitcher_form
+                :for={team <- @teams}
+                team={team}
+                form={@pitcher_change_forms[team.position]}
+                players={@state["rosters"][to_string(team.position)]}
+                current={@state["pitchers"][to_string(team.position)]}
+              />
+            </div>
+          </details>
+
+          <details id="baseball-player-substitution" class="group bg-base-100">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 font-black transition hover:bg-base-200/70 [&::-webkit-details-marker]:hidden">
+              <span class="grid size-9 place-items-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-300">
+                <.icon name="hero-user-plus-mini" class="size-5" />
+              </span>
+              <span class="flex-1">Player substitution</span>
+              <span class="text-[10px] font-black uppercase tracking-wider text-base-content/45 group-open:hidden">
+                Open
+              </span>
+              <.icon name="hero-chevron-up-mini" class="hidden size-4 group-open:block" />
+            </summary>
+            <div class="grid gap-3 border-t border-base-300 p-3 sm:grid-cols-2">
+              <.quick_substitution_form
+                :for={team <- @teams}
+                team={team}
+                form={@substitution_forms[team.position]}
+                lineup={@state["lineups"][to_string(team.position)]}
+                players={@state["rosters"][to_string(team.position)]}
+              />
+            </div>
+          </details>
+        </div>
+      </section>
 
       <div class="grid gap-3 sm:grid-cols-2">
         <.baseball_score_control
@@ -87,15 +158,16 @@ defmodule ShowishWeb.SportControls do
             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
               Live actions
             </p>
+
             <p class="mt-0.5 font-bold">
               {if(@active_batter, do: @active_batter["name"], else: "Batter not set")}
-              <span class="px-1 text-slate-600">vs.</span>
-              {if(@current_pitcher["name"] == "",
+              <span class="px-1 text-slate-600">vs.</span> {if(@current_pitcher["name"] == "",
                 do: "Pitcher not set",
                 else: @current_pitcher["name"]
               )}
             </p>
           </div>
+
           <button
             id="baseball-undo"
             type="button"
@@ -114,10 +186,12 @@ defmodule ShowishWeb.SportControls do
               <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
                 Record pitch · optional
               </p>
+
               <span class="font-mono text-xs font-bold text-slate-400 tabular-nums">
                 Count {@state["balls"]}-{@state["strikes"]}
               </span>
             </div>
+
             <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
               <.game_action
                 id="baseball-pitch-ball"
@@ -148,6 +222,7 @@ defmodule ShowishWeb.SportControls do
                 tone="blue"
               />
             </div>
+
             <p class="mt-2 text-[10px] leading-relaxed text-slate-500">
               Every pitch increments the fielding pitcher's count. Ball four and strike three close the plate appearance automatically.
             </p>
@@ -158,6 +233,7 @@ defmodule ShowishWeb.SportControls do
               <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
                 Finish plate appearance
               </p>
+
               <div class="text-right">
                 <span class="block font-mono text-xs font-bold text-slate-400 tabular-nums">
                   {@state["outs"]} {if(@state["outs"] == 1, do: "out", else: "outs")}
@@ -171,6 +247,7 @@ defmodule ShowishWeb.SportControls do
                 </span>
               </div>
             </div>
+
             <.form
               for={@play_form}
               id="baseball-play-form"
@@ -203,6 +280,7 @@ defmodule ShowishWeb.SportControls do
               <p class="mt-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
                 Most common · one tap
               </p>
+
               <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <.game_action
                   id="baseball-play-out"
@@ -261,6 +339,7 @@ defmodule ShowishWeb.SportControls do
                 <p class="px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-300">
                   All other outcomes
                 </p>
+
                 <div class="grid grid-cols-2 gap-2 border-t border-white/10 p-3 sm:grid-cols-3">
                   <.game_action
                     id="baseball-play-triple"
@@ -340,6 +419,7 @@ defmodule ShowishWeb.SportControls do
                   />
                 </div>
               </div>
+
               <p class="mt-2 text-[10px] leading-relaxed text-slate-500">
                 Add runner advances after a period: 1-3 moves first to third, 2-H scores second, and semicolons combine moves. Undo reverses the entire last pitch or play.
               </p>
@@ -353,10 +433,12 @@ defmodule ShowishWeb.SportControls do
           <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
             Lineups & pitching
           </p>
+
           <p class="mt-1 text-xs text-base-content/55">
             Paste each batting order with defensive positions, choose who is at bat, and set each team's current pitcher.
           </p>
         </div>
+
         <div class="grid gap-px bg-base-300 lg:grid-cols-2">
           <.roster_control
             :for={team <- @teams}
@@ -379,6 +461,7 @@ defmodule ShowishWeb.SportControls do
           <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
             Full-screen baseball graphics
           </p>
+
           <p class="mt-1 text-xs text-base-content/55">
             Defensive alignments come from the combined roster above. Manage bullpen, spotlight, and comparison browser sources here.
           </p>
@@ -419,6 +502,7 @@ defmodule ShowishWeb.SportControls do
                 options={[{"Automatic home leader", ""} | @highlight_options.home]}
               />
             </div>
+
             <button
               id="baseball-save-highlight-selection"
               type="submit"
@@ -434,22 +518,28 @@ defmodule ShowishWeb.SportControls do
             <p class="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
               Player spotlight · automatic
             </p>
+
             <p class="mt-2 text-sm font-black">
               {display_name(@state["graphics"]["single"]["name"])}
             </p>
+
             <p class="mt-1 text-xs leading-relaxed text-base-content/55">
               Selected from the game ledger using hits, home runs, RBI, and walks. Its H–AB, AVG, HR, RBI, BB, and SO rows update after every plate appearance.
             </p>
           </div>
+
           <div class="bg-base-100 p-4">
             <p class="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
               Player comparison · automatic
             </p>
+
             <p class="mt-2 text-sm font-black">
               {display_name(@state["graphics"]["comparison"]["left_name"])}
-              <span class="px-1 text-base-content/35">vs.</span>
-              {display_name(@state["graphics"]["comparison"]["right_name"])}
+              <span class="px-1 text-base-content/35">vs.</span> {display_name(
+                @state["graphics"]["comparison"]["right_name"]
+              )}
             </p>
+
             <p class="mt-1 text-xs leading-relaxed text-base-content/55">
               The current statistical leader from each team is compared directly from recorded plate appearances.
             </p>
@@ -463,10 +553,12 @@ defmodule ShowishWeb.SportControls do
             <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
               Inning
             </p>
+
             <span class="rounded bg-primary/10 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary">
               {if(@state["half"] == "top", do: "Away batting", else: "Home batting")}
             </span>
           </div>
+
           <div class="mt-4 flex items-center justify-between gap-3">
             <button
               id="baseball-previous-half"
@@ -482,10 +574,12 @@ defmodule ShowishWeb.SportControls do
               <div id="baseball-inning" class="text-5xl font-black leading-none tabular-nums">
                 {@state["inning"]}
               </div>
+
               <div class="mt-1 text-xs font-black uppercase tracking-[0.18em] text-primary">
                 {if(@state["half"] == "top", do: "Top", else: "Bottom")}
               </div>
             </div>
+
             <button
               id="baseball-next-half"
               type="button"
@@ -497,6 +591,7 @@ defmodule ShowishWeb.SportControls do
               <.icon name="hero-chevron-right-mini" class="size-5" />
             </button>
           </div>
+
           <button
             id="baseball-advance-half"
             type="button"
@@ -513,6 +608,7 @@ defmodule ShowishWeb.SportControls do
             <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
               Pitch & out count
             </p>
+
             <button
               id="baseball-clear-count"
               type="button"
@@ -523,6 +619,7 @@ defmodule ShowishWeb.SportControls do
               New batter
             </button>
           </div>
+
           <div class="mt-3 grid grid-cols-3 gap-2">
             <.count_control label="Balls" kind="balls" value={@state["balls"]} maximum={3} />
             <.count_control label="Strikes" kind="strikes" value={@state["strikes"]} maximum={2} />
@@ -535,6 +632,7 @@ defmodule ShowishWeb.SportControls do
             <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
               Runners
             </p>
+
             <button
               id="baseball-clear-bases"
               type="button"
@@ -545,6 +643,7 @@ defmodule ShowishWeb.SportControls do
               Clear
             </button>
           </div>
+
           <div class="mx-auto mt-5 grid w-36 grid-cols-3 grid-rows-2 gap-3">
             <.base_button base="second" occupied={@state["bases"]["second"]} class="col-start-2" />
             <.base_button
@@ -558,6 +657,7 @@ defmodule ShowishWeb.SportControls do
               class="col-start-3 row-start-2"
             />
           </div>
+
           <p class="mt-5 text-center text-[10px] font-bold uppercase tracking-wider text-base-content/45">
             Tap a base to toggle
           </p>
@@ -568,14 +668,14 @@ defmodule ShowishWeb.SportControls do
         <div class="grid grid-cols-[minmax(0,1fr)_96px_96px] border-b border-base-300 bg-base-200/70 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-base-content/50">
           <span>Line totals</span><span class="text-center">Hits</span><span class="text-center">Errors</span>
         </div>
+
         <div
           :for={team <- @teams}
           class="grid grid-cols-[minmax(0,1fr)_96px_96px] items-center bg-base-100 px-4 py-2.5 not-last:border-b not-last:border-base-300"
         >
           <span class="flex min-w-0 items-center gap-2 truncate font-bold">
             <span class="size-2 shrink-0 rounded-full" style={"background: #{team.primary_color}"}>
-            </span>
-            {Team.full_name(team)}
+            </span> {Team.full_name(team)}
           </span>
           <.stat_control
             stat="hits"
@@ -606,6 +706,141 @@ defmodule ShowishWeb.SportControls do
   end
 
   def panel(assigns), do: fallback_panel(assigns)
+
+  attr :team, :any, required: true
+  attr :form, :any, required: true
+  attr :players, :list, required: true
+  attr :current, :map, required: true
+
+  defp quick_pitcher_form(assigns) do
+    options =
+      assigns.players
+      |> Enum.filter(& &1["id"])
+      |> Enum.map(&{&1["name"], &1["id"]})
+
+    assigns = assign(assigns, :options, options)
+
+    ~H"""
+    <.form
+      for={@form}
+      id={"baseball-quick-pitcher-form-#{@team.position}"}
+      phx-submit="sport_action"
+      phx-value-action="change_pitcher"
+      class="rounded-md border border-base-300 bg-base-200/45 p-3"
+    >
+      <.input
+        field={@form[:position]}
+        id={"baseball-quick-pitcher-position-#{@team.position}"}
+        type="hidden"
+      />
+      <p class="mb-2 text-xs font-black">
+        {Team.full_name(@team)}
+        <span class="font-medium text-base-content/45">· {@current["name"]}</span>
+      </p>
+      <.input
+        field={@form[:player_id]}
+        id={"baseball-quick-pitcher-player-#{@team.position}"}
+        type="select"
+        label="Choose roster player"
+        options={[{"Select a saved player", ""} | @options]}
+      />
+      <div class="my-1 text-center text-[9px] font-black uppercase tracking-widest text-base-content/35">
+        or
+      </div>
+      <.input
+        field={@form[:name]}
+        id={"baseball-quick-pitcher-name-#{@team.position}"}
+        label="Enter a new pitcher"
+        placeholder="Pitcher name"
+      />
+      <button
+        id={"baseball-confirm-pitcher-#{@team.position}"}
+        type="submit"
+        class="mt-2 w-full rounded-md bg-primary px-3 py-2 text-xs font-black uppercase tracking-wider text-primary-content transition hover:brightness-110 active:scale-[0.99]"
+      >
+        Confirm pitching change
+      </button>
+    </.form>
+    """
+  end
+
+  attr :team, :any, required: true
+  attr :form, :any, required: true
+  attr :lineup, :list, required: true
+  attr :players, :list, required: true
+
+  defp quick_substitution_form(assigns) do
+    lineup_options =
+      assigns.lineup
+      |> Enum.filter(& &1["id"])
+      |> Enum.map(&{&1["name"], &1["id"]})
+
+    active_ids = MapSet.new(assigns.lineup, & &1["id"])
+
+    bench_options =
+      assigns.players
+      |> Enum.reject(&MapSet.member?(active_ids, &1["id"]))
+      |> Enum.map(&{&1["name"], &1["id"]})
+
+    assigns =
+      assigns
+      |> assign(:lineup_options, lineup_options)
+      |> assign(:bench_options, bench_options)
+
+    ~H"""
+    <.form
+      for={@form}
+      id={"baseball-substitution-form-#{@team.position}"}
+      phx-submit="sport_action"
+      phx-value-action="substitute_player"
+      class="rounded-md border border-base-300 bg-base-200/45 p-3"
+    >
+      <.input
+        field={@form[:position]}
+        id={"baseball-substitution-position-#{@team.position}"}
+        type="hidden"
+      />
+      <p class="mb-2 text-xs font-black">{Team.full_name(@team)}</p>
+      <.input
+        field={@form[:outgoing_player_id]}
+        id={"baseball-substitution-outgoing-#{@team.position}"}
+        type="select"
+        label="Player coming out"
+        options={[{"Choose player", ""} | @lineup_options]}
+      />
+      <.input
+        field={@form[:incoming_player_id]}
+        id={"baseball-substitution-incoming-#{@team.position}"}
+        type="select"
+        label="Player coming in"
+        options={[{"Choose saved bench player", ""} | @bench_options]}
+      />
+      <.input
+        field={@form[:name]}
+        id={"baseball-substitution-name-#{@team.position}"}
+        label="Or enter a new player"
+        placeholder="Substitute name"
+      />
+      <.input
+        field={@form[:field_position]}
+        id={"baseball-substitution-field-position-#{@team.position}"}
+        type="select"
+        label="New defensive position"
+        options={[
+          {"Keep replaced player's position", ""}
+          | Enum.map(~w(P C 1B 2B 3B SS LF CF RF DH), &{&1, &1})
+        ]}
+      />
+      <button
+        id={"baseball-confirm-substitution-#{@team.position}"}
+        type="submit"
+        class="mt-2 w-full rounded-md bg-sky-600 px-3 py-2 text-xs font-black uppercase tracking-wider text-white transition hover:bg-sky-500 active:scale-[0.99]"
+      >
+        Confirm substitution
+      </button>
+    </.form>
+    """
+  end
 
   attr :team, :any, required: true
   attr :bullpen_form, :any, required: true
@@ -661,8 +896,9 @@ defmodule ShowishWeb.SportControls do
 
       <div class="mt-4 flex flex-wrap gap-2">
         <button id="swap-sides" type="button" class="btn btn-sm" phx-click="swap_sides">
-          <.icon name="hero-arrows-right-left-mini" class="size-4" />
-          {if @show.swap_sides, do: "Sides swapped", else: "Swap sides"}
+          <.icon name="hero-arrows-right-left-mini" class="size-4" /> {if @show.swap_sides,
+            do: "Sides swapped",
+            else: "Swap sides"}
         </button>
         <button
           id="previous-game"
@@ -754,10 +990,12 @@ defmodule ShowishWeb.SportControls do
       <div class="flex items-center justify-between gap-3">
         <div class="min-w-0">
           <p class="truncate font-black">{Team.full_name(@team)}</p>
+
           <p class="text-[10px] font-black uppercase tracking-[0.14em] text-base-content/45">
             {if(@batting?, do: "Batting", else: "Fielding")}
           </p>
         </div>
+
         <span class="size-3 shrink-0 rounded-full" style={"background: #{@team.primary_color}"}>
         </span>
       </div>
@@ -787,6 +1025,7 @@ defmodule ShowishWeb.SportControls do
           <span class="font-bold">P: Name</span>
           for a defense-only player when using a DH.
         </p>
+
         <button
           id={"baseball-save-roster-#{@team.position}"}
           type="submit"
@@ -803,6 +1042,7 @@ defmodule ShowishWeb.SportControls do
         >
           No lineup entered yet
         </p>
+
         <button
           :for={{player, index} <- Enum.with_index(@lineup)}
           id={"baseball-batter-#{@team.position}-#{index}"}
@@ -835,8 +1075,10 @@ defmodule ShowishWeb.SportControls do
             <p class="text-[9px] font-black uppercase tracking-[0.14em] text-primary">
               Selected batter
             </p>
+
             <p class="truncate text-sm font-black">{@active_batter["name"]}</p>
           </div>
+
           <button
             id={"baseball-next-batter-#{@team.position}"}
             type="button"
@@ -848,6 +1090,7 @@ defmodule ShowishWeb.SportControls do
             Next batter
           </button>
         </div>
+
         <div class="mt-2 grid grid-cols-2 gap-2">
           <.player_stat_control
             label="Hits"
@@ -954,8 +1197,10 @@ defmodule ShowishWeb.SportControls do
               At bat
             </span>
           </div>
+
           <div class="truncate text-lg font-black">{Team.full_name(@team)}</div>
         </div>
+
         <button
           id={"run-down-#{@team.position}"}
           type="button"
@@ -967,7 +1212,10 @@ defmodule ShowishWeb.SportControls do
         >
           −
         </button>
-        <span class="w-12 text-center text-4xl font-black leading-none tabular-nums">
+        <span
+          id={"baseball-runs-#{@team.position}"}
+          class="w-12 text-center text-4xl font-black leading-none tabular-nums"
+        >
           {@team.score}
         </span>
         <button
@@ -996,8 +1244,10 @@ defmodule ShowishWeb.SportControls do
       <span class="size-8 shrink-0 rounded" style={"background: #{@team.primary_color}"}></span>
       <div class="min-w-0 flex-1">
         <div class="truncate font-bold">{Team.full_name(@team)}</div>
+
         <div class="text-xs text-base-content/60">{@label}</div>
       </div>
+
       <button
         type="button"
         id={"#{@id_prefix}-down-#{@team.position}"}
@@ -1009,7 +1259,12 @@ defmodule ShowishWeb.SportControls do
       >
         −
       </button>
-      <span class="w-10 text-center text-2xl font-black tabular-nums">{@team.score}</span>
+      <span
+        id={"score-value-#{@team.position}"}
+        class="w-10 text-center text-2xl font-black tabular-nums"
+      >
+        {@team.score}
+      </span>
       <button
         type="button"
         id={"#{@id_prefix}-up-#{@team.position}"}
@@ -1139,6 +1394,35 @@ defmodule ShowishWeb.SportControls do
 
   defp play_form, do: to_form(%{"notation" => ""}, as: :play)
 
+  defp pitcher_change_forms(teams) do
+    Map.new(teams, fn team ->
+      form =
+        to_form(%{"position" => to_string(team.position), "player_id" => "", "name" => ""},
+          as: :pitcher_change
+        )
+
+      {team.position, form}
+    end)
+  end
+
+  defp substitution_forms(teams) do
+    Map.new(teams, fn team ->
+      form =
+        to_form(
+          %{
+            "position" => to_string(team.position),
+            "outgoing_player_id" => "",
+            "incoming_player_id" => "",
+            "name" => "",
+            "field_position" => ""
+          },
+          as: :substitution
+        )
+
+      {team.position, form}
+    end)
+  end
+
   defp last_play_text(%{"result" => result, "notation" => notation}) do
     label = result_label(result)
     if notation == "", do: label, else: "#{notation} · #{label}"
@@ -1243,6 +1527,23 @@ defmodule ShowishWeb.SportControls do
   end
 
   defp sorted_teams(show), do: show.teams |> List.wrap() |> Enum.sort_by(& &1.position)
+
+  defp with_rosters(%{"rosters" => rosters} = state) when is_map(rosters), do: state
+
+  defp with_rosters(state) do
+    rosters =
+      Map.new(~w(1 2), fn position ->
+        players =
+          (state["lineups"][position] ++ [state["pitchers"][position]])
+          |> Enum.reject(&(&1["name"] in [nil, ""]))
+          |> Enum.uniq_by(& &1["name"])
+          |> Enum.map(&Map.take(&1, ~w(id name)))
+
+        {position, players}
+      end)
+
+    Map.put(state, "rosters", rosters)
+  end
 
   defp display_name(""), do: "Waiting for game events"
   defp display_name(name), do: name
