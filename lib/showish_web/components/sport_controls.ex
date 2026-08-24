@@ -73,79 +73,168 @@ defmodule ShowishWeb.SportControls do
         </div>
       </div>
 
-      <section
-        id="baseball-quick-changes"
-        class="overflow-hidden rounded-lg border border-amber-400/35 bg-amber-50/70 shadow-sm dark:bg-amber-950/20"
-      >
-        <div class="flex items-center gap-3 border-b border-amber-400/25 px-4 py-3">
-          <span class="grid size-9 place-items-center rounded-lg bg-amber-400/15 text-amber-700 dark:text-amber-300">
-            <.icon name="hero-bolt-mini" class="size-5" />
-          </span>
-          <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
-              Quick changes
+      <section id="baseball-scoreboard" class="space-y-3">
+        <div class="flex items-center gap-2 px-1">
+          <.icon name="hero-rectangle-stack-mini" class="size-4 text-primary" />
+          <h2 class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
+            Scoreboard
+          </h2>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <.baseball_score_control
+            :for={team <- @teams}
+            team={team}
+            role={if(team.position == 1, do: "Away", else: "Home")}
+            batting?={team.position == @batting_position}
+          />
+        </div>
+        <div class="grid gap-3 lg:grid-cols-[0.85fr_1.45fr_1fr]">
+          <section class="rounded-lg border border-base-300 bg-base-200/45 p-4">
+            <div class="flex items-center justify-between">
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
+                Inning
+              </p>
+
+              <span class="rounded bg-primary/10 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary">
+                {if(@state["half"] == "top", do: "Away batting", else: "Home batting")}
+              </span>
+            </div>
+
+            <div class="mt-4 flex items-center justify-between gap-3">
+              <button
+                id="baseball-previous-half"
+                type="button"
+                class="grid size-11 place-items-center rounded-md border border-base-300 bg-base-100 transition hover:-translate-y-0.5 hover:border-base-content/35 hover:shadow-md active:translate-y-0"
+                phx-click="sport_action"
+                phx-value-action="previous_half"
+                aria-label="Previous half inning"
+              >
+                <.icon name="hero-chevron-left-mini" class="size-5" />
+              </button>
+              <div class="text-center">
+                <div id="baseball-inning" class="text-5xl font-black leading-none tabular-nums">
+                  {@state["inning"]}
+                </div>
+
+                <div class="mt-1 text-xs font-black uppercase tracking-[0.18em] text-primary">
+                  {if(@state["half"] == "top", do: "Top", else: "Bottom")}
+                </div>
+              </div>
+
+              <button
+                id="baseball-next-half"
+                type="button"
+                class="grid size-11 place-items-center rounded-md bg-primary text-primary-content shadow-sm transition hover:-translate-y-0.5 hover:brightness-110 hover:shadow-md active:translate-y-0"
+                phx-click="sport_action"
+                phx-value-action="next_half"
+                aria-label="Next half inning"
+              >
+                <.icon name="hero-chevron-right-mini" class="size-5" />
+              </button>
+            </div>
+
+            <button
+              id="baseball-advance-half"
+              type="button"
+              class="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 active:scale-[0.99] dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+              phx-click="sport_action"
+              phx-value-action="next_half"
+            >
+              Advance half inning <.icon name="hero-arrow-right-mini" class="size-4" />
+            </button>
+          </section>
+
+          <section class="rounded-lg border border-base-300 bg-base-200/45 p-4">
+            <div class="flex items-center justify-between">
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
+                Pitch & out count
+              </p>
+
+              <button
+                id="baseball-clear-count"
+                type="button"
+                aria-label="Start a new batter"
+                title="New batter"
+                class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content active:scale-90"
+                phx-click="sport_action"
+                phx-value-action="clear_count"
+              >
+                <.icon name="hero-arrow-path-mini" class="size-3.5" />
+              </button>
+            </div>
+
+            <div class="mt-3 grid grid-cols-3 gap-2">
+              <.count_control label="Balls" kind="balls" value={@state["balls"]} maximum={3} />
+              <.count_control label="Strikes" kind="strikes" value={@state["strikes"]} maximum={2} />
+              <.count_control label="Outs" kind="outs" value={@state["outs"]} maximum={2} />
+            </div>
+          </section>
+
+          <section class="rounded-lg border border-base-300 bg-base-200/45 p-4">
+            <div class="flex items-center justify-between">
+              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
+                Runners
+              </p>
+
+              <button
+                id="baseball-clear-bases"
+                type="button"
+                aria-label="Clear bases"
+                title="Clear bases"
+                class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content active:scale-90"
+                phx-click="sport_action"
+                phx-value-action="clear_bases"
+              >
+                <.icon name="hero-x-mark-mini" class="size-3.5" />
+              </button>
+            </div>
+
+            <div class="mx-auto mt-5 grid w-36 grid-cols-3 grid-rows-2 gap-3">
+              <.base_button base="second" occupied={@state["bases"]["second"]} class="col-start-2" />
+              <.base_button
+                base="third"
+                occupied={@state["bases"]["third"]}
+                class="col-start-1 row-start-2"
+              />
+              <.base_button
+                base="first"
+                occupied={@state["bases"]["first"]}
+                class="col-start-3 row-start-2"
+              />
+            </div>
+
+            <p class="mt-5 text-center text-[10px] font-bold uppercase tracking-wider text-base-content/45">
+              Tap a base to toggle
             </p>
-            <p class="text-xs text-base-content/60">
-              Make an on-field change without leaving the live controls.
-            </p>
+          </section>
+        </div>
+
+        <section class="overflow-hidden rounded-lg border border-base-300">
+          <div class="grid grid-cols-[minmax(0,1fr)_96px_96px] border-b border-base-300 bg-base-200/70 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-base-content/50">
+            <span>Line totals</span><span class="text-center">Hits</span><span class="text-center">Errors</span>
           </div>
-        </div>
 
-        <div class="grid gap-px bg-amber-400/20 lg:grid-cols-2">
-          <details id="baseball-pitching-change" class="group bg-base-100">
-            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 font-black transition hover:bg-base-200/70 [&::-webkit-details-marker]:hidden">
-              <span class="grid size-9 place-items-center rounded-md bg-primary/10 text-primary">
-                <.icon name="hero-arrow-path-rounded-square-mini" class="size-5" />
-              </span>
-              <span class="flex-1">Pitching change</span>
-              <span class="text-[10px] font-black uppercase tracking-wider text-base-content/45 group-open:hidden">
-                Open
-              </span>
-              <.icon name="hero-chevron-up-mini" class="hidden size-4 group-open:block" />
-            </summary>
-            <div class="grid gap-3 border-t border-base-300 p-3 sm:grid-cols-2">
-              <.quick_pitcher_form
-                :for={team <- @teams}
-                team={team}
-                form={@pitcher_change_forms[team.position]}
-                players={@state["rosters"][to_string(team.position)]}
-                current={@state["pitchers"][to_string(team.position)]}
-              />
-            </div>
-          </details>
-
-          <details id="baseball-player-substitution" class="group bg-base-100">
-            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 font-black transition hover:bg-base-200/70 [&::-webkit-details-marker]:hidden">
-              <span class="grid size-9 place-items-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-300">
-                <.icon name="hero-user-plus-mini" class="size-5" />
-              </span>
-              <span class="flex-1">Player substitution</span>
-              <span class="text-[10px] font-black uppercase tracking-wider text-base-content/45 group-open:hidden">
-                Open
-              </span>
-              <.icon name="hero-chevron-up-mini" class="hidden size-4 group-open:block" />
-            </summary>
-            <div class="grid gap-3 border-t border-base-300 p-3 sm:grid-cols-2">
-              <.quick_substitution_form
-                :for={team <- @teams}
-                team={team}
-                form={@substitution_forms[team.position]}
-                lineup={@state["lineups"][to_string(team.position)]}
-                players={@state["rosters"][to_string(team.position)]}
-              />
-            </div>
-          </details>
-        </div>
+          <div
+            :for={team <- @teams}
+            class="grid grid-cols-[minmax(0,1fr)_96px_96px] items-center bg-base-100 px-4 py-2.5 not-last:border-b not-last:border-base-300"
+          >
+            <span class="flex min-w-0 items-center gap-2 truncate font-bold">
+              <span class="size-2 shrink-0 rounded-full" style={"background: #{team.primary_color}"}>
+              </span> {Team.full_name(team)}
+            </span>
+            <.stat_control
+              stat="hits"
+              position={team.position}
+              value={@state["hits"][to_string(team.position)]}
+            />
+            <.stat_control
+              stat="errors"
+              position={team.position}
+              value={@state["errors"][to_string(team.position)]}
+            />
+          </div>
+        </section>
       </section>
-
-      <div class="grid gap-3 sm:grid-cols-2">
-        <.baseball_score_control
-          :for={team <- @teams}
-          team={team}
-          role={if(team.position == 1, do: "Away", else: "Home")}
-          batting?={team.position == @batting_position}
-        />
-      </div>
 
       <section
         id="baseball-live-actions"
@@ -426,15 +515,80 @@ defmodule ShowishWeb.SportControls do
         </div>
       </section>
 
+      <section
+        id="baseball-quick-changes"
+        class="overflow-hidden rounded-lg border border-amber-400/35 bg-amber-50/70 shadow-sm dark:bg-amber-950/20"
+      >
+        <div class="flex items-center gap-3 border-b border-amber-400/25 px-4 py-3">
+          <span class="grid size-9 place-items-center rounded-lg bg-amber-400/15 text-amber-700 dark:text-amber-300">
+            <.icon name="hero-bolt-mini" class="size-5" />
+          </span>
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+              Personnel changes
+            </p>
+            <p class="text-xs text-base-content/60">
+              Change the pitcher or substitute a player without editing the lineup.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-px bg-amber-400/20 lg:grid-cols-2">
+          <details id="baseball-pitching-change" class="group bg-base-100">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 font-black transition hover:bg-base-200/70 [&::-webkit-details-marker]:hidden">
+              <span class="grid size-9 place-items-center rounded-md bg-primary/10 text-primary">
+                <.icon name="hero-arrow-path-rounded-square-mini" class="size-5" />
+              </span>
+              <span class="flex-1">Pitching change</span>
+              <span class="text-[10px] font-black uppercase tracking-wider text-base-content/45 group-open:hidden">
+                Open
+              </span>
+              <.icon name="hero-chevron-up-mini" class="hidden size-4 group-open:block" />
+            </summary>
+            <div class="grid gap-3 border-t border-base-300 p-3 sm:grid-cols-2">
+              <.quick_pitcher_form
+                :for={team <- @teams}
+                team={team}
+                form={@pitcher_change_forms[team.position]}
+                players={@state["rosters"][to_string(team.position)]}
+                current={@state["pitchers"][to_string(team.position)]}
+              />
+            </div>
+          </details>
+
+          <details id="baseball-player-substitution" class="group bg-base-100">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 font-black transition hover:bg-base-200/70 [&::-webkit-details-marker]:hidden">
+              <span class="grid size-9 place-items-center rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-300">
+                <.icon name="hero-user-plus-mini" class="size-5" />
+              </span>
+              <span class="flex-1">Player substitution</span>
+              <span class="text-[10px] font-black uppercase tracking-wider text-base-content/45 group-open:hidden">
+                Open
+              </span>
+              <.icon name="hero-chevron-up-mini" class="hidden size-4 group-open:block" />
+            </summary>
+            <div class="grid gap-3 border-t border-base-300 p-3 sm:grid-cols-2">
+              <.quick_substitution_form
+                :for={team <- @teams}
+                team={team}
+                form={@substitution_forms[team.position]}
+                lineup={@state["lineups"][to_string(team.position)]}
+                players={@state["rosters"][to_string(team.position)]}
+              />
+            </div>
+          </details>
+        </div>
+      </section>
+
       <section id="baseball-rosters" class="overflow-hidden rounded-lg border border-base-300">
         <div class="flex items-start justify-between gap-3 border-b border-base-300 bg-base-200/70 px-4 py-3">
           <div>
             <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-              Complete game rosters
+              Teams & lineups
             </p>
 
             <p class="mt-1 text-xs text-base-content/55">
-              One paste sets both teams' names, branding, 26-man rosters, batting orders, starting pitchers, and bullpens.
+              Batting order, active hitter, starting pitcher, and pitch count for each club.
             </p>
           </div>
           <button
@@ -545,21 +699,27 @@ defmodule ShowishWeb.SportControls do
         </div>
       </div>
 
-      <section
+      <details
         id="baseball-graphics-controls"
-        class="overflow-hidden rounded-lg border border-base-300"
+        class="group overflow-hidden rounded-lg border border-base-300"
       >
-        <div class="border-b border-base-300 bg-base-200/70 px-4 py-3">
-          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-            Full-screen baseball graphics
-          </p>
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 bg-base-200/70 px-4 py-3 transition hover:bg-base-200 [&::-webkit-details-marker]:hidden">
+          <div>
+            <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
+              Broadcast graphics
+            </p>
 
-          <p class="mt-1 text-xs text-base-content/55">
-            Defensive alignments and bullpens come from the complete roster paste above. Manage spotlight and comparison browser sources here.
-          </p>
-        </div>
+            <p class="mt-1 text-xs text-base-content/55">
+              Defense, bullpens, spotlight, and player comparison.
+            </p>
+          </div>
+          <.icon
+            name="hero-chevron-down-mini"
+            class="size-4 shrink-0 text-base-content/40 transition group-open:rotate-180"
+          />
+        </summary>
 
-        <div class="grid gap-px bg-base-300 lg:grid-cols-2">
+        <div class="grid gap-px border-t border-base-300 bg-base-300 lg:grid-cols-2">
           <.team_graphics_control
             :for={team <- @teams}
             team={team}
@@ -639,154 +799,7 @@ defmodule ShowishWeb.SportControls do
             </p>
           </div>
         </div>
-      </section>
-
-      <div class="grid gap-3 lg:grid-cols-[0.85fr_1.45fr_1fr]">
-        <section class="rounded-lg border border-base-300 bg-base-200/45 p-4">
-          <div class="flex items-center justify-between">
-            <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-              Inning
-            </p>
-
-            <span class="rounded bg-primary/10 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary">
-              {if(@state["half"] == "top", do: "Away batting", else: "Home batting")}
-            </span>
-          </div>
-
-          <div class="mt-4 flex items-center justify-between gap-3">
-            <button
-              id="baseball-previous-half"
-              type="button"
-              class="grid size-11 place-items-center rounded-md border border-base-300 bg-base-100 transition hover:-translate-y-0.5 hover:border-base-content/35 hover:shadow-md active:translate-y-0"
-              phx-click="sport_action"
-              phx-value-action="previous_half"
-              aria-label="Previous half inning"
-            >
-              <.icon name="hero-chevron-left-mini" class="size-5" />
-            </button>
-            <div class="text-center">
-              <div id="baseball-inning" class="text-5xl font-black leading-none tabular-nums">
-                {@state["inning"]}
-              </div>
-
-              <div class="mt-1 text-xs font-black uppercase tracking-[0.18em] text-primary">
-                {if(@state["half"] == "top", do: "Top", else: "Bottom")}
-              </div>
-            </div>
-
-            <button
-              id="baseball-next-half"
-              type="button"
-              class="grid size-11 place-items-center rounded-md bg-primary text-primary-content shadow-sm transition hover:-translate-y-0.5 hover:brightness-110 hover:shadow-md active:translate-y-0"
-              phx-click="sport_action"
-              phx-value-action="next_half"
-              aria-label="Next half inning"
-            >
-              <.icon name="hero-chevron-right-mini" class="size-5" />
-            </button>
-          </div>
-
-          <button
-            id="baseball-advance-half"
-            type="button"
-            class="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 active:scale-[0.99] dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
-            phx-click="sport_action"
-            phx-value-action="next_half"
-          >
-            Advance half inning <.icon name="hero-arrow-right-mini" class="size-4" />
-          </button>
-        </section>
-
-        <section class="rounded-lg border border-base-300 bg-base-200/45 p-4">
-          <div class="flex items-center justify-between">
-            <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-              Pitch & out count
-            </p>
-
-            <button
-              id="baseball-clear-count"
-              type="button"
-              aria-label="Start a new batter"
-              title="New batter"
-              class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content active:scale-90"
-              phx-click="sport_action"
-              phx-value-action="clear_count"
-            >
-              <.icon name="hero-arrow-path-mini" class="size-3.5" />
-            </button>
-          </div>
-
-          <div class="mt-3 grid grid-cols-3 gap-2">
-            <.count_control label="Balls" kind="balls" value={@state["balls"]} maximum={3} />
-            <.count_control label="Strikes" kind="strikes" value={@state["strikes"]} maximum={2} />
-            <.count_control label="Outs" kind="outs" value={@state["outs"]} maximum={2} />
-          </div>
-        </section>
-
-        <section class="rounded-lg border border-base-300 bg-base-200/45 p-4">
-          <div class="flex items-center justify-between">
-            <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-              Runners
-            </p>
-
-            <button
-              id="baseball-clear-bases"
-              type="button"
-              aria-label="Clear bases"
-              title="Clear bases"
-              class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content active:scale-90"
-              phx-click="sport_action"
-              phx-value-action="clear_bases"
-            >
-              <.icon name="hero-x-mark-mini" class="size-3.5" />
-            </button>
-          </div>
-
-          <div class="mx-auto mt-5 grid w-36 grid-cols-3 grid-rows-2 gap-3">
-            <.base_button base="second" occupied={@state["bases"]["second"]} class="col-start-2" />
-            <.base_button
-              base="third"
-              occupied={@state["bases"]["third"]}
-              class="col-start-1 row-start-2"
-            />
-            <.base_button
-              base="first"
-              occupied={@state["bases"]["first"]}
-              class="col-start-3 row-start-2"
-            />
-          </div>
-
-          <p class="mt-5 text-center text-[10px] font-bold uppercase tracking-wider text-base-content/45">
-            Tap a base to toggle
-          </p>
-        </section>
-      </div>
-
-      <section class="overflow-hidden rounded-lg border border-base-300">
-        <div class="grid grid-cols-[minmax(0,1fr)_96px_96px] border-b border-base-300 bg-base-200/70 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-base-content/50">
-          <span>Line totals</span><span class="text-center">Hits</span><span class="text-center">Errors</span>
-        </div>
-
-        <div
-          :for={team <- @teams}
-          class="grid grid-cols-[minmax(0,1fr)_96px_96px] items-center bg-base-100 px-4 py-2.5 not-last:border-b not-last:border-base-300"
-        >
-          <span class="flex min-w-0 items-center gap-2 truncate font-bold">
-            <span class="size-2 shrink-0 rounded-full" style={"background: #{team.primary_color}"}>
-            </span> {Team.full_name(team)}
-          </span>
-          <.stat_control
-            stat="hits"
-            position={team.position}
-            value={@state["hits"][to_string(team.position)]}
-          />
-          <.stat_control
-            stat="errors"
-            position={team.position}
-            value={@state["errors"][to_string(team.position)]}
-          />
-        </div>
-      </section>
+      </details>
 
       <div class="flex justify-end border-t border-base-300 pt-3">
         <button
