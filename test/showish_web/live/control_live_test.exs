@@ -74,9 +74,8 @@ defmodule ShowishWeb.ControlLiveTest do
       assert has_element?(view, "details#baseball-personnel-change")
       refute has_element?(view, "#baseball-pitching-change")
       refute has_element?(view, "#baseball-player-substitution")
-      assert has_element?(view, "#baseball-quick-pitcher-form-2")
+      refute has_element?(view, "#baseball-quick-pitcher-form-2")
       assert has_element?(view, "#baseball-substitution-form-1")
-      refute has_element?(view, "#baseball-quick-pitcher-name-2")
       refute has_element?(view, "#baseball-substitution-name-1")
       assert has_element?(view, "#baseball-inning")
       assert has_element?(view, "#baseball-rosters")
@@ -119,7 +118,7 @@ defmodule ShowishWeb.ControlLiveTest do
       assert has_element?(view, "details#preview-panel[open]")
     end
 
-    test "quick pitching changes and substitutions write through", %{conn: conn, scope: scope} do
+    test "one substitution flow handles pitchers and lineup players", %{conn: conn, scope: scope} do
       show = show_fixture(scope, %{sport: "baseball"})
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
@@ -127,7 +126,7 @@ defmodule ShowishWeb.ControlLiveTest do
       |> form("#baseball-game-rosters-form",
         game_rosters: %{
           data:
-            "AWAY\nLINEUP\n1. Starter | CF\n2. Slugger | 1B\nROSTER\nPinch Runner\nHOME\nROSTER\nReliever"
+            "AWAY\nLINEUP\n1. Starter | CF\n2. Slugger | 1B\nROSTER\nPinch Runner\nHOME\nSTARTING PITCHER\nStarter Arm\nROSTER\nReliever"
         }
       )
       |> render_submit()
@@ -144,9 +143,16 @@ defmodule ShowishWeb.ControlLiveTest do
         |> Enum.find(&(&1["name"] == "Pinch Runner"))
         |> Map.fetch!("id")
 
+      starting_pitcher_id = setup_state["pitchers"]["2"]["id"]
+
       view
-      |> form("#baseball-quick-pitcher-form-2",
-        pitcher_change: %{position: "2", player_id: to_string(reliever_id)}
+      |> form("#baseball-substitution-form-2",
+        substitution: %{
+          position: "2",
+          outgoing_player_id: to_string(starting_pitcher_id),
+          incoming_player_id: to_string(reliever_id),
+          field_position: ""
+        }
       )
       |> render_submit()
 
