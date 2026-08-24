@@ -427,29 +427,29 @@ defmodule ShowishWeb.SportControls do
       </section>
 
       <section id="baseball-rosters" class="overflow-hidden rounded-lg border border-base-300">
-        <div class="border-b border-base-300 bg-base-200/70 px-4 py-3">
-          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-            Complete game rosters
-          </p>
+        <div class="flex items-start justify-between gap-3 border-b border-base-300 bg-base-200/70 px-4 py-3">
+          <div>
+            <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
+              Complete game rosters
+            </p>
 
-          <p class="mt-1 text-xs text-base-content/55">
-            One paste sets both teams' names, branding, 26-man rosters, batting orders, starting pitchers, and bullpens.
-          </p>
-        </div>
-
-        <div class="border-b border-base-300 bg-base-100 p-4">
+            <p class="mt-1 text-xs text-base-content/55">
+              One paste sets both teams' names, branding, 26-man rosters, batting orders, starting pitchers, and bullpens.
+            </p>
+          </div>
           <button
             id="baseball-open-game-rosters-modal"
             type="button"
-            class="group inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-black transition hover:border-primary/55 hover:bg-primary/10 active:scale-[0.98]"
+            aria-label="Paste game rosters"
+            title="Paste game rosters"
+            class="grid size-7 shrink-0 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
             phx-click={
               JS.push_focus()
               |> show("#baseball-game-rosters-modal")
               |> JS.focus_first(to: "#baseball-game-rosters-modal")
             }
           >
-            <.icon name="hero-clipboard-document-list" class="size-4 text-primary" />
-            Paste game rosters
+            <.icon name="hero-clipboard-document-list" class="size-3.5" />
           </button>
         </div>
 
