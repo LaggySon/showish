@@ -438,31 +438,32 @@ defmodule ShowishWeb.SportControls do
         </div>
 
         <div class="border-b border-base-300 bg-base-100 p-4">
-          <.form
-            for={@game_rosters_form}
-            id="baseball-game-rosters-form"
-            phx-submit="sport_action"
-            phx-value-action="save_game_rosters"
+          <button
+            id="baseball-open-game-rosters-modal"
+            type="button"
+            class="group flex w-full items-center justify-between gap-4 rounded-lg border border-dashed border-primary/35 bg-primary/5 px-4 py-4 text-left transition hover:border-primary/60 hover:bg-primary/10 active:scale-[0.995]"
+            phx-click={
+              JS.push_focus()
+              |> show("#baseball-game-rosters-modal")
+              |> JS.focus_first(to: "#baseball-game-rosters-modal")
+            }
           >
-            <.input
-              field={@game_rosters_form[:data]}
-              id="baseball-game-rosters-data"
-              type="textarea"
-              rows="46"
-              label="Away & home game data"
-              placeholder={game_rosters_placeholder(@teams)}
+            <span class="flex items-center gap-3">
+              <span class="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary transition group-hover:scale-105">
+                <.icon name="hero-clipboard-document-list" class="size-5" />
+              </span>
+              <span>
+                <span class="block text-sm font-black">Paste game rosters</span>
+                <span class="mt-0.5 block text-xs text-base-content/55">
+                  Add or replace both teams from one formatted paste
+                </span>
+              </span>
+            </span>
+            <.icon
+              name="hero-arrow-up-right-mini"
+              class="size-5 shrink-0 text-base-content/35 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary"
             />
-            <p class="mt-1.5 text-[10px] leading-relaxed text-base-content/50">
-              Keep the Away/Home, Team, Lineup, Starting pitcher, Bullpen, and Roster headings. Team colors use hex values such as <span class="font-bold">#123456</span>. Lineup rows use <span class="font-bold">BATTER | POSITION</span>; bullpen rows may add <span class="font-bold">| STATUS</span>. The importer de-duplicates names and keeps the first 26 per club.
-            </p>
-            <button
-              id="baseball-save-game-rosters"
-              type="submit"
-              class="mt-3 w-full rounded-md bg-primary px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110 active:scale-[0.99]"
-            >
-              Save both complete rosters
-            </button>
-          </.form>
+          </button>
         </div>
 
         <div class="grid gap-px bg-base-300 lg:grid-cols-2">
@@ -476,6 +477,86 @@ defmodule ShowishWeb.SportControls do
           />
         </div>
       </section>
+
+      <div
+        id="baseball-game-rosters-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="baseball-game-rosters-modal-title"
+        class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6"
+        style="display: none;"
+        phx-window-keydown={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
+        phx-key="escape"
+      >
+        <div class="flex min-h-full items-center justify-center">
+          <div
+            class="w-full max-w-3xl overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-2xl"
+            phx-click-away={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
+          >
+            <div class="flex items-start justify-between gap-4 border-b border-base-300 bg-base-200/70 px-5 py-4">
+              <div>
+                <h2 id="baseball-game-rosters-modal-title" class="text-base font-black">
+                  Paste game rosters
+                </h2>
+                <p class="mt-1 text-xs text-base-content/55">
+                  Import the away and home teams together from formatted game data.
+                </p>
+              </div>
+              <button
+                id="baseball-close-game-rosters-modal"
+                type="button"
+                aria-label="Close roster paste dialog"
+                class="grid size-9 shrink-0 place-items-center rounded-md text-base-content/50 transition hover:bg-base-300 hover:text-base-content"
+                phx-click={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
+              >
+                <.icon name="hero-x-mark" class="size-5" />
+              </button>
+            </div>
+
+            <.form
+              for={@game_rosters_form}
+              id="baseball-game-rosters-form"
+              class="p-5"
+              phx-submit={
+                JS.push("sport_action")
+                |> hide("#baseball-game-rosters-modal")
+                |> JS.pop_focus()
+              }
+              phx-value-action="save_game_rosters"
+            >
+              <.input
+                field={@game_rosters_form[:data]}
+                id="baseball-game-rosters-data"
+                type="textarea"
+                rows="24"
+                label="Away & home game data"
+                placeholder={game_rosters_placeholder(@teams)}
+                class="max-h-[55vh] min-h-72 w-full resize-y font-mono text-xs leading-relaxed textarea"
+              />
+              <p class="mt-1.5 text-[10px] leading-relaxed text-base-content/50">
+                Keep the Away/Home, Team, Lineup, Starting pitcher, Bullpen, and Roster headings. Team colors use hex values such as <span class="font-bold">#123456</span>. Lineup rows use <span class="font-bold">BATTER | POSITION</span>; bullpen rows may add <span class="font-bold">| STATUS</span>. The importer de-duplicates names and keeps the first 26 per club.
+              </p>
+              <div class="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  id="baseball-cancel-game-rosters"
+                  type="button"
+                  class="rounded-md border border-base-300 px-4 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition hover:bg-base-200"
+                  phx-click={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
+                >
+                  Cancel
+                </button>
+                <button
+                  id="baseball-save-game-rosters"
+                  type="submit"
+                  class="rounded-md bg-primary px-5 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110 active:scale-[0.99]"
+                >
+                  Save both complete rosters
+                </button>
+              </div>
+            </.form>
+          </div>
+        </div>
+      </div>
 
       <section
         id="baseball-graphics-controls"
