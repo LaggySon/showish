@@ -74,10 +74,12 @@ defmodule ShowishWeb.ControlLiveTest do
       assert has_element?(view, "#baseball-inning")
       assert has_element?(view, "#baseball-rosters")
       assert has_element?(view, "#baseball-graphics-controls")
-      assert has_element?(view, "#baseball-roster-form-1")
-      assert has_element?(view, "#baseball-pitcher-form-2")
+      assert has_element?(view, "#baseball-game-rosters-form")
+      assert has_element?(view, "#baseball-game-rosters-data")
+      refute has_element?(view, "#baseball-roster-form-1")
+      refute has_element?(view, "#baseball-pitcher-form-2")
       refute has_element?(view, "#baseball-defense-form-1")
-      assert has_element?(view, "#baseball-bullpen-form-2")
+      refute has_element?(view, "#baseball-bullpen-form-2")
       assert has_element?(view, "#baseball-play-single")
       assert has_element?(view, "#baseball-play-strikeout")
       assert has_element?(view, "#baseball-play-error")
@@ -102,8 +104,10 @@ defmodule ShowishWeb.ControlLiveTest do
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
       view
-      |> form("#baseball-roster-form-1",
-        roster: %{position: "1", entries: "1. Starter | CF\n2. Slugger | 1B"}
+      |> form("#baseball-game-rosters-form",
+        game_rosters: %{
+          data: "AWAY\nLINEUP\n1. Starter | CF\n2. Slugger | 1B\nHOME\nROSTER"
+        }
       )
       |> render_submit()
 
@@ -143,17 +147,24 @@ defmodule ShowishWeb.ControlLiveTest do
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
       view
-      |> form("#baseball-roster-form-1",
-        roster: %{
-          position: "1",
-          entries: "1. Alex Cruz | SS\nP: Jordan Lee"
+      |> form("#baseball-game-rosters-form",
+        game_rosters: %{
+          data: """
+          AWAY
+          TEAM
+          Name: Bay City Captains
+          Logo URL: https://example.com/captains.svg
+          Primary color: #123456
+          Secondary color: #abcdef
+          LINEUP
+          1. Alex Cruz | SS
+          STARTING PITCHER
+          Jordan Lee
+          HOME
+          BULLPEN
+          Taylor Reed | Warming
+          """
         }
-      )
-      |> render_submit()
-
-      view
-      |> form("#baseball-bullpen-form-2",
-        bullpen: %{position: "2", pitchers: "Taylor Reed | Warming"}
       )
       |> render_submit()
 
@@ -165,6 +176,11 @@ defmodule ShowishWeb.ControlLiveTest do
       assert state["defense"]["1"]["P"] == "Jordan Lee"
       assert state["defense"]["1"]["SS"] == "Alex Cruz"
       assert Enum.map(state["lineups"]["1"], & &1["name"]) == ["Alex Cruz"]
+
+      away = scope |> Broadcasts.get_show!(show.id) |> Show.team(1)
+      assert away.name == "Bay City Captains"
+      assert away.logo_url == "https://example.com/captains.svg"
+      assert away.primary_color == "#123456"
 
       assert Enum.map(state["bullpens"]["2"], &Map.take(&1, ~w(name status))) == [
                %{"name" => "Taylor Reed", "status" => "Warming"}
@@ -197,8 +213,8 @@ defmodule ShowishWeb.ControlLiveTest do
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
       view
-      |> form("#baseball-roster-form-1",
-        roster: %{position: "1", entries: "1. Error Batter | SS"}
+      |> form("#baseball-game-rosters-form",
+        game_rosters: %{data: "AWAY\nLINEUP\n1. Error Batter | SS\nHOME\nROSTER"}
       )
       |> render_submit()
 
@@ -220,13 +236,12 @@ defmodule ShowishWeb.ControlLiveTest do
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
       view
-      |> form("#baseball-roster-form-1",
-        roster: %{position: "1", entries: "1. A. Leadoff | CF\n2. B. Slugger | 1B"}
+      |> form("#baseball-game-rosters-form",
+        game_rosters: %{
+          data:
+            "AWAY\nLINEUP\n1. A. Leadoff | CF\n2. B. Slugger | 1B\nHOME\nSTARTING PITCHER\nPhillips"
+        }
       )
-      |> render_submit()
-
-      view
-      |> form("#baseball-pitcher-form-2", pitcher: %{position: "2", name: "Phillips"})
       |> render_submit()
 
       pitcher_id = Broadcasts.get_show!(scope, show.id).sport_state["pitchers"]["2"]["id"]
@@ -296,8 +311,10 @@ defmodule ShowishWeb.ControlLiveTest do
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
       view
-      |> form("#baseball-roster-form-1",
-        roster: %{position: "1", entries: "A. Leadoff | CF\nB. Slugger | 1B"}
+      |> form("#baseball-game-rosters-form",
+        game_rosters: %{
+          data: "AWAY\nLINEUP\nA. Leadoff | CF\nB. Slugger | 1B\nHOME\nROSTER"
+        }
       )
       |> render_submit()
 

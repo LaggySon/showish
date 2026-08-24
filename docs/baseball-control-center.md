@@ -42,6 +42,59 @@ hits and at-bats, a current pitcher, and pitch count. The inning half determines
 which lineup supplies the batter and which team supplies the pitcher. The lower
 two scorebug rows therefore follow game state rather than free-text status.
 
+Pregame setup uses one paste for both clubs rather than separate team, lineup,
+and bullpen fields. The importer recognizes `AWAY` and `HOME` team headings,
+followed by `TEAM`, `LINEUP`, `STARTING PITCHER`, `BULLPEN`, and `ROSTER`
+sections:
+
+```text
+AWAY — Team name
+TEAM
+Name: Harbour Kings
+Short name: Kings
+Code: HKG
+Logo URL: https://example.com/harbour-kings.svg
+Primary color: #0f766e
+Secondary color: #f8fafc
+Record: 18-8
+Side label: Away
+LINEUP
+1. Alex Cruz | SS
+2. Morgan Ellis | CF
+STARTING PITCHER
+Jordan Lee
+BULLPEN
+Taylor Reed | Warming
+Casey Park | Available
+ROSTER
+Every remaining active player, one per line
+
+HOME — Team name
+TEAM
+Name: Ridgeline Foxes
+Short name: Foxes
+Code: RFX
+Logo URL: https://example.com/ridgeline-foxes.svg
+Primary color: #c2410c
+Secondary color: #fff7ed
+Record: 16-10
+Side label: Home
+LINEUP
+1. Jamie Fox | 2B
+STARTING PITCHER
+Riley Stone
+BULLPEN
+Avery Cole | Ready
+ROSTER
+Every remaining active player, one per line
+```
+
+The team section updates the same identity and branding fields used by every
+overlay. Player names repeated across sections are de-duplicated, and the first
+26 unique names under each club become that club's active roster. Saving the
+paste updates both clubs and replaces both active rosters atomically while
+retaining existing game statistics for players whose names still match.
+
 ### Guarded automation
 
 Safe, deterministic transitions are automatic:

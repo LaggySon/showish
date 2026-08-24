@@ -159,6 +159,20 @@ defmodule Showish.Baseball do
     {:ok, game}
   end
 
+  defp dispatch(game, show, "save_game_rosters", %{
+         "game_rosters" => %{"data" => data}
+       })
+       when is_binary(data) do
+    rosters = parse_game_rosters(data, show)
+
+    game =
+      Enum.reduce(~w(1 2), game, fn position, current_game ->
+        save_team_roster!(current_game, show, position, Map.fetch!(rosters, position))
+      end)
+
+    {:ok, game}
+  end
+
   defp dispatch(game, show, "save_lineup", %{
          "lineup" => %{"position" => position, "names" => names}
        })
@@ -1361,8 +1375,16 @@ defmodule Showish.Baseball do
   defp player!(team_id, name) do
     name = name |> to_string() |> String.trim() |> String.slice(0, 100)
 
-    Repo.get_by(Player, team_id: team_id, name: name) ||
-      %Player{team_id: team_id} |> Player.changeset(%{name: name}) |> Repo.insert!()
+    case Repo.get_by(Player, team_id: team_id, name: name) do
+      %Player{active: false} = player ->
+        player |> Player.changeset(%{active: true}) |> Repo.update!()
+
+      %Player{} = player ->
+        player
+
+      nil ->
+        %Player{team_id: team_id} |> Player.changeset(%{name: name}) |> Repo.insert!()
+    end
   end
 
   defp selected_or_named_player(team_id, player_id, name) do
@@ -1476,6 +1498,251 @@ defmodule Showish.Baseball do
       end)
 
     entries |> Enum.reverse() |> Enum.take(30)
+  end
+
+  defp parse_game_rosters(text, show) do
+    aliases = team_section_aliases(show)
+    empty = %{team: %{}, lineup: [], starter: "", bullpen: [], roster: []}
+
+    {rosters, _team, _section} =
+      text
+      |> String.split(~r/\R/u)
+      |> Enum.reduce({%{"1" => empty, "2" => empty}, nil, nil}, fn raw_line,
+                                                                   {rosters, team, section} ->
+        line = String.trim(raw_line)
+
+        cond do
+          line == "" ->
+            {rosters, team, section}
+
+          next_team = team_heading(line, aliases) ->
+            {rosters, next_team, nil}
+
+          next_section = roster_section(line) ->
+            {rosters, team, next_section}
+
+          is_nil(team) or is_nil(section) ->
+            {rosters, team, section}
+
+          section == :team ->
+            case team_metadata(line) do
+              {field, value} ->
+                {put_in(rosters, [team, :team, field], value), team, section}
+
+              nil ->
+                {rosters, team, section}
+            end
+
+          section == :starter ->
+            starter = line |> strip_list_marker() |> strip_inline_label("starting pitcher")
+            {put_in(rosters, [team, :starter], starter), team, section}
+
+          section == :lineup ->
+            {name, field_position} = batting_entry(line)
+
+            if name == "" do
+              {rosters, team, section}
+            else
+              entry = %{name: name, field_position: field_position}
+              {update_in(rosters, [team, :lineup], &(&1 ++ [entry])), team, section}
+            end
+
+          section == :bullpen ->
+            [name | status] = String.split(strip_list_marker(line), ~r/\s*\|\s*/, parts: 2)
+
+            entry = %{
+              name: String.trim(name),
+              status: status |> List.first("Available") |> blank_default("Available")
+            }
+
+            {update_in(rosters, [team, :bullpen], &(&1 ++ [entry])), team, section}
+
+          section == :roster ->
+            name = strip_list_marker(line)
+            {update_in(rosters, [team, :roster], &(&1 ++ [name])), team, section}
+        end
+      end)
+
+    Map.new(rosters, fn {position, roster} ->
+      players =
+        Enum.map(roster.lineup, & &1.name) ++
+          [roster.starter] ++ Enum.map(roster.bullpen, & &1.name) ++ roster.roster
+
+      roster =
+        Map.put(
+          roster,
+          :players,
+          players |> Enum.reject(&(&1 == "")) |> Enum.uniq() |> Enum.take(26)
+        )
+
+      {position, roster}
+    end)
+  end
+
+  defp save_team_roster!(game, show, position, roster) do
+    team = team!(show, position)
+    save_team_identity!(team, roster.team)
+
+    Player
+    |> where(team_id: ^team.id)
+    |> Repo.update_all(set: [active: false])
+
+    LineupSpot
+    |> where(game_id: ^game.id, team_id: ^team.id)
+    |> Repo.update_all(set: [batting_order: nil, field_position: "", starter: false])
+
+    BullpenEntry
+    |> where(game_id: ^game.id, team_id: ^team.id)
+    |> Repo.delete_all()
+
+    allowed_names = MapSet.new(roster.players)
+
+    Enum.each(roster.players, &player!(team.id, &1))
+
+    roster.lineup
+    |> Enum.filter(&MapSet.member?(allowed_names, &1.name))
+    |> Enum.take(20)
+    |> Enum.with_index(1)
+    |> Enum.each(fn {entry, order} ->
+      player = player!(team.id, entry.name)
+
+      upsert_spot!(game.id, team.id, player.id, %{
+        batting_order: order,
+        field_position: entry.field_position,
+        starter: true
+      })
+    end)
+
+    starter =
+      if MapSet.member?(allowed_names, roster.starter) do
+        player = player!(team.id, roster.starter)
+        upsert_spot!(game.id, team.id, player.id, %{field_position: "P", starter: true})
+        player
+      end
+
+    roster.bullpen
+    |> Enum.filter(&MapSet.member?(allowed_names, &1.name))
+    |> Enum.take(12)
+    |> Enum.with_index()
+    |> Enum.each(fn {entry, index} ->
+      player = player!(team.id, entry.name)
+
+      %BullpenEntry{game_id: game.id, team_id: team.id, player_id: player.id}
+      |> BullpenEntry.changeset(%{position: index, status: entry.status})
+      |> Repo.insert!()
+    end)
+
+    max_order = max_lineup_order(game.id, team.id)
+    order_field = batter_order_field(position)
+
+    update_game!(game, %{
+      order_field => min(Map.fetch!(game, order_field), max_order),
+      pitcher_field(position) => starter && starter.id,
+      pitch_count_field(position) => pitcher_count(game, starter)
+    })
+  end
+
+  defp pitcher_count(_game, nil), do: 0
+
+  defp pitcher_count(game, player) do
+    case Repo.get_by(LineupSpot, game_id: game.id, player_id: player.id) do
+      nil -> 0
+      spot -> spot.pitch_count
+    end
+  end
+
+  defp save_team_identity!(_team, attrs) when map_size(attrs) == 0, do: :ok
+
+  defp save_team_identity!(team, attrs) do
+    case team |> Team.changeset(attrs) |> Repo.update() do
+      {:ok, _team} -> :ok
+      {:error, changeset} -> Repo.rollback(changeset)
+    end
+  end
+
+  defp team_section_aliases(show) do
+    Map.new(~w(1 2), fn position ->
+      team = team!(show, position)
+
+      aliases =
+        [
+          if(position == "1", do: "away", else: "home"),
+          team.name,
+          team.short_name,
+          team.code
+        ]
+        |> Enum.map(&normalize_heading/1)
+        |> Enum.reject(&(&1 == ""))
+
+      {position, aliases}
+    end)
+  end
+
+  defp team_heading(line, aliases) do
+    heading = normalize_heading(line)
+
+    Enum.find_value(aliases, fn {position, names} ->
+      team_heading? =
+        Enum.any?(names, fn name ->
+          heading == name or String.starts_with?(heading, name <> " — ") or
+            String.starts_with?(heading, name <> " - ")
+        end)
+
+      if team_heading? do
+        position
+      end
+    end)
+  end
+
+  defp roster_section(line) do
+    case normalize_heading(line) do
+      heading when heading in ["team", "team details", "club"] -> :team
+      heading when heading in ["lineup", "batting order", "starting lineup"] -> :lineup
+      heading when heading in ["starting pitcher", "starter", "sp"] -> :starter
+      heading when heading in ["bullpen", "relievers", "relief pitchers"] -> :bullpen
+      heading when heading in ["roster", "bench", "remaining roster"] -> :roster
+      _ -> nil
+    end
+  end
+
+  defp team_metadata(line) do
+    case String.split(line, ~r/\s*:\s*/, parts: 2) do
+      [label, value] ->
+        field =
+          case normalize_heading(label) do
+            label when label in ["name", "team name"] -> "name"
+            label when label in ["short name", "short"] -> "short_name"
+            "code" -> "code"
+            label when label in ["logo", "logo url"] -> "logo_url"
+            label when label in ["primary", "primary color"] -> "primary_color"
+            label when label in ["secondary", "secondary color"] -> "secondary_color"
+            "record" -> "record"
+            label when label in ["side", "side label"] -> "side"
+            _ -> nil
+          end
+
+        if field, do: {field, String.trim(value)}
+
+      _ ->
+        nil
+    end
+  end
+
+  defp normalize_heading(value) do
+    value
+    |> to_string()
+    |> String.trim()
+    |> String.trim_leading("[")
+    |> String.trim_trailing("]")
+    |> String.trim_trailing(":")
+    |> String.downcase()
+  end
+
+  defp strip_list_marker(line),
+    do: String.replace(line, ~r/^\s*(?:[-*•]|\d+[.)])\s*/u, "") |> String.trim()
+
+  defp strip_inline_label(line, label) do
+    String.replace(line, ~r/^#{Regex.escape(label)}\s*:\s*/iu, "") |> String.trim()
   end
 
   defp defense_only_entry(line) do
