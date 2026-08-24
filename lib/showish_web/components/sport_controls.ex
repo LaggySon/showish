@@ -427,42 +427,30 @@ defmodule ShowishWeb.SportControls do
       </section>
 
       <section id="baseball-rosters" class="overflow-hidden rounded-lg border border-base-300">
-        <div class="border-b border-base-300 bg-base-200/70 px-4 py-3">
-          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-            Complete game rosters
-          </p>
-
-          <p class="mt-1 text-xs text-base-content/55">
-            One paste sets both teams' names, branding, 26-man rosters, batting orders, starting pitchers, and bullpens.
-          </p>
-        </div>
-
-        <div class="border-b border-base-300 bg-base-100 p-4">
-          <.form
-            for={@game_rosters_form}
-            id="baseball-game-rosters-form"
-            phx-submit="sport_action"
-            phx-value-action="save_game_rosters"
-          >
-            <.input
-              field={@game_rosters_form[:data]}
-              id="baseball-game-rosters-data"
-              type="textarea"
-              rows="46"
-              label="Away & home game data"
-              placeholder={game_rosters_placeholder(@teams)}
-            />
-            <p class="mt-1.5 text-[10px] leading-relaxed text-base-content/50">
-              Keep the Away/Home, Team, Lineup, Starting pitcher, Bullpen, and Roster headings. Team colors use hex values such as <span class="font-bold">#123456</span>. Lineup rows use <span class="font-bold">BATTER | POSITION</span>; bullpen rows may add <span class="font-bold">| STATUS</span>. The importer de-duplicates names and keeps the first 26 per club.
+        <div class="flex items-start justify-between gap-3 border-b border-base-300 bg-base-200/70 px-4 py-3">
+          <div>
+            <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
+              Complete game rosters
             </p>
-            <button
-              id="baseball-save-game-rosters"
-              type="submit"
-              class="mt-3 w-full rounded-md bg-primary px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110 active:scale-[0.99]"
-            >
-              Save both complete rosters
-            </button>
-          </.form>
+
+            <p class="mt-1 text-xs text-base-content/55">
+              One paste sets both teams' names, branding, 26-man rosters, batting orders, starting pitchers, and bullpens.
+            </p>
+          </div>
+          <button
+            id="baseball-open-game-rosters-modal"
+            type="button"
+            aria-label="Paste game rosters"
+            title="Paste game rosters"
+            class="grid size-7 shrink-0 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
+            phx-click={
+              JS.push_focus()
+              |> show("#baseball-game-rosters-modal")
+              |> JS.focus_first(to: "#baseball-game-rosters-modal")
+            }
+          >
+            <.icon name="hero-clipboard-document-list" class="size-3.5" />
+          </button>
         </div>
 
         <div class="grid gap-px bg-base-300 lg:grid-cols-2">
@@ -476,6 +464,86 @@ defmodule ShowishWeb.SportControls do
           />
         </div>
       </section>
+
+      <div
+        id="baseball-game-rosters-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="baseball-game-rosters-modal-title"
+        class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6"
+        style="display: none;"
+        phx-window-keydown={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
+        phx-key="escape"
+      >
+        <div class="flex min-h-full items-center justify-center">
+          <div
+            class="w-full max-w-3xl overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-2xl"
+            phx-click-away={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
+          >
+            <div class="flex items-start justify-between gap-4 border-b border-base-300 bg-base-200/70 px-5 py-4">
+              <div>
+                <h2 id="baseball-game-rosters-modal-title" class="text-base font-black">
+                  Paste game rosters
+                </h2>
+                <p class="mt-1 text-xs text-base-content/55">
+                  Import the away and home teams together from formatted game data.
+                </p>
+              </div>
+              <button
+                id="baseball-close-game-rosters-modal"
+                type="button"
+                aria-label="Close roster paste dialog"
+                class="grid size-9 shrink-0 place-items-center rounded-md text-base-content/50 transition hover:bg-base-300 hover:text-base-content"
+                phx-click={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
+              >
+                <.icon name="hero-x-mark" class="size-5" />
+              </button>
+            </div>
+
+            <.form
+              for={@game_rosters_form}
+              id="baseball-game-rosters-form"
+              class="p-5"
+              phx-submit={
+                JS.push("sport_action")
+                |> hide("#baseball-game-rosters-modal")
+                |> JS.pop_focus()
+              }
+              phx-value-action="save_game_rosters"
+            >
+              <.input
+                field={@game_rosters_form[:data]}
+                id="baseball-game-rosters-data"
+                type="textarea"
+                rows="24"
+                label="Away & home game data"
+                placeholder={game_rosters_placeholder(@teams)}
+                class="max-h-[55vh] min-h-72 w-full resize-y font-mono text-xs leading-relaxed textarea"
+              />
+              <p class="mt-1.5 text-[10px] leading-relaxed text-base-content/50">
+                Keep the Away/Home, Team, Lineup, Starting pitcher, Bullpen, and Roster headings. Team colors use hex values such as <span class="font-bold">#123456</span>. Lineup rows use <span class="font-bold">BATTER | POSITION</span>; bullpen rows may add <span class="font-bold">| STATUS</span>. The importer de-duplicates names and keeps the first 26 per club.
+              </p>
+              <div class="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  id="baseball-cancel-game-rosters"
+                  type="button"
+                  class="rounded-md border border-base-300 px-4 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition hover:bg-base-200"
+                  phx-click={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
+                >
+                  Cancel
+                </button>
+                <button
+                  id="baseball-save-game-rosters"
+                  type="submit"
+                  class="rounded-md bg-primary px-5 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110 active:scale-[0.99]"
+                >
+                  Save both complete rosters
+                </button>
+              </div>
+            </.form>
+          </div>
+        </div>
+      </div>
 
       <section
         id="baseball-graphics-controls"
@@ -530,9 +598,11 @@ defmodule ShowishWeb.SportControls do
             <button
               id="baseball-save-highlight-selection"
               type="submit"
-              class="mt-3 rounded-md bg-primary px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110"
+              aria-label="Update highlight players"
+              title="Update highlight players"
+              class="mt-1 grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
             >
-              Update highlight players
+              <.icon name="hero-check-mini" class="size-3.5" />
             </button>
           </.form>
         </div>
@@ -636,11 +706,13 @@ defmodule ShowishWeb.SportControls do
             <button
               id="baseball-clear-count"
               type="button"
-              class="rounded px-2 py-1 text-[10px] font-black uppercase tracking-wider text-base-content/55 transition hover:bg-base-300 hover:text-base-content"
+              aria-label="Start a new batter"
+              title="New batter"
+              class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content active:scale-90"
               phx-click="sport_action"
               phx-value-action="clear_count"
             >
-              New batter
+              <.icon name="hero-arrow-path-mini" class="size-3.5" />
             </button>
           </div>
 
@@ -660,11 +732,13 @@ defmodule ShowishWeb.SportControls do
             <button
               id="baseball-clear-bases"
               type="button"
-              class="rounded px-2 py-1 text-[10px] font-black uppercase tracking-wider text-base-content/55 transition hover:bg-base-300 hover:text-base-content"
+              aria-label="Clear bases"
+              title="Clear bases"
+              class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content active:scale-90"
               phx-click="sport_action"
               phx-value-action="clear_bases"
             >
-              Clear
+              <.icon name="hero-x-mark-mini" class="size-3.5" />
             </button>
           </div>
 
@@ -718,11 +792,13 @@ defmodule ShowishWeb.SportControls do
         <button
           id="baseball-reset-game"
           type="button"
-          class="rounded px-3 py-2 text-xs font-bold text-error transition hover:bg-error/10"
+          aria-label="Reset game"
+          title="Reset game"
+          class="grid size-7 place-items-center rounded text-base-content/35 transition hover:bg-error/10 hover:text-error active:scale-90"
           phx-click="reset_sport"
           data-confirm="Reset the game stats and scores? Saved lineups and pitcher names will remain."
         >
-          Reset game
+          <.icon name="hero-arrow-path-mini" class="size-3.5" />
         </button>
       </div>
     </div>
@@ -937,11 +1013,13 @@ defmodule ShowishWeb.SportControls do
         <button
           id="reset-scores"
           type="button"
-          class="btn btn-sm btn-ghost text-error"
+          aria-label="Reset scores"
+          title="Reset scores"
+          class="grid size-7 place-items-center rounded text-base-content/35 transition hover:bg-error/10 hover:text-error active:scale-90"
           phx-click="reset_scores"
           data-confirm="Set both series scores back to zero?"
         >
-          Reset scores
+          <.icon name="hero-arrow-path-mini" class="size-3.5" />
         </button>
       </div>
     </div>

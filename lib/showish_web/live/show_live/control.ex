@@ -47,7 +47,14 @@ defmodule ShowishWeb.ShowLive.Control do
             <span class="size-2 animate-pulse rounded-full bg-success"></span> Live — changes go
             straight to air
           </span>
-          <.link navigate={~p"/shows/#{@show.slug}"} class="btn btn-sm">Overlay URLs</.link>
+          <.link
+            navigate={~p"/shows/#{@show.slug}"}
+            aria-label="Open overlay URLs"
+            title="Overlay URLs"
+            class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-base-200 hover:text-primary active:scale-90"
+          >
+            <.icon name="hero-link-mini" class="size-3.5" />
+          </.link>
         </div>
       </div>
 
@@ -183,14 +190,22 @@ defmodule ShowishWeb.ShowLive.Control do
                     <button
                       id={"save-team-profile-#{tf.data.position}"}
                       type="button"
-                      class="btn btn-sm btn-primary"
+                      aria-label="Save to team library"
+                      title="Save to team library"
+                      class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
                       phx-click="save_team_profile"
                       phx-value-position={tf.data.position}
                     >
-                      <.icon name="hero-bookmark-mini" class="size-4" /> Save to team library
+                      <.icon name="hero-bookmark-mini" class="size-3.5" />
                     </button>
                     <details :if={@team_profiles != []} class="dropdown">
-                      <summary class="btn btn-sm">Use saved team</summary>
+                      <summary
+                        aria-label="Use saved team"
+                        title="Use saved team"
+                        class="grid size-7 cursor-pointer list-none place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90 [&::-webkit-details-marker]:hidden"
+                      >
+                        <.icon name="hero-book-open-mini" class="size-3.5" />
+                      </summary>
                       <div class="dropdown-content z-20 mt-2 w-64 rounded-box border border-base-300 bg-base-100 p-2 shadow-xl">
                         <button
                           :for={profile <- @team_profiles}
@@ -233,11 +248,13 @@ defmodule ShowishWeb.ShowLive.Control do
                     <span class="font-bold">Game {gf.index + 1}</span>
                     <button
                       type="button"
-                      class="btn btn-xs"
+                      aria-label={"Make game #{gf.index + 1} current"}
+                      title="Make current"
+                      class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
                       phx-click="set_game"
                       phx-value-number={gf.index + 1}
                     >
-                      Make current
+                      <.icon name="hero-bolt-mini" class="size-3.5" />
                     </button>
                     <.row_actions kind="game" id={row_id(gf)} />
                   </div>
@@ -264,8 +281,15 @@ defmodule ShowishWeb.ShowLive.Control do
                 </div>
               </.inputs_for>
 
-              <button id="add-game" type="button" class="btn btn-sm" phx-click="add_game">
-                <.icon name="hero-plus-mini" class="size-4" /> Add game
+              <button
+                id="add-game"
+                type="button"
+                aria-label="Add game"
+                title="Add game"
+                class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
+                phx-click="add_game"
+              >
+                <.icon name="hero-plus-mini" class="size-3.5" />
               </button>
             </.panel>
 
@@ -291,8 +315,15 @@ defmodule ShowishWeb.ShowLive.Control do
                 </div>
               </.inputs_for>
 
-              <button id="add-talent" type="button" class="btn btn-sm" phx-click="add_talent">
-                <.icon name="hero-plus-mini" class="size-4" /> Add person
+              <button
+                id="add-talent"
+                type="button"
+                aria-label="Add person"
+                title="Add person"
+                class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
+                phx-click="add_talent"
+              >
+                <.icon name="hero-plus-mini" class="size-3.5" />
               </button>
             </.panel>
           </.form>
@@ -331,9 +362,11 @@ defmodule ShowishWeb.ShowLive.Control do
                 id={"copy-preview-#{@preview_scene}"}
                 phx-hook="ClipboardCopy"
                 data-clipboard-text={Scenes.url(@show.slug, @preview_scene)}
-                class="btn btn-sm"
+                aria-label="Copy preview URL"
+                title="Copy preview URL"
+                class="grid size-7 shrink-0 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
               >
-                Copy
+                <.icon name="hero-clipboard-mini" class="size-3.5" />
               </button>
             </div>
           </.panel>
@@ -518,7 +551,8 @@ defmodule ShowishWeb.ShowLive.Control do
     <div class="ml-auto flex gap-1">
       <button
         type="button"
-        class="btn btn-xs btn-ghost"
+        title={"Move #{@kind} earlier"}
+        class="grid size-6 place-items-center rounded text-base-content/35 transition hover:bg-base-200 hover:text-base-content active:scale-90"
         phx-click={"move_#{@kind}"}
         phx-value-id={@id}
         phx-value-delta="-1"
@@ -528,7 +562,8 @@ defmodule ShowishWeb.ShowLive.Control do
       </button>
       <button
         type="button"
-        class="btn btn-xs btn-ghost"
+        title={"Move #{@kind} later"}
+        class="grid size-6 place-items-center rounded text-base-content/35 transition hover:bg-base-200 hover:text-base-content active:scale-90"
         phx-click={"move_#{@kind}"}
         phx-value-id={@id}
         phx-value-delta="1"
@@ -538,11 +573,13 @@ defmodule ShowishWeb.ShowLive.Control do
       </button>
       <button
         type="button"
-        class="btn btn-xs btn-ghost text-error"
+        aria-label={"Remove this #{@kind}"}
+        title={"Remove #{@kind}"}
+        class="grid size-6 place-items-center rounded text-base-content/35 transition hover:bg-error/10 hover:text-error active:scale-90"
         phx-click={"delete_#{@kind}"}
         phx-value-id={@id}
       >
-        Remove
+        <.icon name="hero-trash-mini" class="size-3" />
       </button>
     </div>
     """
