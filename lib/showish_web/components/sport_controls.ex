@@ -598,9 +598,11 @@ defmodule ShowishWeb.SportControls do
             <button
               id="baseball-save-highlight-selection"
               type="submit"
-              class="mt-3 rounded-md bg-primary px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110"
+              aria-label="Update highlight players"
+              title="Update highlight players"
+              class="mt-1 grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
             >
-              Update highlight players
+              <.icon name="hero-check-mini" class="size-3.5" />
             </button>
           </.form>
         </div>
@@ -704,11 +706,13 @@ defmodule ShowishWeb.SportControls do
             <button
               id="baseball-clear-count"
               type="button"
-              class="rounded px-2 py-1 text-[10px] font-black uppercase tracking-wider text-base-content/55 transition hover:bg-base-300 hover:text-base-content"
+              aria-label="Start a new batter"
+              title="New batter"
+              class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content active:scale-90"
               phx-click="sport_action"
               phx-value-action="clear_count"
             >
-              New batter
+              <.icon name="hero-arrow-path-mini" class="size-3.5" />
             </button>
           </div>
 
@@ -728,11 +732,13 @@ defmodule ShowishWeb.SportControls do
             <button
               id="baseball-clear-bases"
               type="button"
-              class="rounded px-2 py-1 text-[10px] font-black uppercase tracking-wider text-base-content/55 transition hover:bg-base-300 hover:text-base-content"
+              aria-label="Clear bases"
+              title="Clear bases"
+              class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content active:scale-90"
               phx-click="sport_action"
               phx-value-action="clear_bases"
             >
-              Clear
+              <.icon name="hero-x-mark-mini" class="size-3.5" />
             </button>
           </div>
 
@@ -786,11 +792,13 @@ defmodule ShowishWeb.SportControls do
         <button
           id="baseball-reset-game"
           type="button"
-          class="rounded px-3 py-2 text-xs font-bold text-error transition hover:bg-error/10"
+          aria-label="Reset game"
+          title="Reset game"
+          class="grid size-7 place-items-center rounded text-base-content/35 transition hover:bg-error/10 hover:text-error active:scale-90"
           phx-click="reset_sport"
           data-confirm="Reset the game stats and scores? Saved lineups and pitcher names will remain."
         >
-          Reset game
+          <.icon name="hero-arrow-path-mini" class="size-3.5" />
         </button>
       </div>
     </div>
@@ -1005,11 +1013,13 @@ defmodule ShowishWeb.SportControls do
         <button
           id="reset-scores"
           type="button"
-          class="btn btn-sm btn-ghost text-error"
+          aria-label="Reset scores"
+          title="Reset scores"
+          class="grid size-7 place-items-center rounded text-base-content/35 transition hover:bg-error/10 hover:text-error active:scale-90"
           phx-click="reset_scores"
           data-confirm="Set both series scores back to zero?"
         >
-          Reset scores
+          <.icon name="hero-arrow-path-mini" class="size-3.5" />
         </button>
       </div>
     </div>
