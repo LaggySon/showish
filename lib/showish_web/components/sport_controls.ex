@@ -441,28 +441,15 @@ defmodule ShowishWeb.SportControls do
           <button
             id="baseball-open-game-rosters-modal"
             type="button"
-            class="group flex w-full items-center justify-between gap-4 rounded-lg border border-dashed border-primary/35 bg-primary/5 px-4 py-4 text-left transition hover:border-primary/60 hover:bg-primary/10 active:scale-[0.995]"
+            class="group inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs font-black transition hover:border-primary/55 hover:bg-primary/10 active:scale-[0.98]"
             phx-click={
               JS.push_focus()
               |> show("#baseball-game-rosters-modal")
               |> JS.focus_first(to: "#baseball-game-rosters-modal")
             }
           >
-            <span class="flex items-center gap-3">
-              <span class="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary transition group-hover:scale-105">
-                <.icon name="hero-clipboard-document-list" class="size-5" />
-              </span>
-              <span>
-                <span class="block text-sm font-black">Paste game rosters</span>
-                <span class="mt-0.5 block text-xs text-base-content/55">
-                  Add or replace both teams from one formatted paste
-                </span>
-              </span>
-            </span>
-            <.icon
-              name="hero-arrow-up-right-mini"
-              class="size-5 shrink-0 text-base-content/35 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary"
-            />
+            <.icon name="hero-clipboard-document-list" class="size-4 text-primary" />
+            Paste game rosters
           </button>
         </div>
 
