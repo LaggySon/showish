@@ -403,6 +403,104 @@ defmodule Showish.BroadcastsTest do
       assert Enum.at(show.sport_state["lineups"]["1"], 0)["field_position"] == "CF"
     end
 
+    test "one game roster paste saves both complete 26-player teams" do
+      show = show_fixture(%{sport: "baseball"})
+
+      away_lineup = Enum.map_join(1..9, "\n", &"#{&1}. Away Batter #{&1} | CF")
+      home_lineup = Enum.map_join(1..9, "\n", &"#{&1}. Home Batter #{&1} | SS")
+
+      away_bullpen = Enum.map_join(1..7, "\n", &"Away Reliever #{&1} | Available")
+      home_bullpen = Enum.map_join(1..7, "\n", &"Home Reliever #{&1} | Ready")
+
+      away_bench = Enum.map_join(1..9, "\n", &"Away Bench #{&1}")
+      home_bench = Enum.map_join(1..9, "\n", &"Home Bench #{&1}")
+
+      data = """
+      AWAY
+      TEAM
+      Name: Bay City Captains
+      Short name: Captains
+      Code: BCC
+      Logo URL: https://example.com/captains.svg
+      Primary color: #123456
+      Secondary color: #abcdef
+      Record: 18-8
+      Side label: Visitors
+      LINEUP
+      #{away_lineup}
+      STARTING PITCHER
+      Away Starter
+      BULLPEN
+      #{away_bullpen}
+      ROSTER
+      #{away_bench}
+
+      HOME
+      TEAM
+      Name: Summit Foxes
+      Short name: Foxes
+      Code: SFX
+      Logo URL: https://example.com/foxes.svg
+      Primary color: #654321
+      Secondary color: #fedcba
+      Record: 16-10
+      Side label: Hosts
+      LINEUP
+      #{home_lineup}
+      STARTING PITCHER
+      Home Starter
+      BULLPEN
+      #{home_bullpen}
+      ROSTER
+      #{home_bench}
+      """
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_game_rosters", %{
+                 "game_rosters" => %{"data" => data}
+               })
+
+      assert length(show.sport_state["rosters"]["1"]) == 26
+      assert length(show.sport_state["rosters"]["2"]) == 26
+      assert length(show.sport_state["lineups"]["1"]) == 9
+      assert length(show.sport_state["lineups"]["2"]) == 9
+      assert show.sport_state["pitchers"]["1"]["name"] == "Away Starter"
+      assert show.sport_state["pitchers"]["2"]["name"] == "Home Starter"
+
+      assert Map.take(Show.team(show, 1), [
+               :name,
+               :short_name,
+               :code,
+               :logo_url,
+               :primary_color,
+               :secondary_color,
+               :record,
+               :side
+             ]) == %{
+               name: "Bay City Captains",
+               short_name: "Captains",
+               code: "BCC",
+               logo_url: "https://example.com/captains.svg",
+               primary_color: "#123456",
+               secondary_color: "#abcdef",
+               record: "18-8",
+               side: "Visitors"
+             }
+
+      assert Map.take(Show.team(show, 2), [:name, :code, :logo_url, :primary_color]) == %{
+               name: "Summit Foxes",
+               code: "SFX",
+               logo_url: "https://example.com/foxes.svg",
+               primary_color: "#654321"
+             }
+
+      assert Enum.map(show.sport_state["bullpens"]["1"], & &1["name"]) ==
+               Enum.map(1..7, &"Away Reliever #{&1}")
+
+      assert Enum.map(show.sport_state["bullpens"]["2"], & &1["status"]) ==
+               List.duplicate("Ready", 7)
+    end
+
     test "live pitch actions advance the count, pitcher and inning and can be undone" do
       show = show_fixture(%{sport: "baseball"})
 

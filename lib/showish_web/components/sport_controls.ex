@@ -31,11 +31,9 @@ defmodule ShowishWeb.SportControls do
       |> assign(:batting_team, Enum.find(teams, &(&1.position == batting_position)))
       |> assign(:active_batter, active_batter)
       |> assign(:current_pitcher, state["pitchers"][fielding_key])
-      |> assign(:roster_forms, roster_forms(teams, state))
-      |> assign(:pitcher_forms, pitcher_forms(teams, state))
+      |> assign(:game_rosters_form, game_rosters_form(teams, state))
       |> assign(:pitcher_change_forms, pitcher_change_forms(teams))
       |> assign(:substitution_forms, substitution_forms(teams))
-      |> assign(:bullpen_forms, bullpen_forms(teams, state))
       |> assign(:play_form, play_form())
       |> assign(:highlight_form, highlight_form(state))
       |> assign(:highlight_options, highlight_options(state))
@@ -431,12 +429,40 @@ defmodule ShowishWeb.SportControls do
       <section id="baseball-rosters" class="overflow-hidden rounded-lg border border-base-300">
         <div class="border-b border-base-300 bg-base-200/70 px-4 py-3">
           <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-            Lineups & pitching
+            Complete game rosters
           </p>
 
           <p class="mt-1 text-xs text-base-content/55">
-            Paste each batting order with defensive positions, choose who is at bat, and set each team's current pitcher.
+            One paste sets both teams' names, branding, 26-man rosters, batting orders, starting pitchers, and bullpens.
           </p>
+        </div>
+
+        <div class="border-b border-base-300 bg-base-100 p-4">
+          <.form
+            for={@game_rosters_form}
+            id="baseball-game-rosters-form"
+            phx-submit="sport_action"
+            phx-value-action="save_game_rosters"
+          >
+            <.input
+              field={@game_rosters_form[:data]}
+              id="baseball-game-rosters-data"
+              type="textarea"
+              rows="46"
+              label="Away & home game data"
+              placeholder={game_rosters_placeholder(@teams)}
+            />
+            <p class="mt-1.5 text-[10px] leading-relaxed text-base-content/50">
+              Keep the Away/Home, Team, Lineup, Starting pitcher, Bullpen, and Roster headings. Team colors use hex values such as <span class="font-bold">#123456</span>. Lineup rows use <span class="font-bold">BATTER | POSITION</span>; bullpen rows may add <span class="font-bold">| STATUS</span>. The importer de-duplicates names and keeps the first 26 per club.
+            </p>
+            <button
+              id="baseball-save-game-rosters"
+              type="submit"
+              class="mt-3 w-full rounded-md bg-primary px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110 active:scale-[0.99]"
+            >
+              Save both complete rosters
+            </button>
+          </.form>
         </div>
 
         <div class="grid gap-px bg-base-300 lg:grid-cols-2">
@@ -447,8 +473,6 @@ defmodule ShowishWeb.SportControls do
             active_index={@state["active_batters"][to_string(team.position)]}
             pitcher={@state["pitchers"][to_string(team.position)]}
             batting?={team.position == @batting_position}
-            roster_form={@roster_forms[team.position]}
-            pitcher_form={@pitcher_forms[team.position]}
           />
         </div>
       </section>
@@ -463,7 +487,7 @@ defmodule ShowishWeb.SportControls do
           </p>
 
           <p class="mt-1 text-xs text-base-content/55">
-            Defensive alignments come from the combined roster above. Manage bullpen, spotlight, and comparison browser sources here.
+            Defensive alignments and bullpens come from the complete roster paste above. Manage spotlight and comparison browser sources here.
           </p>
         </div>
 
@@ -471,7 +495,7 @@ defmodule ShowishWeb.SportControls do
           <.team_graphics_control
             :for={team <- @teams}
             team={team}
-            bullpen_form={@bullpen_forms[team.position]}
+            bullpen={@state["bullpens"][to_string(team.position)]}
           />
         </div>
 
@@ -843,7 +867,7 @@ defmodule ShowishWeb.SportControls do
   end
 
   attr :team, :any, required: true
-  attr :bullpen_form, :any, required: true
+  attr :bullpen, :list, required: true
 
   defp team_graphics_control(assigns) do
     ~H"""
@@ -853,34 +877,23 @@ defmodule ShowishWeb.SportControls do
         <p class="font-black">{Team.full_name(@team)}</p>
       </div>
 
-      <.form
-        for={@bullpen_form}
-        id={"baseball-bullpen-form-#{@team.position}"}
-        phx-submit="sport_action"
-        phx-value-action="save_bullpen"
-        class="mt-4"
-      >
-        <.input
-          field={@bullpen_form[:position]}
-          id={"baseball-bullpen-position-#{@team.position}"}
-          type="hidden"
-        />
-        <.input
-          field={@bullpen_form[:pitchers]}
-          id={"baseball-bullpen-pitchers-#{@team.position}"}
-          type="textarea"
-          rows="4"
-          label="Bullpen — Pitcher | Status"
-          placeholder="Taylor Reed | Warming\nCasey Park | Ready"
-        />
-        <button
-          id={"baseball-save-bullpen-#{@team.position}"}
-          type="submit"
-          class="mt-2 w-full rounded-md border border-base-300 bg-base-200 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition hover:bg-base-300"
+      <div id={"baseball-bullpen-#{@team.position}"} class="mt-4 space-y-1.5">
+        <p
+          :if={@bullpen == []}
+          class="rounded-md border border-dashed border-base-300 p-3 text-center text-xs text-base-content/45"
         >
-          Save bullpen
-        </button>
-      </.form>
+          No bullpen entered yet
+        </p>
+        <div
+          :for={pitcher <- @bullpen}
+          class="flex items-center justify-between gap-3 rounded-md border border-base-300 bg-base-200/45 px-3 py-2 text-sm"
+        >
+          <span class="truncate font-bold">{pitcher["name"]}</span>
+          <span class="text-[10px] font-black uppercase tracking-wider text-base-content/50">
+            {pitcher["status"]}
+          </span>
+        </div>
+      </div>
     </div>
     """
   end
@@ -979,8 +992,6 @@ defmodule ShowishWeb.SportControls do
   attr :active_index, :integer, required: true
   attr :pitcher, :map, required: true
   attr :batting?, :boolean, required: true
-  attr :roster_form, :any, required: true
-  attr :pitcher_form, :any, required: true
 
   defp roster_control(assigns) do
     assigns = assign(assigns, :active_batter, Enum.at(assigns.lineup, assigns.active_index))
@@ -999,41 +1010,6 @@ defmodule ShowishWeb.SportControls do
         <span class="size-3 shrink-0 rounded-full" style={"background: #{@team.primary_color}"}>
         </span>
       </div>
-
-      <.form
-        for={@roster_form}
-        id={"baseball-roster-form-#{@team.position}"}
-        phx-submit="sport_action"
-        phx-value-action="save_roster"
-        class="mt-3"
-      >
-        <.input
-          field={@roster_form[:position]}
-          id={"baseball-roster-position-#{@team.position}"}
-          type="hidden"
-        />
-        <.input
-          field={@roster_form[:entries]}
-          id={"baseball-roster-entries-#{@team.position}"}
-          type="textarea"
-          rows="9"
-          label="Lineup & defense — BATTER | POSITION"
-          placeholder="1. Alex Cruz | SS\n2. Morgan Ellis | CF\n3. Sam Rivera | 1B\nP: Jordan Lee"
-        />
-        <p class="mt-1.5 text-[10px] leading-relaxed text-base-content/50">
-          Line order sets the batting order. Position is optional. Use
-          <span class="font-bold">P: Name</span>
-          for a defense-only player when using a DH.
-        </p>
-
-        <button
-          id={"baseball-save-roster-#{@team.position}"}
-          type="submit"
-          class="mt-2 w-full rounded-md bg-primary px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110 active:scale-[0.99]"
-        >
-          Save lineup & defense
-        </button>
-      </.form>
 
       <div id={"baseball-lineup-#{@team.position}"} class="mt-3 space-y-1.5">
         <p
@@ -1107,35 +1083,13 @@ defmodule ShowishWeb.SportControls do
         </div>
       </div>
 
-      <.form
-        for={@pitcher_form}
-        id={"baseball-pitcher-form-#{@team.position}"}
-        phx-submit="sport_action"
-        phx-value-action="save_pitcher"
-        class="mt-4 border-t border-base-300 pt-4"
-      >
-        <.input
-          field={@pitcher_form[:position]}
-          id={"baseball-pitcher-position-#{@team.position}"}
-          type="hidden"
-        />
-        <.input
-          field={@pitcher_form[:name]}
-          id={"baseball-pitcher-name-#{@team.position}"}
-          label="Current pitcher"
-          placeholder="Pitcher name"
-        />
-        <button
-          id={"baseball-save-pitcher-#{@team.position}"}
-          type="submit"
-          class="mt-2 w-full rounded-md border border-base-300 bg-base-200 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition hover:bg-base-300 active:scale-[0.99]"
-        >
-          Update pitcher
-        </button>
-      </.form>
-
-      <div class="mt-2 flex items-center justify-between rounded-md bg-slate-950 px-3 py-2 text-white">
-        <span class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Pitches</span>
+      <div class="mt-4 flex items-center justify-between rounded-md bg-slate-950 px-3 py-2 text-white">
+        <div>
+          <span class="block text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+            Starting / current pitcher
+          </span>
+          <span class="text-xs font-bold">{display_name(@pitcher["name"])}</span>
+        </div>
         <div class="flex items-center gap-2">
           <button
             id={"baseball-pitches-down-#{@team.position}"}
@@ -1436,63 +1390,115 @@ defmodule ShowishWeb.SportControls do
   defp result_label("strikeout_reached"), do: "K reached"
   defp result_label(result), do: result |> String.replace("_", " ") |> String.capitalize()
 
-  defp roster_forms(teams, state) do
-    Map.new(teams, fn team ->
-      position = to_string(team.position)
-      lineup = state["lineups"][position]
-      lineup_names = MapSet.new(lineup, & &1["name"])
-
-      batting_entries =
-        lineup
-        |> Enum.with_index(1)
-        |> Enum.map(fn {player, order} ->
-          ["#{order}. #{player["name"]}", player["field_position"]]
-          |> Enum.reject(&(&1 in [nil, ""]))
-          |> Enum.join(" | ")
-        end)
-
-      defense_only_entries =
-        ~w(P C 1B 2B 3B SS LF CF RF)
-        |> Enum.flat_map(fn field_position ->
-          name = state["defense"][position][field_position]
-
-          if name in [nil, ""] or MapSet.member?(lineup_names, name) do
-            []
-          else
-            ["#{field_position}: #{name}"]
-          end
-        end)
-
-      entries = Enum.join(batting_entries ++ defense_only_entries, "\n")
-
-      {team.position, to_form(%{"position" => position, "entries" => entries}, as: :roster)}
-    end)
+  defp game_rosters_form(teams, state) do
+    data = Enum.map_join(teams, "\n\n", &team_roster_text(&1, state))
+    to_form(%{"data" => data}, as: :game_rosters)
   end
 
-  defp pitcher_forms(teams, state) do
-    Map.new(teams, fn team ->
-      position = to_string(team.position)
+  defp team_roster_text(team, state) do
+    position = to_string(team.position)
+    lineup = state["lineups"][position]
+    pitcher = state["pitchers"][position]
+    bullpen = state["bullpens"][position]
 
-      {team.position,
-       to_form(%{"position" => position, "name" => state["pitchers"][position]["name"]},
-         as: :pitcher
-       )}
-    end)
+    used_names =
+      lineup
+      |> Enum.map(& &1["name"])
+      |> Kernel.++([pitcher["name"]])
+      |> Kernel.++(Enum.map(bullpen, & &1["name"]))
+      |> MapSet.new()
+
+    lineup_text =
+      lineup
+      |> Enum.with_index(1)
+      |> Enum.map_join("\n", fn {player, order} ->
+        ["#{order}. #{player["name"]}", player["field_position"]]
+        |> Enum.reject(&(&1 in [nil, ""]))
+        |> Enum.join(" | ")
+      end)
+
+    bullpen_text =
+      Enum.map_join(bullpen, "\n", fn reliever ->
+        [reliever["name"], reliever["status"]]
+        |> Enum.reject(&(&1 in [nil, ""]))
+        |> Enum.join(" | ")
+      end)
+
+    remaining_roster =
+      state["rosters"][position]
+      |> Enum.reject(&MapSet.member?(used_names, &1["name"]))
+      |> Enum.map_join("\n", & &1["name"])
+
+    [
+      if(team.position == 1,
+        do: "AWAY — #{Team.full_name(team)}",
+        else: "HOME — #{Team.full_name(team)}"
+      ),
+      "TEAM",
+      "Name: #{team.name}",
+      "Short name: #{team.short_name}",
+      "Code: #{team.code}",
+      "Logo URL: #{team.logo_url}",
+      "Primary color: #{team.primary_color}",
+      "Secondary color: #{team.secondary_color}",
+      "Record: #{team.record}",
+      "Side label: #{team.side}",
+      "LINEUP",
+      lineup_text,
+      "STARTING PITCHER",
+      pitcher["name"],
+      "BULLPEN",
+      bullpen_text,
+      "ROSTER",
+      remaining_roster
+    ]
+    |> Enum.join("\n")
   end
 
-  defp bullpen_forms(teams, state) do
-    Map.new(teams, fn team ->
-      position = to_string(team.position)
+  defp game_rosters_placeholder(teams) do
+    [away, home] = teams
 
-      pitchers =
-        Enum.map_join(state["bullpens"][position], "\n", fn pitcher ->
-          [pitcher["name"], pitcher["status"]]
-          |> Enum.reject(&(&1 == ""))
-          |> Enum.join(" | ")
-        end)
+    """
+    AWAY — #{Team.full_name(away)}
+    TEAM
+    Name: Harbour Kings
+    Short name: Kings
+    Code: HKG
+    Logo URL: https://example.com/harbour-kings.svg
+    Primary color: #0f766e
+    Secondary color: #f8fafc
+    Record: 18-8
+    Side label: Away
+    LINEUP
+    1. Alex Cruz | SS
+    2. Morgan Ellis | CF
+    STARTING PITCHER
+    Jordan Lee
+    BULLPEN
+    Taylor Reed | Warming
+    Casey Park | Available
+    ROSTER
+    Remaining Player
 
-      {team.position, to_form(%{"position" => position, "pitchers" => pitchers}, as: :bullpen)}
-    end)
+    HOME — #{Team.full_name(home)}
+    TEAM
+    Name: Ridgeline Foxes
+    Short name: Foxes
+    Code: RFX
+    Logo URL: https://example.com/ridgeline-foxes.svg
+    Primary color: #c2410c
+    Secondary color: #fff7ed
+    Record: 16-10
+    Side label: Home
+    LINEUP
+    1. Jamie Fox | 2B
+    STARTING PITCHER
+    Riley Stone
+    BULLPEN
+    Avery Cole | Ready
+    ROSTER
+    Remaining Player
+    """
   end
 
   defp highlight_form(state) do
