@@ -32,7 +32,6 @@ defmodule ShowishWeb.SportControls do
       |> assign(:active_batter, active_batter)
       |> assign(:current_pitcher, state["pitchers"][fielding_key])
       |> assign(:game_rosters_form, game_rosters_form(teams, state))
-      |> assign(:pitcher_change_forms, pitcher_change_forms(teams))
       |> assign(:substitution_forms, substitution_forms(teams))
       |> assign(:play_form, play_form())
       |> assign(:highlight_form, highlight_form(state))
@@ -555,18 +554,13 @@ defmodule ShowishWeb.SportControls do
           <div class="grid gap-px border-t border-amber-400/25 bg-amber-400/20 lg:grid-cols-2">
             <div :for={team <- @teams} class="bg-base-100 p-3">
               <p class="mb-3 text-xs font-black">{Team.full_name(team)}</p>
-              <div class="grid gap-3 xl:grid-cols-2">
-                <.quick_pitcher_form
-                  team={team}
-                  form={@pitcher_change_forms[team.position]}
-                  players={@state["rosters"][to_string(team.position)]}
-                  current={@state["pitchers"][to_string(team.position)]}
-                />
+              <div>
                 <.quick_substitution_form
                   team={team}
                   form={@substitution_forms[team.position]}
                   lineup={@state["lineups"][to_string(team.position)]}
                   players={@state["rosters"][to_string(team.position)]}
+                  pitcher={@state["pitchers"][to_string(team.position)]}
                 />
               </div>
             </div>
@@ -823,66 +817,31 @@ defmodule ShowishWeb.SportControls do
 
   attr :team, :any, required: true
   attr :form, :any, required: true
-  attr :players, :list, required: true
-  attr :current, :map, required: true
-
-  defp quick_pitcher_form(assigns) do
-    options =
-      assigns.players
-      |> Enum.filter(& &1["id"])
-      |> Enum.map(&{&1["name"], &1["id"]})
-
-    assigns = assign(assigns, :options, options)
-
-    ~H"""
-    <.form
-      for={@form}
-      id={"baseball-quick-pitcher-form-#{@team.position}"}
-      phx-submit="sport_action"
-      phx-value-action="change_pitcher"
-      class="rounded-md border border-base-300 bg-base-200/45 p-3"
-    >
-      <.input
-        field={@form[:position]}
-        id={"baseball-quick-pitcher-position-#{@team.position}"}
-        type="hidden"
-      />
-      <p class="mb-2 text-[10px] font-black uppercase tracking-wider text-base-content/55">
-        Pitcher
-        <span class="font-medium normal-case tracking-normal text-base-content/45">
-          · {@current["name"]}
-        </span>
-      </p>
-      <.input
-        field={@form[:player_id]}
-        id={"baseball-quick-pitcher-player-#{@team.position}"}
-        type="select"
-        label="Choose roster player"
-        options={[{"Select a saved player", ""} | @options]}
-      />
-      <button
-        id={"baseball-confirm-pitcher-#{@team.position}"}
-        type="submit"
-        class="mt-2 w-full rounded-md bg-primary px-3 py-2 text-xs font-black uppercase tracking-wider text-primary-content transition hover:brightness-110 active:scale-[0.99]"
-      >
-        Confirm pitching change
-      </button>
-    </.form>
-    """
-  end
-
-  attr :team, :any, required: true
-  attr :form, :any, required: true
   attr :lineup, :list, required: true
   attr :players, :list, required: true
+  attr :pitcher, :map, required: true
 
   defp quick_substitution_form(assigns) do
+    pitcher_options =
+      if assigns.pitcher["id"] do
+        [{"#{assigns.pitcher["name"]} · Pitcher", assigns.pitcher["id"]}]
+      else
+        []
+      end
+
     lineup_options =
       assigns.lineup
       |> Enum.filter(& &1["id"])
-      |> Enum.map(&{&1["name"], &1["id"]})
+      |> Enum.map(&{"#{&1["name"]} · #{&1["field_position"]}", &1["id"]})
 
-    active_ids = MapSet.new(assigns.lineup, & &1["id"])
+    outgoing_options = Enum.uniq_by(pitcher_options ++ lineup_options, &elem(&1, 1))
+
+    active_ids =
+      assigns.lineup
+      |> Enum.map(& &1["id"])
+      |> Kernel.++([assigns.pitcher["id"]])
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
 
     bench_options =
       assigns.players
@@ -891,7 +850,7 @@ defmodule ShowishWeb.SportControls do
 
     assigns =
       assigns
-      |> assign(:lineup_options, lineup_options)
+      |> assign(:outgoing_options, outgoing_options)
       |> assign(:bench_options, bench_options)
 
     ~H"""
@@ -907,28 +866,25 @@ defmodule ShowishWeb.SportControls do
         id={"baseball-substitution-position-#{@team.position}"}
         type="hidden"
       />
-      <p class="mb-2 text-[10px] font-black uppercase tracking-wider text-base-content/55">
-        Lineup substitution
-      </p>
       <.input
         field={@form[:outgoing_player_id]}
         id={"baseball-substitution-outgoing-#{@team.position}"}
         type="select"
-        label="Player coming out"
-        options={[{"Choose player", ""} | @lineup_options]}
+        label="Active player"
+        options={[{"Choose active player", ""} | @outgoing_options]}
       />
       <.input
         field={@form[:incoming_player_id]}
         id={"baseball-substitution-incoming-#{@team.position}"}
         type="select"
-        label="Player coming in"
-        options={[{"Choose saved bench player", ""} | @bench_options]}
+        label="Replacement"
+        options={[{"Choose roster player", ""} | @bench_options]}
       />
       <.input
         field={@form[:field_position]}
         id={"baseball-substitution-field-position-#{@team.position}"}
         type="select"
-        label="New defensive position"
+        label="Defensive position · lineup changes only"
         options={[
           {"Keep replaced player's position", ""}
           | Enum.map(~w(P C 1B 2B 3B SS LF CF RF DH), &{&1, &1})
@@ -1428,17 +1384,6 @@ defmodule ShowishWeb.SportControls do
   end
 
   defp play_form, do: to_form(%{"notation" => ""}, as: :play)
-
-  defp pitcher_change_forms(teams) do
-    Map.new(teams, fn team ->
-      form =
-        to_form(%{"position" => to_string(team.position), "player_id" => ""},
-          as: :pitcher_change
-        )
-
-      {team.position, form}
-    end)
-  end
 
   defp substitution_forms(teams) do
     Map.new(teams, fn team ->
