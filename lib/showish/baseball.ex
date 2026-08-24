@@ -280,14 +280,7 @@ defmodule Showish.Baseball do
       player = selected_or_named_player(team.id, params["player_id"], params["name"])
 
       if player do
-        clear_pitcher_assignment!(game.id, team.id)
-        spot = upsert_spot!(game.id, team.id, player.id, %{field_position: "P", starter: false})
-
-        {:ok,
-         update_game!(game, %{
-           pitcher_field(position) => player.id,
-           pitch_count_field(position) => spot.pitch_count
-         })}
+        replace_pitcher(game, team, position, player)
       else
         {:error, :pitcher_required}
       end
@@ -304,27 +297,17 @@ defmodule Showish.Baseball do
          team = team!(show, position),
          outgoing_id when not is_nil(outgoing_id) <-
            optional_integer(params["outgoing_player_id"]),
-         %LineupSpot{} = outgoing <-
-           Repo.get_by(LineupSpot, game_id: game.id, team_id: team.id, player_id: outgoing_id),
          %Player{} = incoming <-
            selected_or_named_player(team.id, params["incoming_player_id"], params["name"]) do
-      if incoming.id == outgoing.player_id do
-        {:error, :different_substitute_required}
-      else
-        batting_order = outgoing.batting_order
-        field_position = blank_default(params["field_position"], outgoing.field_position)
+      cond do
+        incoming.id == outgoing_id ->
+          {:error, :different_substitute_required}
 
-        outgoing
-        |> LineupSpot.changeset(%{batting_order: nil, field_position: ""})
-        |> Repo.update!()
+        Map.fetch!(game, pitcher_field(position)) == outgoing_id ->
+          replace_pitcher(game, team, position, incoming)
 
-        upsert_spot!(game.id, team.id, incoming.id, %{
-          batting_order: batting_order,
-          field_position: field_position,
-          starter: false
-        })
-
-        {:ok, game}
+        true ->
+          replace_lineup_player(game, team, outgoing_id, incoming, params["field_position"])
       end
     else
       false -> {:error, :invalid_team}
@@ -1384,6 +1367,44 @@ defmodule Showish.Baseball do
 
       nil ->
         %Player{team_id: team_id} |> Player.changeset(%{name: name}) |> Repo.insert!()
+    end
+  end
+
+  defp replace_pitcher(game, team, position, player) do
+    clear_pitcher_assignment!(game.id, team.id)
+    spot = upsert_spot!(game.id, team.id, player.id, %{field_position: "P", starter: false})
+
+    {:ok,
+     update_game!(game, %{
+       pitcher_field(position) => player.id,
+       pitch_count_field(position) => spot.pitch_count
+     })}
+  end
+
+  defp replace_lineup_player(game, team, outgoing_id, incoming, requested_position) do
+    case Repo.get_by(LineupSpot,
+           game_id: game.id,
+           team_id: team.id,
+           player_id: outgoing_id
+         ) do
+      %LineupSpot{} = outgoing ->
+        batting_order = outgoing.batting_order
+        field_position = blank_default(requested_position, outgoing.field_position)
+
+        outgoing
+        |> LineupSpot.changeset(%{batting_order: nil, field_position: ""})
+        |> Repo.update!()
+
+        upsert_spot!(game.id, team.id, incoming.id, %{
+          batting_order: batting_order,
+          field_position: field_position,
+          starter: false
+        })
+
+        {:ok, game}
+
+      nil ->
+        {:error, :invalid_substitution}
     end
   end
 
