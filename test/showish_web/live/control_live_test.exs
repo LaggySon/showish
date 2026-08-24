@@ -66,6 +66,7 @@ defmodule ShowishWeb.ControlLiveTest do
 
       assert has_element?(view, "#baseball-controls")
       assert has_element?(view, "#baseball-live-state")
+      assert has_element?(view, "#baseball-scoreboard")
       assert has_element?(view, "#baseball-quick-changes")
       assert has_element?(view, "details#baseball-pitching-change")
       assert has_element?(view, "details#baseball-player-substitution")
@@ -73,7 +74,7 @@ defmodule ShowishWeb.ControlLiveTest do
       assert has_element?(view, "#baseball-substitution-form-1")
       assert has_element?(view, "#baseball-inning")
       assert has_element?(view, "#baseball-rosters")
-      assert has_element?(view, "#baseball-graphics-controls")
+      assert has_element?(view, "details#baseball-graphics-controls")
       assert has_element?(view, "button#baseball-open-game-rosters-modal")
       assert has_element?(view, "#baseball-game-rosters-modal[role='dialog'][aria-modal='true']")
       assert has_element?(view, "button#baseball-close-game-rosters-modal")
