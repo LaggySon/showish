@@ -61,12 +61,21 @@ defmodule ShowishWeb.ShowLive.Control do
       <div id="control-room" class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_560px]">
         <div class="space-y-6">
           <% sport = Sport.fetch(@show.sport) %>
-          <.panel title={sport.control_title} subtitle={sport.control_summary}>
+          <.panel
+            id="live-controls-panel"
+            title={sport.control_title}
+            subtitle={sport.control_summary}
+            open
+          >
             <SportControls.panel show={@show} />
           </.panel>
 
           <.form for={@form} id="control-form" phx-change="save" phx-submit="save" class="space-y-6">
-            <.panel title="Match" subtitle="Copy that frames the broadcast.">
+            <.panel
+              id="match-config-panel"
+              title="Match"
+              subtitle="Copy that frames the broadcast."
+            >
               <div class="grid gap-4 sm:grid-cols-2">
                 <.input field={@form[:title]} label="Title" phx-debounce="500" />
                 <div>
@@ -158,83 +167,113 @@ defmodule ShowishWeb.ShowLive.Control do
             </.panel>
 
             <.panel
+              id="teams-config-panel"
               title="Teams"
               subtitle="Colors drive every scene, so pick the ones from their kit."
             >
-              <.inputs_for :let={tf} field={@form[:teams]}>
-                <div class="rounded-box border border-base-300 p-4">
-                  <h3 class="mb-3 font-bold">Team {tf.index + 1}</h3>
-
-                  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <.input field={tf[:name]} label="Name" phx-debounce="500" />
-                    <.input field={tf[:short_name]} label="Short name" phx-debounce="500" />
-                    <.input field={tf[:code]} label="Code" placeholder="ABC" phx-debounce="500" />
-                    <.input field={tf[:record]} label="Record" placeholder="4-1" phx-debounce="500" />
-                    <.input
-                      field={tf[:side]}
-                      label="Side label"
-                      placeholder="Attack"
-                      phx-debounce="500"
-                    />
-                    <.input
-                      field={tf[:score]}
-                      type="number"
-                      min="0"
-                      label={if(@show.sport == "baseball", do: "Runs", else: "Series score")}
-                    /> <.input field={tf[:primary_color]} type="color" label="Primary color" />
-                    <.input field={tf[:secondary_color]} type="color" label="Secondary color" />
-                    <.input field={tf[:logo_url]} label="Logo URL" phx-debounce="blur" />
-                  </div>
-
-                  <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-base-300 pt-3">
-                    <button
-                      id={"save-team-profile-#{tf.data.position}"}
-                      type="button"
-                      aria-label="Save to team library"
-                      title="Save to team library"
-                      class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
-                      phx-click="save_team_profile"
-                      phx-value-position={tf.data.position}
-                    >
-                      <.icon name="hero-bookmark-mini" class="size-3.5" />
-                    </button>
-                    <details :if={@team_profiles != []} class="dropdown">
-                      <summary
-                        aria-label="Use saved team"
-                        title="Use saved team"
-                        class="grid size-7 cursor-pointer list-none place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90 [&::-webkit-details-marker]:hidden"
+              <div class="space-y-2">
+                <.inputs_for :let={tf} field={@form[:teams]}>
+                  <details
+                    id={"team-config-#{tf.data.position}"}
+                    class="group/team overflow-hidden rounded-lg border border-base-300"
+                  >
+                    <summary class="flex cursor-pointer list-none items-center gap-3 px-3 py-2.5 transition hover:bg-base-200/60 [&::-webkit-details-marker]:hidden">
+                      <span
+                        class="size-2.5 shrink-0 rounded-full"
+                        style={"background: #{tf.data.primary_color}"}
                       >
-                        <.icon name="hero-book-open-mini" class="size-3.5" />
-                      </summary>
-                      <div class="dropdown-content z-20 mt-2 w-64 rounded-box border border-base-300 bg-base-100 p-2 shadow-xl">
-                        <button
-                          :for={profile <- @team_profiles}
-                          id={"apply-team-profile-#{tf.data.position}-#{profile.id}"}
-                          type="button"
-                          class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-bold transition hover:bg-base-200"
-                          phx-click="apply_team_profile"
-                          phx-value-position={tf.data.position}
-                          phx-value-profile-id={profile.id}
-                        >
-                          <span
-                            class="size-2.5 rounded-full"
-                            style={"background: #{profile.primary_color}"}
-                          >
-                          </span>
-                          {profile.name}
-                        </button>
+                      </span>
+                      <span class="flex-1 truncate text-sm font-bold">
+                        {tf.data.name || "Team #{tf.index + 1}"}
+                      </span>
+                      <span class="text-[10px] font-black uppercase tracking-wider text-base-content/40">
+                        {tf.data.code}
+                      </span>
+                      <.icon
+                        name="hero-chevron-down-mini"
+                        class="size-3.5 text-base-content/35 transition group-open/team:rotate-180"
+                      />
+                    </summary>
+
+                    <div class="border-t border-base-300 p-3">
+                      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <.input field={tf[:name]} label="Name" phx-debounce="500" />
+                        <.input field={tf[:short_name]} label="Short name" phx-debounce="500" />
+                        <.input field={tf[:code]} label="Code" placeholder="ABC" phx-debounce="500" />
+                        <.input
+                          field={tf[:record]}
+                          label="Record"
+                          placeholder="4-1"
+                          phx-debounce="500"
+                        />
+                        <.input
+                          field={tf[:side]}
+                          label="Side label"
+                          placeholder="Attack"
+                          phx-debounce="500"
+                        />
+                        <.input
+                          field={tf[:score]}
+                          type="number"
+                          min="0"
+                          label={if(@show.sport == "baseball", do: "Runs", else: "Series score")}
+                        /> <.input field={tf[:primary_color]} type="color" label="Primary color" />
+                        <.input field={tf[:secondary_color]} type="color" label="Secondary color" />
+                        <.input field={tf[:logo_url]} label="Logo URL" phx-debounce="blur" />
                       </div>
-                    </details>
-                    <span class="text-xs text-base-content/50">
-                      Saved branding and rosters are reusable in every show on this account.
-                    </span>
-                  </div>
-                </div>
-              </.inputs_for>
+
+                      <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-base-300 pt-2">
+                        <button
+                          id={"save-team-profile-#{tf.data.position}"}
+                          type="button"
+                          aria-label="Save to team library"
+                          title="Save to team library"
+                          class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
+                          phx-click="save_team_profile"
+                          phx-value-position={tf.data.position}
+                        >
+                          <.icon name="hero-bookmark-mini" class="size-3.5" />
+                        </button>
+                        <details :if={@team_profiles != []} class="dropdown">
+                          <summary
+                            aria-label="Use saved team"
+                            title="Use saved team"
+                            class="grid size-7 cursor-pointer list-none place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90 [&::-webkit-details-marker]:hidden"
+                          >
+                            <.icon name="hero-book-open-mini" class="size-3.5" />
+                          </summary>
+                          <div class="dropdown-content z-20 mt-2 w-64 rounded-box border border-base-300 bg-base-100 p-2 shadow-xl">
+                            <button
+                              :for={profile <- @team_profiles}
+                              id={"apply-team-profile-#{tf.data.position}-#{profile.id}"}
+                              type="button"
+                              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-bold transition hover:bg-base-200"
+                              phx-click="apply_team_profile"
+                              phx-value-position={tf.data.position}
+                              phx-value-profile-id={profile.id}
+                            >
+                              <span
+                                class="size-2.5 rounded-full"
+                                style={"background: #{profile.primary_color}"}
+                              >
+                              </span>
+                              {profile.name}
+                            </button>
+                          </div>
+                        </details>
+                        <span class="text-xs text-base-content/50">
+                          Saved branding and rosters are reusable in every show on this account.
+                        </span>
+                      </div>
+                    </div>
+                  </details>
+                </.inputs_for>
+              </div>
             </.panel>
 
             <.panel
               :if={@show.sport == "esports"}
+              id="series-config-panel"
               title="Series"
               subtitle="One row per game. The highlighted row is what is on air."
             >
@@ -293,7 +332,11 @@ defmodule ShowishWeb.ShowLive.Control do
               </button>
             </.panel>
 
-            <.panel title="Talent" subtitle="Drives the lower thirds and the credit roll.">
+            <.panel
+              id="talent-config-panel"
+              title="Talent"
+              subtitle="Drives the lower thirds and the credit roll."
+            >
               <.inputs_for :let={pf} field={@form[:talents]}>
                 <div class="rounded-box mb-3 border border-base-300 p-4">
                   <div class="mb-3 flex items-center gap-2">
@@ -330,7 +373,12 @@ defmodule ShowishWeb.ShowLive.Control do
         </div>
 
         <div class="xl:sticky xl:top-6 xl:self-start">
-          <.panel title="Preview" subtitle="Exactly what a browser source renders, scaled to fit.">
+          <.panel
+            id="preview-panel"
+            title="Preview"
+            subtitle="Exactly what a browser source renders, scaled to fit."
+            open
+          >
             <div class="mb-3 flex flex-wrap gap-1">
               <button
                 :for={scene <- Scenes.for_sport(@show.sport)}
@@ -512,19 +560,28 @@ defmodule ShowishWeb.ShowLive.Control do
 
   attr :title, :string, required: true
   attr :subtitle, :string, default: nil
+  attr :id, :string, default: nil
+  attr :open, :boolean, default: false
   slot :inner_block, required: true
 
   @doc false
   def panel(assigns) do
     ~H"""
-    <section class="rounded-box border border-base-300 bg-base-100 p-5">
-      <header class="mb-4">
-        <h2 class="text-lg font-bold">{@title}</h2>
-
-        <p :if={@subtitle} class="text-sm text-base-content/60">{@subtitle}</p>
-      </header>
-      {render_slot(@inner_block)}
-    </section>
+    <details id={@id} open={@open} class="group rounded-box border border-base-300 bg-base-100">
+      <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-base-200/55 [&::-webkit-details-marker]:hidden">
+        <span>
+          <span class="block text-lg font-bold">{@title}</span>
+          <span :if={@subtitle} class="block text-sm text-base-content/60">{@subtitle}</span>
+        </span>
+        <.icon
+          name="hero-chevron-down-mini"
+          class="size-4 shrink-0 text-base-content/40 transition group-open:rotate-180"
+        />
+      </summary>
+      <div class="border-t border-base-300 px-5 py-4">
+        {render_slot(@inner_block)}
+      </div>
+    </details>
     """
   end
 

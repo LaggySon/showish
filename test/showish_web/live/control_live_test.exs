@@ -66,14 +66,20 @@ defmodule ShowishWeb.ControlLiveTest do
 
       assert has_element?(view, "#baseball-controls")
       assert has_element?(view, "#baseball-live-state")
+      assert has_element?(view, "details#baseball-live-actions[open]")
+      assert has_element?(view, "details#baseball-scoreboard[open]")
+      assert has_element?(view, "#baseball-live-state + details#baseball-live-actions")
+      assert has_element?(view, "#baseball-live-actions + details#baseball-scoreboard")
       assert has_element?(view, "#baseball-quick-changes")
-      assert has_element?(view, "details#baseball-pitching-change")
-      assert has_element?(view, "details#baseball-player-substitution")
-      assert has_element?(view, "#baseball-quick-pitcher-form-2")
+      assert has_element?(view, "details#baseball-personnel-change")
+      refute has_element?(view, "#baseball-pitching-change")
+      refute has_element?(view, "#baseball-player-substitution")
+      refute has_element?(view, "#baseball-quick-pitcher-form-2")
       assert has_element?(view, "#baseball-substitution-form-1")
+      refute has_element?(view, "#baseball-substitution-name-1")
       assert has_element?(view, "#baseball-inning")
       assert has_element?(view, "#baseball-rosters")
-      assert has_element?(view, "#baseball-graphics-controls")
+      assert has_element?(view, "details#baseball-graphics-controls")
       assert has_element?(view, "button#baseball-open-game-rosters-modal")
       assert has_element?(view, "#baseball-game-rosters-modal[role='dialog'][aria-modal='true']")
       assert has_element?(view, "button#baseball-close-game-rosters-modal")
@@ -104,23 +110,49 @@ defmodule ShowishWeb.ControlLiveTest do
       refute has_element?(view, "#baseball-single-stats-form")
       refute has_element?(view, "#esports-controls")
       refute has_element?(view, "#add-game")
+      assert has_element?(view, "details#live-controls-panel[open]")
+      assert has_element?(view, "details#match-config-panel:not([open])")
+      assert has_element?(view, "details#teams-config-panel:not([open])")
+      assert has_element?(view, "details#team-config-1:not([open])")
+      assert has_element?(view, "details#talent-config-panel:not([open])")
+      assert has_element?(view, "details#preview-panel[open]")
     end
 
-    test "quick pitching changes and substitutions write through", %{conn: conn, scope: scope} do
+    test "one substitution flow handles pitchers and lineup players", %{conn: conn, scope: scope} do
       show = show_fixture(scope, %{sport: "baseball"})
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
       view
       |> form("#baseball-game-rosters-form",
         game_rosters: %{
-          data: "AWAY\nLINEUP\n1. Starter | CF\n2. Slugger | 1B\nHOME\nROSTER"
+          data:
+            "AWAY\nLINEUP\n1. Starter | CF\n2. Slugger | 1B\nROSTER\nPinch Runner\nHOME\nSTARTING PITCHER\nStarter Arm\nROSTER\nReliever"
         }
       )
       |> render_submit()
 
+      setup_state = Broadcasts.get_show!(scope, show.id).sport_state
+
+      reliever_id =
+        setup_state["rosters"]["2"]
+        |> Enum.find(&(&1["name"] == "Reliever"))
+        |> Map.fetch!("id")
+
+      pinch_runner_id =
+        setup_state["rosters"]["1"]
+        |> Enum.find(&(&1["name"] == "Pinch Runner"))
+        |> Map.fetch!("id")
+
+      starting_pitcher_id = setup_state["pitchers"]["2"]["id"]
+
       view
-      |> form("#baseball-quick-pitcher-form-2",
-        pitcher_change: %{position: "2", player_id: "", name: "Reliever"}
+      |> form("#baseball-substitution-form-2",
+        substitution: %{
+          position: "2",
+          outgoing_player_id: to_string(starting_pitcher_id),
+          incoming_player_id: to_string(reliever_id),
+          field_position: ""
+        }
       )
       |> render_submit()
 
@@ -134,8 +166,7 @@ defmodule ShowishWeb.ControlLiveTest do
         substitution: %{
           position: "1",
           outgoing_player_id: to_string(outgoing_id),
-          incoming_player_id: "",
-          name: "Pinch Runner",
+          incoming_player_id: to_string(pinch_runner_id),
           field_position: "RF"
         }
       )
