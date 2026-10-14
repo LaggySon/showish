@@ -76,6 +76,35 @@ defmodule Showish.Accounts.AllowlistTest do
     end
   end
 
+  describe "config/runtime.exs" do
+    # The list only protects a deployment if the variable actually reaches the
+    # application. It once did not: the module documented the variable, but no
+    # config file read it, so every server was open to any verified address.
+    test "passes ALLOWED_GOOGLE_EMAILS through to the allowlist" do
+      original = System.get_env("ALLOWED_GOOGLE_EMAILS")
+      on_exit(fn -> restore_env("ALLOWED_GOOGLE_EMAILS", original) end)
+      System.put_env("ALLOWED_GOOGLE_EMAILS", "Operator@example.com, producer@example.com")
+
+      config = Config.Reader.read!("config/runtime.exs", env: :test)
+
+      assert get_in(config, [:showish, Allowlist, :emails]) ==
+               "Operator@example.com, producer@example.com"
+    end
+
+    test "leaves the allowlist alone when the variable is unset" do
+      original = System.get_env("ALLOWED_GOOGLE_EMAILS")
+      on_exit(fn -> restore_env("ALLOWED_GOOGLE_EMAILS", original) end)
+      System.delete_env("ALLOWED_GOOGLE_EMAILS")
+
+      config = Config.Reader.read!("config/runtime.exs", env: :test)
+
+      refute get_in(config, [:showish, Allowlist])
+    end
+  end
+
+  defp restore_env(name, nil), do: System.delete_env(name)
+  defp restore_env(name, value), do: System.put_env(name, value)
+
   describe "the comma-separated form an environment variable arrives in" do
     test "is split, trimmed and lowercased" do
       put_list(" Operator@example.com ,producer@example.com,, ")

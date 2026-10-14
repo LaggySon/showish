@@ -39,6 +39,13 @@ if client_secret = System.get_env("GOOGLE_CLIENT_SECRET") do
   config :showish, Showish.Accounts.Google, client_secret: client_secret
 end
 
+# Who may sign in: a comma-separated list of Google addresses. Unset, any
+# address Google reports as verified gets an account. Showish.Accounts.Allowlist
+# splits, trims and lowercases the list.
+if emails = System.get_env("ALLOWED_GOOGLE_EMAILS") do
+  config :showish, Showish.Accounts.Allowlist, emails: emails
+end
+
 # PR deployments start Google sign-in on a stable deployment. Google therefore
 # needs one registered callback instead of one for every temporary Railway host.
 preview_auth =
