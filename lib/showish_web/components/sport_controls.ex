@@ -5,6 +5,11 @@ defmodule ShowishWeb.SportControls do
   Event handling stays in the parent LiveView, so these remain lightweight
   function components. Add one `panel/1` clause when a new sport needs controls
   that differ from the generic esports series.
+
+  Both follow the Laggish design guide (DESIGN.md): the series gets the sticky
+  live controls strip (section 7.27); baseball, which has far more to drive,
+  gets a console of disclosures built from the same buttons, steppers and
+  fields. Buttons are grayscale; a hue only marks a state.
   """
 
   use ShowishWeb, :html
@@ -22,6 +27,8 @@ defmodule ShowishWeb.SportControls do
     batting_key = to_string(batting_position)
     fielding_key = to_string(fielding_position)
     active_batter = Enum.at(state["lineups"][batting_key], state["active_batters"][batting_key])
+    bases = state["bases"]
+    runners = Enum.count(Map.values(bases), & &1)
 
     assigns =
       assigns
@@ -31,6 +38,7 @@ defmodule ShowishWeb.SportControls do
       |> assign(:batting_team, Enum.find(teams, &(&1.position == batting_position)))
       |> assign(:active_batter, active_batter)
       |> assign(:current_pitcher, state["pitchers"][fielding_key])
+      |> assign(:runners, runners)
       |> assign(:game_rosters_form, game_rosters_form(teams, state))
       |> assign(:substitution_forms, substitution_forms(teams))
       |> assign(:play_form, play_form())
@@ -38,579 +46,453 @@ defmodule ShowishWeb.SportControls do
       |> assign(:highlight_options, highlight_options(state))
 
     ~H"""
-    <div id="baseball-controls" class="space-y-4">
+    <div id="baseball-controls" class="app-baseball">
       <div
         id="baseball-live-state"
         data-fielding-position={if(@batting_position == 1, do: 2, else: 1)}
-        class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-white shadow-sm"
+        class="app-band"
       >
-        <div class="flex items-center gap-3">
-          <span class="relative flex size-2.5">
-            <span class="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-50">
-            </span> <span class="relative inline-flex size-2.5 rounded-full bg-emerald-400"></span>
+        <span class="app-band-main">
+          <span class="ui-row-name">
+            {if(@state["half"] == "top", do: "Top", else: "Bottom")} {@state["inning"]}
           </span>
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-              Live game state
-            </p>
-
-            <p class="font-black uppercase tracking-wide">
-              {if(@state["half"] == "top", do: "Top", else: "Bottom")} {@state["inning"]}
-              <span class="px-1.5 text-slate-600">/</span> {if(@batting_team,
-                do: Team.full_name(@batting_team),
-                else: "Away"
-              )} batting
-            </p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 font-mono text-sm font-bold tabular-nums">
-          <span class="rounded bg-white/8 px-2.5 py-1">{@state["balls"]}-{@state["strikes"]}</span>
-          <span class="rounded bg-white/8 px-2.5 py-1">
-            {@state["outs"]} {if(@state["outs"] == 1, do: "out", else: "outs")}
+          <span class="ui-sep" aria-hidden="true">·</span>
+          <span>
+            {if(@batting_team, do: Team.full_name(@batting_team), else: "Away")} batting
           </span>
-        </div>
+        </span>
+        <span class="app-band-values">
+          <span class="ui-label">Count</span>
+          <span class="ui-mono app-band-value">{@state["balls"]}-{@state["strikes"]}</span>
+          <span class="ui-label">Outs</span>
+          <span class="ui-mono app-band-value">{@state["outs"]}</span>
+        </span>
       </div>
 
-      <details
-        id="baseball-live-actions"
-        open
-        class="group overflow-hidden rounded-lg border border-slate-700 bg-slate-950 text-white shadow-sm"
-      >
-        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 transition hover:bg-white/[0.04] [&::-webkit-details-marker]:hidden">
-          <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
-              Live actions
-            </p>
-
-            <p class="mt-0.5 font-bold">
-              {if(@active_batter, do: @active_batter["name"], else: "Batter not set")}
-              <span class="px-1 text-slate-600">vs.</span> {if(@current_pitcher["name"] == "",
-                do: "Pitcher not set",
-                else: @current_pitcher["name"]
-              )}
-            </p>
-          </div>
-          <.icon
-            name="hero-chevron-down-mini"
-            class="size-4 text-slate-500 transition group-open:rotate-180"
-          />
+      <details id="baseball-live-actions" open class="app-section">
+        <summary class="app-section-title">
+          <span class="app-collapsible-name">Live actions</span>
+          <span class="ui-panel-title-aside app-matchup">
+            {if(@active_batter, do: @active_batter["name"], else: "Batter not set")}
+            <span class="ui-muted">vs.</span>
+            {if(@current_pitcher["name"] == "",
+              do: "Pitcher not set",
+              else: @current_pitcher["name"]
+            )}
+          </span>
         </summary>
 
-        <div class="flex justify-end border-t border-white/10 px-4 py-2">
-          <button
-            id="baseball-undo"
-            type="button"
-            class="flex items-center gap-1.5 rounded-md border border-white/15 bg-white/8 px-3 py-2 text-xs font-black uppercase tracking-wider transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
-            phx-click="sport_action"
-            phx-value-action="undo"
-            disabled={@state["history"] == []}
-          >
-            <.icon name="hero-arrow-uturn-left-mini" class="size-4" /> Undo
-          </button>
-        </div>
-
-        <div class="grid gap-px bg-white/10 lg:grid-cols-[0.8fr_1.2fr]">
-          <div class="bg-slate-950 p-4">
-            <div class="flex items-center justify-between gap-2">
-              <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Record pitch · optional
-              </p>
-
-              <span class="font-mono text-xs font-bold text-slate-400 tabular-nums">
-                Count {@state["balls"]}-{@state["strikes"]}
-              </span>
-            </div>
-
-            <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
-              <.game_action
-                id="baseball-pitch-ball"
-                action="record_pitch"
-                result="ball"
-                label="Ball"
-                tone="green"
-              />
-              <.game_action
-                id="baseball-pitch-strike"
-                action="record_pitch"
-                result="strike"
-                label="Strike"
-                tone="red"
-              />
-              <.game_action
-                id="baseball-pitch-foul"
-                action="record_pitch"
-                result="foul"
-                label="Foul"
-                tone="amber"
-              />
-              <.game_action
-                id="baseball-pitch-in-play"
-                action="record_pitch"
-                result="in_play"
-                label="In play"
-                tone="blue"
-              />
-            </div>
-
-            <p class="mt-2 text-[10px] leading-relaxed text-slate-500">
-              Every pitch increments the fielding pitcher's count. Ball four and strike three close the plate appearance automatically.
-            </p>
+        <div class="app-section-body">
+          <div class="app-section-tools">
+            <button
+              id="baseball-undo"
+              type="button"
+              class="ui-button ui-button--small"
+              phx-click="sport_action"
+              phx-value-action="undo"
+              disabled={@state["history"] == []}
+              title={@state["history"] == [] && "Nothing to undo yet"}
+            >
+              Undo last pitch or play
+            </button>
           </div>
 
-          <div class="bg-slate-950 p-4">
-            <div class="flex items-center justify-between gap-2">
-              <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Finish plate appearance
+          <div class="app-columns">
+            <div>
+              <div class="app-subhead">
+                <span class="ui-label">Record pitch · optional</span>
+                <span class="ui-mono ui-muted">Count {@state["balls"]}-{@state["strikes"]}</span>
+              </div>
+              <div class="app-action-grid app-action-grid--row">
+                <.game_action
+                  id="baseball-pitch-ball"
+                  action="record_pitch"
+                  result="ball"
+                  label="Ball"
+                />
+                <.game_action
+                  id="baseball-pitch-strike"
+                  action="record_pitch"
+                  result="strike"
+                  label="Strike"
+                />
+                <.game_action
+                  id="baseball-pitch-foul"
+                  action="record_pitch"
+                  result="foul"
+                  label="Foul"
+                />
+                <.game_action
+                  id="baseball-pitch-in-play"
+                  action="record_pitch"
+                  result="in_play"
+                  label="In play"
+                />
+              </div>
+              <p class="ui-hint app-after-fields">
+                Every pitch adds to the fielding pitcher's count. Ball four and strike three end the plate appearance.
               </p>
+            </div>
 
-              <div class="text-right">
-                <span class="block font-mono text-xs font-bold text-slate-400 tabular-nums">
+            <div>
+              <div class="app-subhead">
+                <span class="ui-label">Finish plate appearance</span>
+                <span class="ui-mono ui-muted">
                   {@state["outs"]} {if(@state["outs"] == 1, do: "out", else: "outs")}
                 </span>
-                <span
-                  :if={@state["last_play"]["result"] != ""}
-                  id="baseball-last-play"
-                  class="mt-0.5 block text-[10px] font-bold uppercase tracking-wider text-cyan-300"
-                >
-                  Last · {last_play_text(@state["last_play"])}
-                </span>
               </div>
-            </div>
-
-            <.form
-              for={@play_form}
-              id="baseball-play-form"
-              phx-submit="sport_action"
-              phx-value-action="record_play"
-            >
-              <label
-                for="baseball-play-notation"
-                class="mt-3 block text-[10px] font-black uppercase tracking-[0.14em] text-slate-400"
+              <p
+                :if={@state["last_play"]["result"] != ""}
+                id="baseball-last-play"
+                class="ui-hint app-last-play"
               >
-                Scorebook notation
-                <span class="font-medium normal-case tracking-normal text-slate-600">· optional</span>
-              </label>
-              <.input
-                field={@play_form[:notation]}
-                id="baseball-play-notation"
-                type="text"
-                placeholder="E1.1-3 advances first to third · also accepts 463, F8, K"
-                class="mt-1 w-full rounded-md border border-white/15 bg-white/[0.06] px-3 py-2 text-sm font-bold text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
-              />
-              <button
-                id="baseball-record-notation"
-                type="submit"
-                name="play[result]"
-                value="auto"
-                class="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-200 transition hover:border-cyan-300/60 hover:bg-cyan-400/20 active:scale-[0.99]"
-              >
-                <.icon name="hero-pencil-square-mini" class="size-4" /> Record notation
-              </button>
-              <p class="mt-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                Most common · one tap
+                Last play · {last_play_text(@state["last_play"])}
               </p>
 
-              <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <.game_action
-                  id="baseball-play-out"
-                  action="record_play"
-                  result="out"
-                  label="Out"
-                  tone="red"
-                  size="primary"
-                />
-                <.game_action
-                  id="baseball-play-strikeout"
-                  action="record_play"
-                  result="strikeout"
-                  label="Strikeout"
-                  tone="red"
-                  size="primary"
-                />
-                <.game_action
-                  id="baseball-play-single"
-                  action="record_play"
-                  result="single"
-                  label="Single"
-                  tone="blue"
-                  size="primary"
-                />
-                <.game_action
-                  id="baseball-play-walk"
-                  action="record_play"
-                  result="walk"
-                  label="Walk"
-                  tone="green"
-                  size="primary"
-                />
-                <.game_action
-                  id="baseball-play-double"
-                  action="record_play"
-                  result="double"
-                  label="Double"
-                  tone="blue"
-                  size="primary"
-                />
-                <.game_action
-                  id="baseball-play-home-run"
-                  action="record_play"
-                  result="home_run"
-                  label="Home run"
-                  tone="amber"
-                  size="primary"
-                />
-              </div>
-
-              <div
-                id="baseball-more-results"
-                class="mt-3 rounded-md border border-white/10 bg-white/[0.03]"
+              <.form
+                for={@play_form}
+                id="baseball-play-form"
+                phx-submit="sport_action"
+                phx-value-action="record_play"
               >
-                <p class="px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-slate-300">
-                  All other outcomes
-                </p>
+                <div class="app-notation">
+                  <.input
+                    field={@play_form[:notation]}
+                    id="baseball-play-notation"
+                    type="text"
+                    label="Scorebook notation · optional"
+                    placeholder="E1.1-3"
+                    hint="Also takes 463, F8 or K. After a period, 1-3 moves first to third, 2-H scores second; semicolons combine moves."
+                  />
+                  <button
+                    id="baseball-record-notation"
+                    type="submit"
+                    name="play[result]"
+                    value="auto"
+                    class="ui-button ui-button--primary"
+                  >
+                    Record notation
+                  </button>
+                </div>
 
-                <div class="grid grid-cols-2 gap-2 border-t border-white/10 p-3 sm:grid-cols-3">
+                <p class="ui-label app-after-fields">Most common · one tap</p>
+                <div class="app-action-grid app-action-grid--tap">
+                  <.game_action id="baseball-play-out" action="record_play" result="out" label="Out" />
                   <.game_action
-                    id="baseball-play-triple"
+                    id="baseball-play-strikeout"
                     action="record_play"
-                    result="triple"
-                    label="Triple"
-                    tone="blue"
+                    result="strikeout"
+                    label="Strikeout"
                   />
                   <.game_action
-                    id="baseball-play-hit-by-pitch"
+                    id="baseball-play-single"
                     action="record_play"
-                    result="hit_by_pitch"
-                    label="Hit by pitch"
-                    tone="green"
+                    result="single"
+                    label="Single"
                   />
                   <.game_action
-                    id="baseball-play-error"
+                    id="baseball-play-walk"
                     action="record_play"
-                    result="reached_on_error"
-                    label="Reached on error"
-                    tone="amber"
+                    result="walk"
+                    label="Walk"
                   />
                   <.game_action
-                    id="baseball-play-fielders-choice"
+                    id="baseball-play-double"
                     action="record_play"
-                    result="fielders_choice"
-                    label="Fielder's choice"
-                    tone="red"
-                    disabled={!Enum.any?(Map.values(@state["bases"]))}
+                    result="double"
+                    label="Double"
                   />
                   <.game_action
-                    id="baseball-play-sac-fly"
+                    id="baseball-play-home-run"
                     action="record_play"
-                    result="sacrifice_fly"
-                    label="Sac fly"
-                    tone="green"
-                    disabled={@state["outs"] == 2 or not @state["bases"]["third"]}
-                  />
-                  <.game_action
-                    id="baseball-play-sac-bunt"
-                    action="record_play"
-                    result="sacrifice_bunt"
-                    label="Sac bunt"
-                    tone="green"
-                    disabled={@state["outs"] == 2 or not Enum.any?(Map.values(@state["bases"]))}
-                  />
-                  <.game_action
-                    id="baseball-play-double-play"
-                    action="record_play"
-                    result="double_play"
-                    label="Double play"
-                    tone="red"
-                    disabled={@state["outs"] == 2 or not Enum.any?(Map.values(@state["bases"]))}
-                  />
-                  <.game_action
-                    id="baseball-play-triple-play"
-                    action="record_play"
-                    result="triple_play"
-                    label="Triple play"
-                    tone="red"
-                    disabled={@state["outs"] > 0 or Enum.count(Map.values(@state["bases"]), & &1) < 2}
-                  />
-                  <.game_action
-                    id="baseball-play-interference"
-                    action="record_play"
-                    result="interference"
-                    label="Interference"
-                    tone="amber"
-                  />
-                  <.game_action
-                    id="baseball-play-strikeout-reached"
-                    action="record_play"
-                    result="strikeout_reached"
-                    label="K · reached"
-                    tone="amber"
-                    disabled={@state["bases"]["first"] and @state["outs"] < 2}
+                    result="home_run"
+                    label="Home run"
                   />
                 </div>
-              </div>
 
-              <p class="mt-2 text-[10px] leading-relaxed text-slate-500">
-                Add runner advances after a period: 1-3 moves first to third, 2-H scores second, and semicolons combine moves. Undo reverses the entire last pitch or play.
-              </p>
-            </.form>
+                <div id="baseball-more-results" class="app-after-fields">
+                  <p class="ui-label">All other outcomes</p>
+                  <div class="app-action-grid app-after-label">
+                    <.game_action
+                      id="baseball-play-triple"
+                      action="record_play"
+                      result="triple"
+                      label="Triple"
+                    />
+                    <.game_action
+                      id="baseball-play-hit-by-pitch"
+                      action="record_play"
+                      result="hit_by_pitch"
+                      label="Hit by pitch"
+                    />
+                    <.game_action
+                      id="baseball-play-error"
+                      action="record_play"
+                      result="reached_on_error"
+                      label="Reached on error"
+                    />
+                    <.game_action
+                      id="baseball-play-fielders-choice"
+                      action="record_play"
+                      result="fielders_choice"
+                      label="Fielder's choice"
+                      disabled={@runners == 0}
+                      reason="Needs a runner on base"
+                    />
+                    <.game_action
+                      id="baseball-play-sac-fly"
+                      action="record_play"
+                      result="sacrifice_fly"
+                      label="Sac fly"
+                      disabled={@state["outs"] == 2 or not @state["bases"]["third"]}
+                      reason="Needs a runner on third and fewer than 2 outs"
+                    />
+                    <.game_action
+                      id="baseball-play-sac-bunt"
+                      action="record_play"
+                      result="sacrifice_bunt"
+                      label="Sac bunt"
+                      disabled={@state["outs"] == 2 or @runners == 0}
+                      reason="Needs a runner on base and fewer than 2 outs"
+                    />
+                    <.game_action
+                      id="baseball-play-double-play"
+                      action="record_play"
+                      result="double_play"
+                      label="Double play"
+                      disabled={@state["outs"] == 2 or @runners == 0}
+                      reason="Needs a runner on base and fewer than 2 outs"
+                    />
+                    <.game_action
+                      id="baseball-play-triple-play"
+                      action="record_play"
+                      result="triple_play"
+                      label="Triple play"
+                      disabled={@state["outs"] > 0 or @runners < 2}
+                      reason="Needs 2 runners on base and no outs"
+                    />
+                    <.game_action
+                      id="baseball-play-interference"
+                      action="record_play"
+                      result="interference"
+                      label="Interference"
+                    />
+                    <.game_action
+                      id="baseball-play-strikeout-reached"
+                      action="record_play"
+                      result="strikeout_reached"
+                      label="K · reached"
+                      disabled={@state["bases"]["first"] and @state["outs"] < 2}
+                      reason="Only with first base open, or with 2 outs"
+                    />
+                  </div>
+                </div>
+              </.form>
+            </div>
           </div>
         </div>
       </details>
 
-      <details id="baseball-scoreboard" open class="group space-y-3">
-        <summary class="flex cursor-pointer list-none items-center gap-2 px-1 py-1 [&::-webkit-details-marker]:hidden">
-          <.icon name="hero-rectangle-stack-mini" class="size-4 text-primary" />
-          <span class="flex-1 text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-            Scoreboard
-          </span>
-          <.icon
-            name="hero-chevron-down-mini"
-            class="size-3.5 text-base-content/35 transition group-open:rotate-180"
-          />
+      <details id="baseball-scoreboard" open class="app-section">
+        <summary class="app-section-title">
+          <span class="app-collapsible-name">Scoreboard</span>
         </summary>
-        <div class="grid gap-3 sm:grid-cols-2">
-          <.baseball_score_control
-            :for={team <- @teams}
-            team={team}
-            role={if(team.position == 1, do: "Away", else: "Home")}
-            batting?={team.position == @batting_position}
-          />
-        </div>
-        <div class="grid gap-3 lg:grid-cols-[0.85fr_1.45fr_1fr]">
-          <section class="rounded-lg border border-base-300 bg-base-200/45 p-4">
-            <div class="flex items-center justify-between">
-              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-                Inning
-              </p>
 
-              <span class="rounded bg-primary/10 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary">
-                {if(@state["half"] == "top", do: "Away batting", else: "Home batting")}
-              </span>
-            </div>
+        <div class="app-section-body">
+          <div class="app-columns">
+            <.baseball_score_control
+              :for={team <- @teams}
+              team={team}
+              role={if(team.position == 1, do: "Away", else: "Home")}
+              batting?={team.position == @batting_position}
+            />
+          </div>
 
-            <div class="mt-4 flex items-center justify-between gap-3">
-              <button
-                id="baseball-previous-half"
-                type="button"
-                class="grid size-11 place-items-center rounded-md border border-base-300 bg-base-100 transition hover:-translate-y-0.5 hover:border-base-content/35 hover:shadow-md active:translate-y-0"
-                phx-click="sport_action"
-                phx-value-action="previous_half"
-                aria-label="Previous half inning"
-              >
-                <.icon name="hero-chevron-left-mini" class="size-5" />
-              </button>
-              <div class="text-center">
-                <div id="baseball-inning" class="text-5xl font-black leading-none tabular-nums">
-                  {@state["inning"]}
-                </div>
-
-                <div class="mt-1 text-xs font-black uppercase tracking-[0.18em] text-primary">
-                  {if(@state["half"] == "top", do: "Top", else: "Bottom")}
-                </div>
+          <div class="app-columns app-columns--3 app-after-fields">
+            <section class="app-cell" aria-labelledby="baseball-inning-title">
+              <div class="app-subhead">
+                <span id="baseball-inning-title" class="ui-label">Inning</span>
               </div>
-
+              <div class="ui-stepper app-stepper-wide">
+                <button
+                  id="baseball-previous-half"
+                  type="button"
+                  class="ui-button"
+                  phx-click="sport_action"
+                  phx-value-action="previous_half"
+                  aria-label="Previous half inning"
+                >
+                  ‹
+                </button>
+                <span class="app-inning">
+                  <span id="baseball-inning" class="ui-stepper-value">{@state["inning"]}</span>
+                  <span class="ui-label">
+                    {if(@state["half"] == "top", do: "Top", else: "Bottom")}
+                  </span>
+                </span>
+                <button
+                  id="baseball-next-half"
+                  type="button"
+                  class="ui-button"
+                  phx-click="sport_action"
+                  phx-value-action="next_half"
+                  aria-label="Next half inning"
+                >
+                  ›
+                </button>
+              </div>
               <button
-                id="baseball-next-half"
+                id="baseball-advance-half"
                 type="button"
-                class="grid size-11 place-items-center rounded-md bg-primary text-primary-content shadow-sm transition hover:-translate-y-0.5 hover:brightness-110 hover:shadow-md active:translate-y-0"
+                class="ui-button ui-button--primary app-full-width app-after-fields"
                 phx-click="sport_action"
                 phx-value-action="next_half"
-                aria-label="Next half inning"
               >
-                <.icon name="hero-chevron-right-mini" class="size-5" />
+                Advance half inning ›
               </button>
-            </div>
+            </section>
 
-            <button
-              id="baseball-advance-half"
-              type="button"
-              class="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-3 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-white transition hover:bg-slate-800 active:scale-[0.99] dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
-              phx-click="sport_action"
-              phx-value-action="next_half"
-            >
-              Advance half inning <.icon name="hero-arrow-right-mini" class="size-4" />
-            </button>
-          </section>
+            <section class="app-cell" aria-labelledby="baseball-count-title">
+              <div class="app-subhead">
+                <span id="baseball-count-title" class="ui-label">Count</span>
+                <button
+                  id="baseball-clear-count"
+                  type="button"
+                  aria-label="Start a new batter"
+                  class="ui-button ui-button--ghost ui-button--small"
+                  phx-click="sport_action"
+                  phx-value-action="clear_count"
+                >
+                  ↻ New batter
+                </button>
+              </div>
+              <div class="app-counts">
+                <.count_control label="Balls" kind="balls" value={@state["balls"]} maximum={3} />
+                <.count_control label="Strikes" kind="strikes" value={@state["strikes"]} maximum={2} />
+                <.count_control label="Outs" kind="outs" value={@state["outs"]} maximum={2} />
+              </div>
+            </section>
 
-          <section class="rounded-lg border border-base-300 bg-base-200/45 p-4">
-            <div class="flex items-center justify-between">
-              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-                Pitch & out count
-              </p>
-
-              <button
-                id="baseball-clear-count"
-                type="button"
-                aria-label="Start a new batter"
-                title="New batter"
-                class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content active:scale-90"
-                phx-click="sport_action"
-                phx-value-action="clear_count"
-              >
-                <.icon name="hero-arrow-path-mini" class="size-3.5" />
-              </button>
-            </div>
-
-            <div class="mt-3 grid grid-cols-3 gap-2">
-              <.count_control label="Balls" kind="balls" value={@state["balls"]} maximum={3} />
-              <.count_control label="Strikes" kind="strikes" value={@state["strikes"]} maximum={2} />
-              <.count_control label="Outs" kind="outs" value={@state["outs"]} maximum={2} />
-            </div>
-          </section>
-
-          <section class="rounded-lg border border-base-300 bg-base-200/45 p-4">
-            <div class="flex items-center justify-between">
-              <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-                Runners
-              </p>
-
-              <button
-                id="baseball-clear-bases"
-                type="button"
-                aria-label="Clear bases"
-                title="Clear bases"
-                class="grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content active:scale-90"
-                phx-click="sport_action"
-                phx-value-action="clear_bases"
-              >
-                <.icon name="hero-x-mark-mini" class="size-3.5" />
-              </button>
-            </div>
-
-            <div class="mx-auto mt-5 grid w-36 grid-cols-3 grid-rows-2 gap-3">
-              <.base_button base="second" occupied={@state["bases"]["second"]} class="col-start-2" />
-              <.base_button
-                base="third"
-                occupied={@state["bases"]["third"]}
-                class="col-start-1 row-start-2"
-              />
-              <.base_button
-                base="first"
-                occupied={@state["bases"]["first"]}
-                class="col-start-3 row-start-2"
-              />
-            </div>
-
-            <p class="mt-5 text-center text-[10px] font-bold uppercase tracking-wider text-base-content/45">
-              Tap a base to toggle
-            </p>
-          </section>
-        </div>
-
-        <section class="overflow-hidden rounded-lg border border-base-300">
-          <div class="grid grid-cols-[minmax(0,1fr)_96px_96px] border-b border-base-300 bg-base-200/70 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-base-content/50">
-            <span>Line totals</span><span class="text-center">Hits</span><span class="text-center">Errors</span>
-          </div>
-
-          <div
-            :for={team <- @teams}
-            class="grid grid-cols-[minmax(0,1fr)_96px_96px] items-center bg-base-100 px-4 py-2.5 not-last:border-b not-last:border-base-300"
-          >
-            <span class="flex min-w-0 items-center gap-2 truncate font-bold">
-              <span class="size-2 shrink-0 rounded-full" style={"background: #{team.primary_color}"}>
-              </span> {Team.full_name(team)}
-            </span>
-            <.stat_control
-              stat="hits"
-              position={team.position}
-              value={@state["hits"][to_string(team.position)]}
-            />
-            <.stat_control
-              stat="errors"
-              position={team.position}
-              value={@state["errors"][to_string(team.position)]}
-            />
-          </div>
-        </section>
-      </details>
-
-      <section
-        id="baseball-quick-changes"
-        class="overflow-hidden rounded-lg border border-amber-400/35 bg-amber-50/70 shadow-sm dark:bg-amber-950/20"
-      >
-        <details id="baseball-personnel-change" class="group">
-          <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 transition hover:bg-amber-100/70 dark:hover:bg-amber-950/30 [&::-webkit-details-marker]:hidden">
-            <span class="grid size-9 place-items-center rounded-lg bg-amber-400/15 text-amber-700 dark:text-amber-300">
-              <.icon name="hero-user-plus-mini" class="size-5" />
-            </span>
-            <span class="flex-1">
-              <span class="block text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
-                Personnel changes
-              </span>
-              <span class="mt-0.5 block text-xs text-base-content/60">
-                Change a pitcher or replace a lineup player.
-              </span>
-            </span>
-            <span class="text-[10px] font-black uppercase tracking-wider text-base-content/45 group-open:hidden">
-              Open
-            </span>
-            <.icon
-              name="hero-chevron-down-mini"
-              class="size-4 text-base-content/40 transition group-open:rotate-180"
-            />
-          </summary>
-
-          <div class="grid gap-px border-t border-amber-400/25 bg-amber-400/20 lg:grid-cols-2">
-            <div :for={team <- @teams} class="bg-base-100 p-3">
-              <p class="mb-3 text-xs font-black">{Team.full_name(team)}</p>
-              <div>
-                <.quick_substitution_form
-                  team={team}
-                  form={@substitution_forms[team.position]}
-                  lineup={@state["lineups"][to_string(team.position)]}
-                  players={@state["rosters"][to_string(team.position)]}
-                  pitcher={@state["pitchers"][to_string(team.position)]}
+            <section class="app-cell" aria-labelledby="baseball-runners-title">
+              <div class="app-subhead">
+                <span id="baseball-runners-title" class="ui-label">Runners</span>
+                <button
+                  id="baseball-clear-bases"
+                  type="button"
+                  aria-label="Clear bases"
+                  class="ui-button ui-button--ghost ui-button--small"
+                  phx-click="sport_action"
+                  phx-value-action="clear_bases"
+                  disabled={@runners == 0}
+                  title={@runners == 0 && "The bases are already empty"}
+                >
+                  ✕ Clear
+                </button>
+              </div>
+              <div class="app-diamond">
+                <.base_button
+                  base="second"
+                  occupied={@state["bases"]["second"]}
+                  class="app-base--second"
+                />
+                <.base_button
+                  base="third"
+                  occupied={@state["bases"]["third"]}
+                  class="app-base--third"
+                />
+                <.base_button
+                  base="first"
+                  occupied={@state["bases"]["first"]}
+                  class="app-base--first"
                 />
               </div>
+              <p class="ui-hint app-center">Press a base to put a runner on it or take one off.</p>
+            </section>
+          </div>
+
+          <div class="ui-table-wrap app-after-fields" style="--table-max-h: none">
+            <table class="ui-table">
+              <thead>
+                <tr>
+                  <th>Line totals</th>
+                  <th class="ui-cell-num">Hits</th>
+                  <th class="ui-cell-num">Errors</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr :for={team <- @teams}>
+                  <td class="ui-row-name">{Team.full_name(team)}</td>
+                  <td class="ui-cell-num ui-cell-mono">
+                    <span id={"baseball-hits-#{team.position}"}>
+                      {@state["hits"][to_string(team.position)]}
+                    </span>
+                  </td>
+                  <td class="ui-cell-num ui-cell-mono">
+                    <span id={"baseball-errors-#{team.position}"}>
+                      {@state["errors"][to_string(team.position)]}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+
+      <section id="baseball-quick-changes" aria-label="Personnel changes">
+        <details id="baseball-personnel-change" class="app-section">
+          <summary class="app-section-title">
+            <span class="app-collapsible-name">Personnel changes</span>
+            <span class="ui-panel-title-aside">Change a pitcher or replace a lineup player.</span>
+          </summary>
+          <div class="app-section-body app-columns">
+            <div :for={team <- @teams}>
+              <p class="ui-row-name app-team-name">{Team.full_name(team)}</p>
+              <.quick_substitution_form
+                team={team}
+                form={@substitution_forms[team.position]}
+                lineup={@state["lineups"][to_string(team.position)]}
+                players={@state["rosters"][to_string(team.position)]}
+                pitcher={@state["pitchers"][to_string(team.position)]}
+              />
             </div>
           </div>
         </details>
       </section>
 
-      <details
-        id="baseball-rosters"
-        class="group relative overflow-hidden rounded-lg border border-base-300"
-      >
-        <summary class="flex cursor-pointer list-none items-start justify-between gap-3 bg-base-200/70 px-4 py-3 pr-20 transition hover:bg-base-200 [&::-webkit-details-marker]:hidden">
-          <div>
-            <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-              Teams & lineups
-            </p>
-
-            <p class="mt-1 text-xs text-base-content/55">
-              Batting order, active hitter, starting pitcher, and pitch count for each club.
-            </p>
-          </div>
-          <.icon
-            name="hero-chevron-down-mini"
-            class="mt-1 size-4 shrink-0 text-base-content/35 transition group-open:rotate-180"
-          />
+      <details id="baseball-rosters" class="app-section">
+        <summary class="app-section-title">
+          <span class="app-collapsible-name">Teams and lineups</span>
+          <span class="ui-panel-title-aside">
+            Batting order, active hitter, pitcher and pitch count.
+          </span>
         </summary>
-        <button
-          id="baseball-open-game-rosters-modal"
-          type="button"
-          aria-label="Paste game rosters"
-          title="Paste game rosters"
-          class="absolute right-11 top-3 grid size-7 shrink-0 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
-          phx-click={
-            JS.push_focus()
-            |> show("#baseball-game-rosters-modal")
-            |> JS.focus_first(to: "#baseball-game-rosters-modal")
-          }
-        >
-          <.icon name="hero-clipboard-document-list" class="size-3.5" />
-        </button>
-
-        <div class="grid gap-px border-t border-base-300 bg-base-300 lg:grid-cols-2">
-          <.roster_control
-            :for={team <- @teams}
-            team={team}
-            lineup={@state["lineups"][to_string(team.position)]}
-            active_index={@state["active_batters"][to_string(team.position)]}
-            pitcher={@state["pitchers"][to_string(team.position)]}
-            batting?={team.position == @batting_position}
-          />
+        <div class="app-section-body">
+          <div class="app-section-tools">
+            <button
+              id="baseball-open-game-rosters-modal"
+              type="button"
+              aria-label="Paste game rosters"
+              class="ui-button ui-button--small"
+              phx-click={
+                JS.push_focus()
+                |> show("#baseball-game-rosters-modal")
+                |> JS.focus(to: "#baseball-game-rosters-data")
+              }
+            >
+              Paste game rosters
+            </button>
+          </div>
+          <div class="app-columns">
+            <.roster_control
+              :for={team <- @teams}
+              team={team}
+              lineup={@state["lineups"][to_string(team.position)]}
+              active_index={@state["active_batters"][to_string(team.position)]}
+              pitcher={@state["pitchers"][to_string(team.position)]}
+              batting?={team.position == @batting_position}
+            />
+          </div>
         </div>
       </details>
 
@@ -619,117 +501,100 @@ defmodule ShowishWeb.SportControls do
         role="dialog"
         aria-modal="true"
         aria-labelledby="baseball-game-rosters-modal-title"
-        class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6"
+        class="app-modal"
         style="display: none;"
         phx-window-keydown={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
         phx-key="escape"
       >
-        <div class="flex min-h-full items-center justify-center">
-          <div
-            class="w-full max-w-3xl overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-2xl"
-            phx-click-away={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
-          >
-            <div class="flex items-start justify-between gap-4 border-b border-base-300 bg-base-200/70 px-5 py-4">
-              <div>
-                <h2 id="baseball-game-rosters-modal-title" class="text-base font-black">
-                  Paste game rosters
-                </h2>
-                <p class="mt-1 text-xs text-base-content/55">
-                  Import the away and home teams together from formatted game data.
-                </p>
-              </div>
-              <button
-                id="baseball-close-game-rosters-modal"
-                type="button"
-                aria-label="Close roster paste dialog"
-                class="grid size-9 shrink-0 place-items-center rounded-md text-base-content/50 transition hover:bg-base-300 hover:text-base-content"
-                phx-click={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
-              >
-                <.icon name="hero-x-mark" class="size-5" />
-              </button>
-            </div>
-
-            <.form
-              for={@game_rosters_form}
-              id="baseball-game-rosters-form"
-              class="p-5"
-              phx-submit={
-                JS.push("sport_action")
-                |> hide("#baseball-game-rosters-modal")
-                |> JS.pop_focus()
-              }
-              phx-value-action="save_game_rosters"
+        <div
+          class="ui-dialog app-modal-dialog"
+          phx-click-away={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
+        >
+          <div class="ui-dialog-header">
+            <h2 id="baseball-game-rosters-modal-title" class="ui-dialog-title">
+              Paste game rosters
+            </h2>
+            <button
+              id="baseball-close-game-rosters-modal"
+              type="button"
+              aria-label="Close"
+              class="ui-button ui-button--ghost ui-button--small"
+              phx-click={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
             >
+              ✕
+            </button>
+          </div>
+
+          <.form
+            for={@game_rosters_form}
+            id="baseball-game-rosters-form"
+            phx-submit={
+              JS.push("sport_action")
+              |> hide("#baseball-game-rosters-modal")
+              |> JS.pop_focus()
+            }
+            phx-value-action="save_game_rosters"
+          >
+            <div class="ui-dialog-body">
+              <p class="ui-muted app-panel-note">
+                Imports the away and home teams together from formatted game data.
+              </p>
               <.input
                 field={@game_rosters_form[:data]}
                 id="baseball-game-rosters-data"
                 type="textarea"
-                rows="24"
-                label="Away & home game data"
+                rows="20"
+                label="Away and home game data"
                 placeholder={game_rosters_placeholder(@teams)}
-                class="max-h-[55vh] min-h-72 w-full resize-y font-mono text-xs leading-relaxed textarea"
+                hint="Keep the Away/Home, Team, Lineup, Starting pitcher, Bullpen and Roster headings. Colors are hex values such as #123456. Lineup rows are BATTER | POSITION; bullpen rows may add | STATUS. Names are de-duplicated and the first 26 per club are kept."
               />
-              <p class="mt-1.5 text-[10px] leading-relaxed text-base-content/50">
-                Keep the Away/Home, Team, Lineup, Starting pitcher, Bullpen, and Roster headings. Team colors use hex values such as <span class="font-bold">#123456</span>. Lineup rows use <span class="font-bold">BATTER | POSITION</span>; bullpen rows may add <span class="font-bold">| STATUS</span>. The importer de-duplicates names and keeps the first 26 per club.
-              </p>
-              <div class="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <button
-                  id="baseball-cancel-game-rosters"
-                  type="button"
-                  class="rounded-md border border-base-300 px-4 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition hover:bg-base-200"
-                  phx-click={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
-                >
-                  Cancel
-                </button>
-                <button
-                  id="baseball-save-game-rosters"
-                  type="submit"
-                  class="rounded-md bg-primary px-5 py-2.5 text-xs font-black uppercase tracking-[0.12em] text-primary-content transition hover:brightness-110 active:scale-[0.99]"
-                >
-                  Save both complete rosters
-                </button>
-              </div>
-            </.form>
-          </div>
+            </div>
+            <div class="ui-dialog-footer">
+              <button
+                id="baseball-cancel-game-rosters"
+                type="button"
+                class="ui-button"
+                phx-click={hide("#baseball-game-rosters-modal") |> JS.pop_focus()}
+              >
+                Cancel
+              </button>
+              <button
+                id="baseball-save-game-rosters"
+                type="submit"
+                class="ui-button ui-button--primary"
+              >
+                Save both rosters
+              </button>
+            </div>
+          </.form>
         </div>
       </div>
 
-      <details
-        id="baseball-graphics-controls"
-        class="group overflow-hidden rounded-lg border border-base-300"
-      >
-        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 bg-base-200/70 px-4 py-3 transition hover:bg-base-200 [&::-webkit-details-marker]:hidden">
-          <div>
-            <p class="text-[11px] font-black uppercase tracking-[0.18em] text-base-content/55">
-              Broadcast graphics
-            </p>
-
-            <p class="mt-1 text-xs text-base-content/55">
-              Defense, bullpens, spotlight, and player comparison.
-            </p>
-          </div>
-          <.icon
-            name="hero-chevron-down-mini"
-            class="size-4 shrink-0 text-base-content/40 transition group-open:rotate-180"
-          />
+      <details id="baseball-graphics-controls" class="app-section">
+        <summary class="app-section-title">
+          <span class="app-collapsible-name">Broadcast graphics</span>
+          <span class="ui-panel-title-aside">
+            Defense, bullpens, spotlight and player comparison.
+          </span>
         </summary>
 
-        <div class="grid gap-px border-t border-base-300 bg-base-300 lg:grid-cols-2">
-          <.team_graphics_control
-            :for={team <- @teams}
-            team={team}
-            bullpen={@state["bullpens"][to_string(team.position)]}
-          />
-        </div>
+        <div class="app-section-body">
+          <div class="app-columns">
+            <.team_graphics_control
+              :for={team <- @teams}
+              team={team}
+              bullpen={@state["bullpens"][to_string(team.position)]}
+            />
+          </div>
 
-        <div class="border-t border-base-300 bg-base-100 p-4">
           <.form
             for={@highlight_form}
             id="baseball-highlight-selection-form"
+            class="app-after-fields"
             phx-submit="sport_action"
             phx-value-action="select_highlights"
           >
-            <div class="grid gap-3 lg:grid-cols-3">
+            <div class="app-fields">
               <.input
                 field={@highlight_form[:spotlight_player_id]}
                 type="select"
@@ -754,59 +619,49 @@ defmodule ShowishWeb.SportControls do
               id="baseball-save-highlight-selection"
               type="submit"
               aria-label="Update highlight players"
-              title="Update highlight players"
-              class="mt-1 grid size-7 place-items-center rounded text-base-content/45 transition hover:bg-primary/10 hover:text-primary active:scale-90"
+              class="ui-button ui-button--primary ui-button--compact app-after-fields"
             >
-              <.icon name="hero-check-mini" class="size-3.5" />
+              Update highlights
             </button>
           </.form>
-        </div>
 
-        <div class="grid gap-px border-t border-base-300 bg-base-300 lg:grid-cols-2">
-          <div class="bg-base-100 p-4">
-            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
-              Player spotlight · automatic
-            </p>
-
-            <p class="mt-2 text-sm font-black">
-              {display_name(@state["graphics"]["single"]["name"])}
-            </p>
-
-            <p class="mt-1 text-xs leading-relaxed text-base-content/55">
-              Selected from the game ledger using hits, home runs, RBI, and walks. Its H–AB, AVG, HR, RBI, BB, and SO rows update after every plate appearance.
-            </p>
-          </div>
-
-          <div class="bg-base-100 p-4">
-            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
-              Player comparison · automatic
-            </p>
-
-            <p class="mt-2 text-sm font-black">
-              {display_name(@state["graphics"]["comparison"]["left_name"])}
-              <span class="px-1 text-base-content/35">vs.</span> {display_name(
-                @state["graphics"]["comparison"]["right_name"]
-              )}
-            </p>
-
-            <p class="mt-1 text-xs leading-relaxed text-base-content/55">
-              The current statistical leader from each team is compared directly from recorded plate appearances.
-            </p>
-          </div>
+          <dl class="ui-kv app-kv-prose app-after-fields">
+            <dt>Spotlight</dt>
+            <dd>
+              <span class="ui-row-name">{display_name(@state["graphics"]["single"]["name"])}</span>
+              <span class="ui-hint app-block-hint">
+                Chosen from the game's plate appearances by hits, home runs, RBI and walks. Its H–AB, AVG, HR, RBI, BB and SO update after every plate appearance.
+              </span>
+            </dd>
+            <dt>Comparison</dt>
+            <dd>
+              <span class="ui-row-name">
+                {display_name(@state["graphics"]["comparison"]["left_name"])}
+              </span>
+              <span class="ui-muted">vs.</span>
+              <span class="ui-row-name">
+                {display_name(@state["graphics"]["comparison"]["right_name"])}
+              </span>
+              <span class="ui-hint app-block-hint">
+                Each team's current leader, compared from the recorded plate appearances.
+              </span>
+            </dd>
+          </dl>
         </div>
       </details>
 
-      <div class="flex justify-end border-t border-base-300 pt-3">
+      <div class="app-section-end">
         <button
           id="baseball-reset-game"
           type="button"
           aria-label="Reset game"
-          title="Reset game"
-          class="grid size-7 place-items-center rounded text-base-content/35 transition hover:bg-error/10 hover:text-error active:scale-90"
+          class="ui-button ui-button--danger ui-button--small"
           phx-click="reset_sport"
-          data-confirm="Reset the game stats and scores? Saved lineups and pitcher names will remain."
+          data-confirm="Reset the game stats and scores?"
+          data-confirm-body="Runs, counts, bases and every recorded play are cleared. Saved lineups and pitcher names stay."
+          data-confirm-action="Reset game"
         >
-          <.icon name="hero-arrow-path-mini" class="size-3.5" />
+          Reset game
         </button>
       </div>
     </div>
@@ -859,7 +714,7 @@ defmodule ShowishWeb.SportControls do
       id={"baseball-substitution-form-#{@team.position}"}
       phx-submit="sport_action"
       phx-value-action="substitute_player"
-      class="rounded-md border border-base-300 bg-base-200/45 p-3"
+      class="app-substitution"
     >
       <.input
         field={@form[:position]}
@@ -884,7 +739,8 @@ defmodule ShowishWeb.SportControls do
         field={@form[:field_position]}
         id={"baseball-substitution-field-position-#{@team.position}"}
         type="select"
-        label="Defensive position · lineup changes only"
+        label="Defensive position"
+        hint="Lineup changes only."
         options={[
           {"Keep replaced player's position", ""}
           | Enum.map(~w(P C 1B 2B 3B SS LF CF RF DH), &{&1, &1})
@@ -893,7 +749,7 @@ defmodule ShowishWeb.SportControls do
       <button
         id={"baseball-confirm-substitution-#{@team.position}"}
         type="submit"
-        class="mt-2 w-full rounded-md bg-sky-600 px-3 py-2 text-xs font-black uppercase tracking-wider text-white transition hover:bg-sky-500 active:scale-[0.99]"
+        class="ui-button ui-button--primary app-full-width"
       >
         Confirm substitution
       </button>
@@ -906,93 +762,119 @@ defmodule ShowishWeb.SportControls do
 
   defp team_graphics_control(assigns) do
     ~H"""
-    <div class="bg-base-100 p-4">
-      <div class="flex items-center gap-2">
-        <span class="size-2.5 rounded-full" style={"background: #{@team.primary_color}"}></span>
-        <p class="font-black">{Team.full_name(@team)}</p>
-      </div>
-
-      <div id={"baseball-bullpen-#{@team.position}"} class="mt-4 space-y-1.5">
-        <p
-          :if={@bullpen == []}
-          class="rounded-md border border-dashed border-base-300 p-3 text-center text-xs text-base-content/45"
-        >
-          No bullpen entered yet
+    <div>
+      <p class="ui-row-name app-team-name">{Team.full_name(@team)} bullpen</p>
+      <div id={"baseball-bullpen-#{@team.position}"}>
+        <p :if={@bullpen == []} class="ui-empty">
+          No bullpen yet. Paste the game rosters to add one.
         </p>
-        <div
-          :for={pitcher <- @bullpen}
-          class="flex items-center justify-between gap-3 rounded-md border border-base-300 bg-base-200/45 px-3 py-2 text-sm"
-        >
-          <span class="truncate font-bold">{pitcher["name"]}</span>
-          <span class="text-[10px] font-black uppercase tracking-wider text-base-content/50">
-            {pitcher["status"]}
-          </span>
-        </div>
+        <ul :if={@bullpen != []} class="app-rows">
+          <li :for={pitcher <- @bullpen} class="app-row">
+            <span class="ui-truncate">{pitcher["name"]}</span>
+            <span class="ui-label">{pitcher["status"]}</span>
+          </li>
+        </ul>
       </div>
     </div>
     """
   end
 
   defp fallback_panel(assigns) do
-    assigns = assign(assigns, :teams, sorted_teams(assigns.show))
+    assigns =
+      assigns
+      |> assign(:teams, sorted_teams(assigns.show))
+      |> assign(:game_count, length(List.wrap(assigns.show.games)))
 
     ~H"""
-    <div id="esports-controls">
-      <div class="grid gap-4 sm:grid-cols-2">
-        <.score_control :for={team <- @teams} team={team} label={"Team #{team.position}"} />
-      </div>
+    <div
+      id="esports-controls"
+      class="ui-toolbar ui-toolbar--sticky app-live-strip"
+      role="group"
+      aria-label="Live controls"
+    >
+      <.score_control :for={team <- @teams} team={team} />
 
-      <div class="mt-4 flex flex-wrap gap-2">
-        <button id="swap-sides" type="button" class="btn btn-sm" phx-click="swap_sides">
-          <.icon name="hero-arrows-right-left-mini" class="size-4" /> {if @show.swap_sides,
-            do: "Sides swapped",
-            else: "Swap sides"}
-        </button>
+      <span class="ui-stat-divider app-strip-divider" aria-hidden="true"></span>
+
+      <button
+        type="button"
+        id="swap-sides"
+        class="ui-button"
+        phx-click="swap_sides"
+        aria-pressed={to_string(@show.swap_sides)}
+        title={
+          if @show.swap_sides,
+            do: "Team 2 is drawn on the left. Press to put team 1 back.",
+            else: "Team 1 is drawn on the left"
+        }
+      >
+        <span aria-hidden="true">⇄</span> Swap sides
+      </button>
+
+      <span class="ui-stat-divider app-strip-divider" aria-hidden="true"></span>
+
+      <div class="ui-stepper" role="group" aria-label="Current game">
         <button
-          id="previous-game"
           type="button"
-          class="btn btn-sm"
+          id="previous-game"
+          class="ui-button"
           phx-click="step_game"
           phx-value-delta="-1"
+          disabled={@show.current_game <= 1}
+          title={@show.current_game <= 1 && "Game 1 is the first game"}
         >
-          Previous game
+          ‹ Previous game
         </button>
-        <span class="btn btn-sm btn-ghost pointer-events-none">
-          Game {@show.current_game} of {max(length(@show.games), 1)}
+        <span class="ui-stepper-value app-game-value" aria-live="polite">
+          <span class="ui-label">Game</span>
+          <span>{@show.current_game}<span class="ui-muted">/{max(@game_count, 1)}</span></span>
         </span>
         <button
-          id="next-game"
           type="button"
-          class="btn btn-sm"
+          id="next-game"
+          class="ui-button"
           phx-click="step_game"
           phx-value-delta="1"
+          disabled={@show.current_game >= @game_count}
+          title={next_game_reason(@show.current_game, @game_count)}
         >
-          Next game
+          Next game ›
         </button>
+      </div>
+
+      <div class="ui-toolbar-end">
         <button
-          id="reset-scores"
           type="button"
-          aria-label="Reset scores"
-          title="Reset scores"
-          class="grid size-7 place-items-center rounded text-base-content/35 transition hover:bg-error/10 hover:text-error active:scale-90"
+          id="reset-scores"
+          class="ui-button ui-button--danger"
           phx-click="reset_scores"
-          data-confirm="Set both series scores back to zero?"
+          disabled={Enum.all?(@teams, &(&1.score == 0))}
+          title={Enum.all?(@teams, &(&1.score == 0)) && "Both scores are already 0"}
+          data-confirm="Reset both series scores?"
+          data-confirm-body="The scorebug shows 0–0 at once."
+          data-confirm-action="Reset scores"
         >
-          <.icon name="hero-arrow-path-mini" class="size-3.5" />
+          Reset scores
         </button>
       </div>
     </div>
     """
   end
 
+  defp next_game_reason(_current, 0), do: "No games in the series yet"
+
+  defp next_game_reason(current, count) when current >= count,
+    do: "Game #{count} is the last game"
+
+  defp next_game_reason(_current, _count), do: nil
+
   attr :id, :string, required: true
   attr :action, :string, required: true
   attr :result, :string, required: true
   attr :label, :string, required: true
-  attr :tone, :string, required: true, values: ~w(green red amber blue)
-  attr :size, :string, default: "regular", values: ~w(regular primary)
   attr :submit, :boolean, default: false
   attr :disabled, :boolean, default: false
+  attr :reason, :string, default: nil, doc: "why the action does not apply, shown when disabled"
 
   defp game_action(assigns) do
     assigns = assign(assigns, :submit, assigns.submit || assigns.action == "record_play")
@@ -1004,12 +886,8 @@ defmodule ShowishWeb.SportControls do
       name={if(@submit, do: "play[result]")}
       value={if(@submit, do: @result)}
       disabled={@disabled}
-      class={[
-        "rounded-md border px-2 font-black uppercase tracking-[0.08em] shadow-sm transition hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 active:scale-[0.98]",
-        "disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:translate-y-0 disabled:hover:brightness-100",
-        if(@size == "primary", do: "min-h-14 py-3 text-sm", else: "min-h-11 py-2 text-xs"),
-        game_action_tone(@tone)
-      ]}
+      title={@disabled && @reason}
+      class="ui-button app-action"
       phx-click={if(!@submit, do: "sport_action")}
       phx-value-action={if(!@submit, do: @action)}
       phx-value-result={if(!@submit, do: @result)}
@@ -1018,11 +896,6 @@ defmodule ShowishWeb.SportControls do
     </button>
     """
   end
-
-  defp game_action_tone("green"), do: "border-emerald-400/30 bg-emerald-500/18 text-emerald-200"
-  defp game_action_tone("red"), do: "border-rose-400/30 bg-rose-500/18 text-rose-200"
-  defp game_action_tone("amber"), do: "border-amber-400/30 bg-amber-500/18 text-amber-200"
-  defp game_action_tone("blue"), do: "border-sky-400/30 bg-sky-500/18 text-sky-200"
 
   attr :team, :any, required: true
   attr :lineup, :list, required: true
@@ -1034,77 +907,56 @@ defmodule ShowishWeb.SportControls do
     assigns = assign(assigns, :active_batter, Enum.at(assigns.lineup, assigns.active_index))
 
     ~H"""
-    <div class="bg-base-100 p-4">
-      <div class="flex items-center justify-between gap-3">
-        <div class="min-w-0">
-          <p class="truncate font-black">{Team.full_name(@team)}</p>
-
-          <p class="text-[10px] font-black uppercase tracking-[0.14em] text-base-content/45">
-            {if(@batting?, do: "Batting", else: "Fielding")}
-          </p>
-        </div>
-
-        <span class="size-3 shrink-0 rounded-full" style={"background: #{@team.primary_color}"}>
+    <div>
+      <div class="app-subhead">
+        <span class="ui-row-name ui-truncate">{Team.full_name(@team)}</span>
+        <span class="ui-badge" data-status={if(@batting?, do: "progress", else: "neutral")}>
+          {if(@batting?, do: "Batting", else: "Fielding")}
         </span>
       </div>
 
-      <div id={"baseball-lineup-#{@team.position}"} class="mt-3 space-y-1.5">
-        <p
-          :if={@lineup == []}
-          class="rounded-md border border-dashed border-base-300 p-3 text-center text-xs text-base-content/45"
-        >
-          No lineup entered yet
+      <div id={"baseball-lineup-#{@team.position}"}>
+        <p :if={@lineup == []} class="ui-empty">
+          No lineup yet. Paste the game rosters to add one.
         </p>
-
-        <button
-          :for={{player, index} <- Enum.with_index(@lineup)}
-          id={"baseball-batter-#{@team.position}-#{index}"}
-          type="button"
-          class={[
-            "grid w-full grid-cols-[24px_minmax(0,1fr)_32px_auto] items-center gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition",
-            index == @active_index && "border-primary bg-primary/10",
-            index != @active_index &&
-              "border-base-300 hover:border-base-content/30 hover:bg-base-200/60"
-          ]}
-          phx-click="sport_action"
-          phx-value-action="set_batter"
-          phx-value-position={@team.position}
-          phx-value-index={index}
-        >
-          <span class="text-center text-xs font-black text-base-content/40">{index + 1}</span>
-          <span class="truncate font-bold">{player["name"]}</span>
-          <span class="text-center text-[10px] font-black uppercase text-primary">
-            {player["field_position"]}
-          </span>
-          <span class="font-mono text-xs font-bold tabular-nums">
-            {player["hits"]}-{player["at_bats"]}
-          </span>
-        </button>
+        <ol :if={@lineup != []} class="app-rows" aria-label={"#{Team.full_name(@team)} batting order"}>
+          <li :for={{player, index} <- Enum.with_index(@lineup)}>
+            <button
+              id={"baseball-batter-#{@team.position}-#{index}"}
+              type="button"
+              class="app-row app-lineup-row"
+              aria-pressed={to_string(index == @active_index)}
+              aria-label={"Make #{player["name"]} the active batter"}
+              phx-click="sport_action"
+              phx-value-action="set_batter"
+              phx-value-position={@team.position}
+              phx-value-index={index}
+            >
+              <span class="ui-mono ui-muted">{index + 1}</span>
+              <span class="ui-truncate">{player["name"]}</span>
+              <span class="ui-label">{player["field_position"]}</span>
+              <span class="ui-mono" title="Hits-at bats">{player["hits"]}-{player["at_bats"]}</span>
+            </button>
+          </li>
+        </ol>
       </div>
 
-      <div :if={@active_batter} class="mt-3 rounded-md border border-base-300 bg-base-200/45 p-3">
-        <div class="flex items-center justify-between gap-2">
-          <div class="min-w-0">
-            <p class="text-[9px] font-black uppercase tracking-[0.14em] text-primary">
-              Selected batter
-            </p>
-
-            <p class="truncate text-sm font-black">{@active_batter["name"]}</p>
-          </div>
-
+      <div :if={@active_batter} class="app-cell app-after-fields">
+        <div class="app-subhead">
+          <span class="ui-label">Selected batter</span>
           <button
             id={"baseball-next-batter-#{@team.position}"}
             type="button"
-            class="rounded px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary transition hover:bg-primary/10"
+            class="ui-button ui-button--small"
             phx-click="sport_action"
             phx-value-action="next_batter"
             phx-value-position={@team.position}
           >
-            Next batter
+            Next batter ›
           </button>
         </div>
-
-        <div class="mt-2 grid grid-cols-2 gap-2">
+        <p class="ui-row-name ui-truncate">{@active_batter["name"]}</p>
+        <dl class="ui-spec">
           <.player_stat_control
             label="Hits"
             stat="hits"
@@ -1117,45 +969,48 @@ defmodule ShowishWeb.SportControls do
             position={@team.position}
             value={@active_batter["at_bats"]}
           />
-        </div>
+        </dl>
       </div>
 
-      <div class="mt-4 flex items-center justify-between rounded-md bg-slate-950 px-3 py-2 text-white">
-        <div>
-          <span class="block text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
-            Starting / current pitcher
-          </span>
-          <span class="text-xs font-bold">{display_name(@pitcher["name"])}</span>
+      <div class="app-cell app-after-fields">
+        <div class="app-subhead">
+          <span class="ui-label">Starting or current pitcher</span>
         </div>
-        <div class="flex items-center gap-2">
-          <button
-            id={"baseball-pitches-down-#{@team.position}"}
-            type="button"
-            class="grid size-7 place-items-center rounded bg-white/10 font-black transition hover:bg-white/20"
-            phx-click="sport_action"
-            phx-value-action="adjust_pitch_count"
-            phx-value-position={@team.position}
-            phx-value-delta="-1"
-          >
-            −
-          </button>
-          <span
-            id={"baseball-pitches-#{@team.position}"}
-            class="w-8 text-center text-lg font-black tabular-nums"
-          >
-            {@pitcher["pitch_count"]}
-          </span>
-          <button
-            id={"baseball-pitches-up-#{@team.position}"}
-            type="button"
-            class="grid size-7 place-items-center rounded bg-primary font-black text-primary-content transition hover:brightness-110"
-            phx-click="sport_action"
-            phx-value-action="adjust_pitch_count"
-            phx-value-position={@team.position}
-            phx-value-delta="1"
-          >
-            +
-          </button>
+        <div class="app-pitcher">
+          <span class="ui-row-name ui-truncate">{display_name(@pitcher["name"])}</span>
+          <div class="ui-stepper" role="group" aria-label={"Pitch count, #{Team.full_name(@team)}"}>
+            <button
+              id={"baseball-pitches-down-#{@team.position}"}
+              type="button"
+              class="ui-button ui-button--small"
+              phx-click="sport_action"
+              phx-value-action="adjust_pitch_count"
+              phx-value-position={@team.position}
+              phx-value-delta="-1"
+              aria-label="Lower pitch count"
+            >
+              −
+            </button>
+            <span
+              id={"baseball-pitches-#{@team.position}"}
+              class="ui-stepper-value"
+              aria-live="polite"
+            >
+              {@pitcher["pitch_count"]}
+            </span>
+            <button
+              id={"baseball-pitches-up-#{@team.position}"}
+              type="button"
+              class="ui-button ui-button--small"
+              phx-click="sport_action"
+              phx-value-action="adjust_pitch_count"
+              phx-value-position={@team.position}
+              phx-value-delta="1"
+              aria-label="Raise pitch count"
+            >
+              +
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1168,102 +1023,79 @@ defmodule ShowishWeb.SportControls do
 
   defp baseball_score_control(assigns) do
     ~H"""
-    <section class={[
-      "relative overflow-hidden rounded-lg border bg-base-100 p-3 transition",
-      @batting? &&
-        "border-primary/60 shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-primary)_22%,transparent)]",
-      !@batting? && "border-base-300"
-    ]}>
-      <span class="absolute inset-y-0 left-0 w-1" style={"background: #{@team.primary_color}"}></span>
-      <div class="flex items-center gap-3 pl-1">
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <span class="text-[10px] font-black uppercase tracking-[0.16em] text-base-content/45">
-              {@role}
-            </span>
-            <span
-              :if={@batting?}
-              class="rounded bg-primary/12 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-primary"
-            >
-              At bat
-            </span>
-          </div>
-
-          <div class="truncate text-lg font-black">{Team.full_name(@team)}</div>
+    <section class="app-cell" aria-label={"#{@role} runs, #{Team.full_name(@team)}"}>
+      <div class="app-subhead">
+        <span class="ui-label">{@role}</span>
+        <span :if={@batting?} class="ui-badge" data-status="progress">At bat</span>
+      </div>
+      <div class="app-score-row">
+        <span class="ui-row-name ui-truncate app-score-name">{Team.full_name(@team)}</span>
+        <div class="ui-stepper" role="group" aria-label={"Runs, #{Team.full_name(@team)}"}>
+          <button
+            id={"run-down-#{@team.position}"}
+            type="button"
+            class="ui-button"
+            phx-click="score"
+            phx-value-position={@team.position}
+            phx-value-delta="-1"
+            disabled={@team.score == 0}
+            title={@team.score == 0 && "Runs are already 0"}
+            aria-label={"Lower #{@role} runs"}
+          >
+            −
+          </button>
+          <span id={"baseball-runs-#{@team.position}"} class="ui-stepper-value" aria-live="polite">
+            {@team.score}
+          </span>
+          <button
+            id={"run-up-#{@team.position}"}
+            type="button"
+            class="ui-button"
+            phx-click="score"
+            phx-value-position={@team.position}
+            phx-value-delta="1"
+            aria-label={"Raise #{@role} runs"}
+          >
+            +
+          </button>
         </div>
-
-        <button
-          id={"run-down-#{@team.position}"}
-          type="button"
-          class="grid size-10 place-items-center rounded-md border border-base-300 bg-base-200 text-xl font-bold transition hover:border-base-content/30 hover:bg-base-300 active:scale-95"
-          phx-click="score"
-          phx-value-position={@team.position}
-          phx-value-delta="-1"
-          aria-label={"Decrease #{@role} runs"}
-        >
-          −
-        </button>
-        <span
-          id={"baseball-runs-#{@team.position}"}
-          class="w-12 text-center text-4xl font-black leading-none tabular-nums"
-        >
-          {@team.score}
-        </span>
-        <button
-          id={"run-up-#{@team.position}"}
-          type="button"
-          class="grid size-10 place-items-center rounded-md bg-primary text-xl font-bold text-primary-content shadow-sm transition hover:brightness-110 active:scale-95 disabled:opacity-45"
-          phx-click="score"
-          phx-value-position={@team.position}
-          phx-value-delta="1"
-          aria-label={"Increase #{@role} runs"}
-        >
-          +
-        </button>
       </div>
     </section>
     """
   end
 
   attr :team, :any, required: true
-  attr :label, :string, required: true
-  attr :id_prefix, :string, default: "score"
 
   defp score_control(assigns) do
     ~H"""
-    <div class="rounded-box flex items-center gap-3 border border-base-300 p-3">
-      <span class="size-8 shrink-0 rounded" style={"background: #{@team.primary_color}"}></span>
-      <div class="min-w-0 flex-1">
-        <div class="truncate font-bold">{Team.full_name(@team)}</div>
-
-        <div class="text-xs text-base-content/60">{@label}</div>
-      </div>
-
+    <div class="ui-stepper" role="group" aria-label={"Series score, #{Team.full_name(@team)}"}>
+      <span class="ui-label app-stepper-label" title={Team.full_name(@team)}>
+        {Team.display_name(@team)}
+      </span>
       <button
         type="button"
-        id={"#{@id_prefix}-down-#{@team.position}"}
-        class="btn btn-sm btn-circle"
+        id={"score-down-#{@team.position}"}
+        class="ui-button"
         phx-click="score"
         phx-value-position={@team.position}
         phx-value-delta="-1"
-        aria-label={"Decrease #{@label}"}
+        disabled={@team.score == 0}
+        title={@team.score == 0 && "The score is already 0"}
+        aria-label={"Lower score, #{Team.full_name(@team)}"}
       >
         −
       </button>
-      <span
-        id={"score-value-#{@team.position}"}
-        class="w-10 text-center text-2xl font-black tabular-nums"
-      >
+      <span id={"score-value-#{@team.position}"} class="ui-stepper-value" aria-live="polite">
         {@team.score}
       </span>
       <button
         type="button"
-        id={"#{@id_prefix}-up-#{@team.position}"}
-        class="btn btn-sm btn-circle btn-primary"
+        id={"score-up-#{@team.position}"}
+        class="ui-button"
         phx-click="score"
         phx-value-position={@team.position}
         phx-value-delta="1"
-        aria-label={"Increase #{@label}"}
+        aria-label={"Raise score, #{Team.full_name(@team)}"}
       >
         +
       </button>
@@ -1278,36 +1110,35 @@ defmodule ShowishWeb.SportControls do
 
   defp count_control(assigns) do
     ~H"""
-    <div class="flex min-w-0 flex-col items-center rounded-md border border-base-300 bg-base-100 p-2">
-      <span class="text-[10px] font-black uppercase tracking-[0.12em] text-base-content/50">
-        {@label}
-      </span>
-      <span id={"baseball-#{@kind}"} class="my-1 text-3xl font-black leading-none tabular-nums">
-        {@value}
-      </span>
-      <div class="grid w-full grid-cols-2 gap-1.5">
+    <div class="app-count" role="group" aria-label={@label}>
+      <span class="ui-label">{@label}</span>
+      <span id={"baseball-#{@kind}"} class="ui-stepper-value" aria-live="polite">{@value}</span>
+      <div class="ui-stepper">
         <button
           id={"baseball-#{@kind}-down"}
           type="button"
-          class="grid h-8 place-items-center rounded border border-base-300 bg-base-200 font-black transition hover:bg-base-300 active:scale-95"
+          class="ui-button ui-button--small"
           phx-click="sport_action"
           phx-value-action="adjust_count"
           phx-value-kind={@kind}
           phx-value-delta="-1"
-          aria-label={"Decrease #{@label}"}
+          disabled={@value == 0}
+          title={@value == 0 && "Already 0"}
+          aria-label={"Lower #{@label}"}
         >
           −
         </button>
         <button
           id={"baseball-#{@kind}-up"}
           type="button"
-          class="grid h-8 place-items-center rounded bg-primary font-black text-primary-content transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+          class="ui-button ui-button--small"
           disabled={@value >= @maximum}
+          title={@value >= @maximum && "The next one ends the count; record it as a pitch or play"}
           phx-click="sport_action"
           phx-value-action="adjust_count"
           phx-value-kind={@kind}
           phx-value-delta="1"
-          aria-label={"Increase #{@label}"}
+          aria-label={"Raise #{@label}"}
         >
           +
         </button>
@@ -1320,43 +1151,22 @@ defmodule ShowishWeb.SportControls do
   attr :occupied, :boolean, required: true
   attr :class, :string, default: nil
 
+  # A base is a toggle: pressed (inverted) means a runner is on it. The square
+  # is turned 45 degrees to read as a base; that is a static transform, not
+  # motion.
   defp base_button(assigns) do
     ~H"""
     <button
       id={"baseball-base-#{@base}"}
       type="button"
-      class={[
-        "size-10 rotate-45 rounded-sm border-2 transition duration-150 hover:scale-105 active:scale-95",
-        @occupied &&
-          "border-warning bg-warning shadow-[0_0_16px_color-mix(in_oklab,var(--color-warning)_55%,transparent)]",
-        !@occupied && "border-base-content/25 bg-base-100 hover:border-base-content/50",
-        @class
-      ]}
+      class={["ui-button app-base", @class]}
       phx-click="sport_action"
       phx-value-action="toggle_base"
       phx-value-base={@base}
-      aria-label={"Toggle runner on #{@base} base"}
+      aria-label={"Runner on #{@base} base"}
       aria-pressed={to_string(@occupied)}
     >
-      <span class="sr-only">{@base} base</span>
     </button>
-    """
-  end
-
-  attr :stat, :string, required: true
-  attr :position, :integer, required: true
-  attr :value, :integer, required: true
-
-  defp stat_control(assigns) do
-    ~H"""
-    <div class="flex items-center justify-center">
-      <span
-        id={"baseball-#{@stat}-#{@position}"}
-        class="rounded bg-base-200 px-3 py-1 text-center font-black tabular-nums"
-      >
-        {@value}
-      </span>
-    </div>
     """
   end
 
@@ -1367,18 +1177,9 @@ defmodule ShowishWeb.SportControls do
 
   defp player_stat_control(assigns) do
     ~H"""
-    <div class="rounded border border-base-300 bg-base-100 p-2">
-      <span class="block text-center text-[9px] font-black uppercase tracking-wider text-base-content/45">
-        {@label}
-      </span>
-      <div class="mt-1 flex items-center justify-center">
-        <span
-          id={"baseball-batter-#{@stat}-#{@position}"}
-          class="text-lg font-black tabular-nums"
-        >
-          {@value}
-        </span>
-      </div>
+    <div>
+      <dt>{@label}</dt>
+      <dd id={"baseball-batter-#{@stat}-#{@position}"}>{@value}</dd>
     </div>
     """
   end

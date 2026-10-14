@@ -1,5 +1,7 @@
 This is a web application written using the Phoenix web framework.
 
+Follow DESIGN.md for all UI work. It replaces any other design instructions in this file. The overlays under `/overlay` are product output with their own design (see `docs/overlays.md`); DESIGN.md does not apply to them.
+
 ## Project guidelines
 
 - Use `mix precommit` alias when you are done with all changes and fix any pending issues

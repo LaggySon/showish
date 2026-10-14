@@ -158,8 +158,8 @@ bin/showish eval 'Showish.Release.claim_shows("operator@example.com")'
 
 5. **Add the crew.** *Add person* for each caster, host, analyst or observer.
 
-6. **Grab the URLs.** *Overlay URLs* in the top right lists all seven scenes
-   with a copy button each.
+6. **Grab the URLs.** *Overlay URLs*, next to *Control room* under the show's
+   title, lists every scene with a copy button each.
 
 Nothing needs saving. The form writes as you type.
 
@@ -209,24 +209,33 @@ XSplit, Ecamm. There is nothing OBS-specific about them.
 
 ## The control room
 
-`/shows/:slug/control`. Four editing panels, one strip of on-air buttons, and a
-live preview.
+`/shows/:slug/control`. The live controls, five editing panels, and a live
+preview. The editing panels start folded away, since you rarely need them
+mid-match; open one with its title.
 
 ### On air
 
-The row of buttons at the top. These are the ones you hit mid-match, when there
-is no time to tab through a form:
+The strip of buttons at the top. These are the ones you hit mid-match, when there
+is no time to tab through a form, so the strip stays at the top of the window as
+you scroll, and its buttons never move. A button that does not apply right now
+is greyed out rather than hidden, and hovering it says why:
 
 | Control | What it does |
 | --- | --- |
 | **− / +** per team | Series score, clamped at zero |
-| **Swap sides** | Flips which team is drawn on the left, everywhere at once |
-| **Previous / Next game** | Moves the series pointer, stopping at either end |
+| **Swap sides** | Flips which team is drawn on the left, everywhere at once. Shown pressed while swapped |
+| **Previous / Next game** | Moves the series pointer, stopping at either end. The number between them is the game on air |
 | **Reset scores** | Both teams back to zero (asks first) |
 
 Swapping sides is presentation only. Team 1 stays Team 1 — the *Winner* dropdown
 on a game still means the team you filled in as Team 1, no matter which side of
 the screen they are currently drawn on.
+
+A baseball show (set *Sport* in the Match panel) gets a console instead of this
+strip, next to the preview: pitches and plate-appearance results, runs, the
+inning, the count, runners, substitutions, lineups and the broadcast graphics.
+A result that cannot happen in the current situation (a sac fly with nobody on
+third) is greyed out, and hovering it says why.
 
 ### Match
 
@@ -241,9 +250,18 @@ the screen they are currently drawn on.
 | **Accent color** | Eyebrows, status pills, current-game outline, ticker block |
 | **Look** | Which visual preset every scene is drawn in — see [Looks](#looks) |
 | **Break message** | The headline on the break card |
-| **Ticker** | Scrolling copy on standby, break and ticker |
-| **Status — left / centre / right** | Free-text slots, each with its own on-air toggle |
+
+Every panel says *saved 4s ago* in its top right once your typing has reached
+the show, *Saving…* while it is on its way, and *Not saved* if a field was
+refused (the field says why, and the overlays keep the last good version).
+
+### Scorebug and ticker
+
+| Field | Where it shows up |
+| --- | --- |
+| **Status, left / centre / right** | Free-text slots, each with its own *Show on air* toggle |
 | **Show side labels** | Whether each team's side label appears on the scorebug |
+| **Ticker** | Scrolling copy on standby, break and ticker |
 
 The three status slots are the escape hatch for whatever your broadcast needs
 that the schema does not have — `OVERTIME`, `TECHNICAL PAUSE`, `MAP 3 PENDING`.
@@ -270,12 +288,13 @@ code on it — so a show with nothing but names and colors still looks finished.
 
 ### Series
 
-One row per game. Each row has a name, mode, per-game scores, an image URL (used
-as the card background on the series board), a note, a *Winner* dropdown and a
-*Completed* checkbox.
+One row per game. Each row has a name, mode, per-game scores (labelled with each
+team's short name), an image URL (used as the card background on the series
+board), a note, a *Winner* dropdown and a *Played* checkbox.
 
-Per-row buttons: **Make current** points the series at that game, the arrows
-reorder, **Remove** deletes it. The row currently on air is outlined.
+Each row is marked *On air*, *Played* or *Upcoming*. Per-row buttons: **Put on
+air** points the series at that game, the arrows reorder, **Remove** deletes it
+(it asks first). The game on air has a blue bar down its left edge.
 
 Per-game scores are separate from the series scores at the top. Series score is
 "maps won"; per-game score is what happened inside that map.
@@ -283,7 +302,7 @@ Per-game scores are separate from the series scores at the top. Series score is
 ### Talent
 
 Role, name, pronouns, social handle, and an **On camera** tick. The arrows
-reorder.
+reorder; **Remove** asks first.
 
 *On camera* is what the caster cams scene reads. Roles are free text, so Showish
 cannot guess that your producer and observer are on the crew but not on the desk
@@ -297,9 +316,13 @@ role under one heading, so keep all your casters together and you get one
 ### Preview
 
 The panel on the right is a real overlay, loaded from its real URL and scaled to
-fit. What you see there is what OBS composites, pixel for pixel. Use the tabs to
-flip between scenes, and the copy button underneath to grab the URL for whichever
-one you are looking at.
+fit. What you see there is what OBS composites, pixel for pixel. Pick a scene
+from the *Scene* menu (it stays picked across a refresh), and use *Copy*
+underneath to grab the URL for whichever one you are looking at. The
+checkerboard is the transparent part of the frame.
+
+At 1280px and wider the preview sits to the right of the panels and stays in
+view as you scroll; on a narrower window it moves above them.
 
 ## Running a match
 
@@ -313,11 +336,11 @@ down.
 first thirty seconds while the casters introduce themselves.
 
 **During a game.** Leave the scorebug up. If you are tracking rounds inside a
-map, type them into that game's *Team 1 / Team 2 score* fields. Flip *Show side
+map, type them into that game's two score fields. Flip *Show side
 labels* on and set each team's side label if sides matter in your game; hit
 **Swap sides** when they switch.
 
-**Between games.** Set the finished game's *Winner*, tick *Completed*, bump the
+**Between games.** Set the finished game's *Winner*, tick *Played*, bump the
 winning team's series score with **+**, then hit **Next game**. Cut to `series`
 for the between-games board.
 
@@ -492,6 +515,9 @@ lib/showish_web/live/overlay_live.ex   shared mount/subscribe/tick for scenes
 lib/showish_web/live/overlays/         one LiveView per scene
 lib/showish_web/live/show_live/        index, overlay URLs, control room
 lib/showish_web/scenes.ex              the scene catalogue
+lib/showish_web/status.ex              the state words the control room shows
+assets/css/tokens.css, components.css  the design guide (DESIGN.md); never edited
+assets/css/ui-local.css                the control room's own layout rules
 lib/showish_web/obs_scene_collection.ex  that catalogue as an OBS import file
 ```
 
@@ -504,7 +530,7 @@ Three steps:
    teams in the order they are drawn) and `@now` (ticking once a second); you
    supply `render/1` and wrap it in `<.stage>`.
 2. A route in the `/overlay` scope.
-3. An entry in `ShowishWeb.Scenes` — the preview tabs, the URL list, the copy
+3. An entry in `ShowishWeb.Scenes` — the preview's scene menu, the URL list, the copy
    buttons and the downloadable OBS scene collection all come from that
    catalogue, so there is nothing else to update.
 

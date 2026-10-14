@@ -1,0 +1,852 @@
+/* Showish's own UI rules, on top of the Laggish design guide.
+   tokens.css and components.css are unchanged copies of the guide; this file
+   loads after them and holds the layout of Showish's pages and the few pieces
+   the guide leaves to the app. It uses the tokens only: no colors, no radii,
+   no motion of its own. Density is the guide's default (no override). */
+
+/* ---------- Fonts ---------- */
+
+/* Vendored like the overlay fonts (see priv/static/fonts/README.md): the
+   control room often runs on the same venue machine, which may be offline. */
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---------- Fixes to guide classes ---------- */
+
+/* .ui-pre comes after .ui-truncate in components.css, so its pre-wrap wins and
+   a one-line URL wraps. Keep a truncated code line on one line. */
+.ui-pre.ui-truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* A toggle button that is on inverts, like a pressed chip (section 3.4). */
+.ui-button[aria-pressed="true"] {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.ui-button[aria-pressed="true"]:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+/* ---------- Page blocks ---------- */
+
+.app-notices > * {
+  margin-bottom: var(--space-4);
+}
+
+.app-block {
+  margin-bottom: var(--space-4);
+}
+
+.app-narrow {
+  max-width: 40rem;
+}
+
+.app-prose-block {
+  max-width: 40rem;
+  margin-bottom: var(--space-4);
+}
+
+.app-steps {
+  list-style: decimal;
+  display: grid;
+  gap: var(--space-2);
+  max-width: 40rem;
+  padding-left: 1.25rem;
+}
+
+.app-panel-note {
+  margin-bottom: var(--space-4);
+}
+
+.app-after-fields {
+  margin-top: var(--space-4);
+}
+
+.app-muted-cell {
+  color: var(--muted-foreground);
+}
+
+/* A slow navigation shows the static region overlay over main (section 7.14). */
+.ui-main[aria-busy="true"] {
+  position: relative;
+}
+
+/* ---------- Forms ---------- */
+
+/* Fields flow in columns of at least 190px (section 5.4). */
+.app-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-4);
+  container-type: inline-size;
+}
+
+.app-field-full {
+  grid-column: 1 / -1;
+}
+
+@container (min-width: 400px) {
+  .app-field-wide {
+    grid-column: span 2;
+  }
+}
+
+.app-form-actions {
+  margin-top: var(--space-5);
+}
+
+/* A field for a sentence or a name (section 7.7) */
+.app-prose {
+  font-family: var(--font-sans);
+}
+
+/* Checkbox with its label to the right, at least 24px tall (section 13) */
+.app-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 1.5rem;
+  cursor: pointer;
+}
+
+/* A checkbox in a row of fields lines up with the inputs beside it */
+.app-check-field {
+  align-self: end;
+  justify-content: center;
+  min-height: var(--control-h);
+}
+
+.app-status-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* A user-chosen color: the picker is the swatch, its hex code sits beside it
+   in mono (section 3.6). */
+.app-color {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.app-color-input {
+  flex: none;
+  width: 2.5rem;
+  height: var(--control-h);
+  padding: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.app-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.app-color-input::-webkit-color-swatch {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.app-color-input::-moz-color-swatch {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.app-color-input:focus-visible {
+  border-color: var(--foreground);
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.app-swatch-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* A one-line URL with its Copy and Open buttons */
+.app-url-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.app-url-row > .ui-pre {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---------- Autosave readout (section 7.7) ---------- */
+
+/* LiveView puts phx-change-loading on the form while a change is in flight. */
+.app-saving {
+  display: none;
+}
+
+.phx-change-loading .app-saving {
+  display: inline;
+}
+
+.phx-change-loading .app-save-done {
+  display: none;
+}
+
+.app-save-failed {
+  font-weight: 600;
+  color: var(--failure-text);
+}
+
+/* ---------- Connection (section 12.1) ---------- */
+
+/* LiveView puts phx-client-error or phx-server-error on its root while the
+   socket is down. The badge then says Offline, and the controls that need the
+   server look and act disabled. */
+.app-connection-disconnected {
+  display: none;
+}
+
+:is(.phx-client-error, .phx-server-error) .app-connection-connected {
+  display: none;
+}
+
+:is(.phx-client-error, .phx-server-error) .app-connection-disconnected {
+  display: inline-flex;
+}
+
+:is(.phx-client-error, .phx-server-error) :is(.ui-button, .ui-chip)[phx-click] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ---------- Control room ---------- */
+
+/* The live controls strip (section 7.27) */
+.app-stepper-label {
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-game-value {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 6.5ch;
+}
+
+.app-strip-divider {
+  margin: 0 var(--space-2);
+}
+
+/* Editing panels on the left, the preview on the right at 1280px and wider;
+   under that the preview moves above the panels (section 5.9). */
+.app-control-room {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.app-control-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.app-control-preview {
+  min-width: 0;
+}
+
+@media (min-width: 1280px) {
+  .app-control-room {
+    grid-template-columns: minmax(0, 1fr) minmax(26rem, 38%);
+  }
+
+  .app-control-edit {
+    grid-row: 1;
+    grid-column: 1;
+  }
+
+  /* Sticks just under the live controls strip: a control, the strip's
+     padding and its hairline, then the usual gap. */
+  .app-control-preview {
+    position: sticky;
+    top: calc(var(--control-h) + 0.85rem + 1px + var(--space-4));
+    grid-row: 1;
+    grid-column: 2;
+  }
+}
+
+.app-preview-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.app-preview-picker .ui-select {
+  width: auto;
+}
+
+/* The two teams side by side when there is room */
+.app-teams {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: var(--space-6);
+}
+
+.app-group {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.app-group > legend {
+  margin-bottom: var(--space-3);
+}
+
+/* Lists of games and people: a hairline between items, a rail on the one on
+   air (section 6) */
+.app-items {
+  list-style: none;
+}
+
+.app-item {
+  padding: var(--space-5) 0 var(--space-5) var(--space-4);
+}
+
+/* Items off air keep the rail's width, so every item's content lines up */
+.app-item:not(.ui-rail) {
+  border-left: var(--rail) solid transparent;
+}
+
+.app-item:not(:first-child) {
+  border-top: 1px solid var(--border);
+}
+
+.app-item-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.app-item-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.app-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-item-actions {
+  margin-left: auto;
+}
+
+/* ---------- Narrow and touch screens (section 5.7) ---------- */
+
+/* Live controls are at least 44px on a touch screen (section 7.27). */
+@media (pointer: coarse) {
+  #live-controls .ui-button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
+@media (max-width: 640px) {
+  /* The strip wraps here; a divider would dangle at the end of a line. */
+  .app-strip-divider {
+    display: none;
+  }
+
+  /* Columns that repeat what the show's own pages say go first, so the name
+     and the actions stay in view without scrolling the table. */
+  .app-wide-only {
+    display: none;
+  }
+}
+
+/* ---------- Collapsible panels and in-panel disclosures (section 7.15) ---------- */
+
+.app-collapsible > summary {
+  min-height: 1.5rem;
+  margin: 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+.app-collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-collapsible-name::before {
+  content: "\25B8\00a0" / "";
+}
+
+.app-collapsible[open] > summary .app-collapsible-name::before {
+  content: "\25BE\00a0" / "";
+}
+
+.app-collapsible > summary:hover .app-collapsible-name {
+  color: var(--foreground);
+}
+
+.app-collapsible[open] > .app-collapsible-body {
+  margin-top: var(--space-4);
+}
+
+/* A control-room button shows pressed for a moment after a click (app.js). */
+#control-room .ui-button.shortcut-confirmed:not(:disabled, .ui-button--primary) {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+#control-room .ui-button--primary.shortcut-confirmed {
+  opacity: 0.85;
+}
+
+/* ---------- Top bar, sign-in, Overlay URLs ---------- */
+
+.app-user {
+  max-width: 18ch;
+}
+
+/* Sign-in recipe (section 5.9): one panel, 22rem wide, a third of the way down */
+.app-sign-in {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(22rem, 100%);
+  margin: 18vh auto 0;
+}
+
+.app-sign-in-brand {
+  justify-content: center;
+}
+
+.app-sign-in-note {
+  margin: var(--space-4) 0;
+}
+
+.app-sign-in-button {
+  width: 100%;
+}
+
+.app-sign-in .ui-notice {
+  margin-top: var(--space-3);
+}
+
+.app-obs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.app-obs > .app-prose-block {
+  flex: 1 1 24rem;
+  margin: 0;
+}
+
+/* ---------- Control room: shared pieces ---------- */
+
+.app-control-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.app-full-width {
+  width: 100%;
+}
+
+.app-center {
+  text-align: center;
+}
+
+.app-after-label {
+  margin-top: var(--space-3);
+}
+
+.app-block-hint {
+  display: block;
+  margin-top: var(--space-1);
+}
+
+/* A team in the Teams panel folds away like the panels around it. */
+.app-team > summary {
+  margin-bottom: 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+.app-team > summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-team[open] > summary {
+  margin-bottom: var(--space-4);
+}
+
+.app-team:not([open]) .app-collapsible-name::before {
+  content: "\25B8\00a0" / "";
+}
+
+.app-team[open] .app-collapsible-name::before {
+  content: "\25BE\00a0" / "";
+}
+
+.app-menu-left {
+  right: auto;
+  left: 0;
+}
+
+.app-menu-item {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+/* ---------- Baseball console ---------- */
+
+.app-baseball {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* The live game state: a header band (section 6) */
+.app-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  background: var(--hover-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.app-band-main {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.app-band-values {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.app-band-value {
+  margin-right: var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+/* A section of the console: a hairline above, a micro-label summary */
+.app-section {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.app-section-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  min-height: 1.5rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--label);
+  list-style: none;
+  cursor: pointer;
+}
+
+.app-section-title::-webkit-details-marker {
+  display: none;
+}
+
+.app-section > .app-section-title .app-collapsible-name::before {
+  content: "\25B8\00a0" / "";
+}
+
+.app-section[open] > .app-section-title .app-collapsible-name::before {
+  content: "\25BE\00a0" / "";
+}
+
+.app-section-title:hover .app-collapsible-name {
+  color: var(--foreground);
+}
+
+.app-section-body {
+  margin-top: var(--space-4);
+}
+
+.app-section-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-4);
+}
+
+.app-section-end {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.app-matchup {
+  text-transform: none;
+}
+
+.app-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--space-5);
+}
+
+.app-columns--3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+}
+
+/* A boxed group inside the console (one level of nesting, section 6) */
+.app-cell {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.app-subhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.app-team-name {
+  margin-bottom: var(--space-3);
+}
+
+/* Play and pitch buttons: an even grid, never a column of one */
+.app-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: var(--space-3);
+}
+
+.app-action {
+  white-space: normal;
+}
+
+/* The one-tap outcomes are the biggest targets on the page (section 7.27) */
+.app-action-grid--tap .app-action {
+  min-height: 2.75rem;
+}
+
+.app-last-play {
+  margin-bottom: var(--space-3);
+}
+
+.app-notation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.app-notation > .ui-field {
+  flex: 1 1 14rem;
+}
+
+.app-notation > .ui-button {
+  margin-top: calc(var(--text-xs) * 1.2 + 0.2rem);
+}
+
+.app-score-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.app-score-name {
+  font-size: var(--text-lg);
+}
+
+.app-stepper-wide {
+  justify-content: space-between;
+  width: 100%;
+}
+
+.app-inning {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.app-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.app-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The diamond: second at the top, third left, first right */
+.app-diamond {
+  display: grid;
+  grid-template-columns: repeat(3, 2.5rem);
+  grid-template-rows: repeat(2, 2.5rem);
+  justify-content: center;
+  gap: var(--space-4) var(--space-6);
+  margin: var(--space-5) 0;
+}
+
+.app-base {
+  width: 2rem;
+  height: 2rem;
+  min-height: 0;
+  margin: auto;
+  padding: 0;
+  transform: rotate(45deg);
+}
+
+.app-base--second {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.app-base--third {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.app-base--first {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+/* Lineups, bullpens: rows with a hairline between them */
+.app-rows {
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.app-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--row-h);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-lineup-row {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) 2.5rem auto;
+  text-align: left;
+  background: transparent;
+  border-top: 0;
+  border-right: 0;
+  border-left: var(--rail) solid transparent;
+  cursor: pointer;
+  transition: background-color var(--duration-color) ease;
+}
+
+.app-lineup-row:hover {
+  background: var(--hover-surface);
+}
+
+/* The active batter: a rail and weight 600, like the current step (section 7.8) */
+.app-lineup-row[aria-pressed="true"] {
+  font-weight: 600;
+  background: var(--hover-surface);
+  border-left-color: var(--progress);
+}
+
+.app-pitcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.app-substitution {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* The paste-rosters dialog: the guide's dialog look on a LiveView-driven div */
+.app-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow-y: auto;
+  padding: 0.5rem;
+  background: var(--backdrop);
+}
+
+.app-modal-dialog {
+  display: block;
+  margin: 1rem auto;
+}
+
+/* The four pitch results sit in one row */
+.app-action-grid--row {
+  grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
+}
+
+/* A key-value list whose values are names and sentences, not machine values */
+.app-kv-prose dd {
+  font-family: var(--font-sans);
+  overflow-wrap: normal;
+}

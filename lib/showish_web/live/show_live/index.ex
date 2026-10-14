@@ -7,17 +7,23 @@ defmodule ShowishWeb.ShowLive.Index do
   use ShowishWeb, :live_view
 
   alias Showish.Broadcasts
+  alias Showish.Broadcasts.Preset
   alias Showish.Broadcasts.Show
+  alias Showish.Broadcasts.Sport
   alias Showish.Broadcasts.Team
   alias Showish.Text
+  alias ShowishWeb.Scenes
 
   @impl true
   def mount(_params, _session, socket) do
+    shows = Broadcasts.list_shows(socket.assigns.current_scope)
+
     {:ok,
      socket
      |> assign(:page_title, "Shows")
      |> assign(:form, new_form(socket))
-     |> stream(:shows, Broadcasts.list_shows(socket.assigns.current_scope))}
+     |> assign(:show_count, length(shows))
+     |> stream(:shows, shows)}
   end
 
   @impl true
@@ -28,92 +34,105 @@ defmodule ShowishWeb.ShowLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 class="text-3xl font-black tracking-tight">Shows</h1>
+    <Layouts.app flash={@flash} current_scope={@current_scope} section="shows">
+      <.header>
+        Shows
+        <:aside>
+          <span class="ui-mono">{count(@show_count, "show")}</span>
+          <.button :if={@live_action != :new} id="new-show" patch={~p"/shows/new"} variant="primary">
+            + New show
+          </.button>
+        </:aside>
+      </.header>
 
-          <p class="mt-1 text-base-content/70">
-            A show holds the teams, the series and the crew. Point your broadcast
-            software at its overlay URLs and everything updates live.
-          </p>
-        </div>
-
-        <.link :if={@live_action != :new} patch={~p"/shows/new"} class="btn btn-primary">
-          <.icon name="hero-plus-mini" class="size-4" /> New show
-        </.link>
-      </div>
-
-      <div :if={@live_action == :new} class="rounded-box border border-base-300 bg-base-200 p-6">
-        <h2 class="text-lg font-bold">New show</h2>
-
-        <.form for={@form} id="new-show-form" phx-change="validate" phx-submit="create" class="mt-4">
-          <div class="grid gap-4 sm:grid-cols-2">
-            <.input field={@form[:title]} label="Title" placeholder="Summer Cup — Grand Finals" />
+      <.panel
+        :if={@live_action == :new}
+        id="new-show-panel"
+        title="New show"
+        class="app-block app-narrow"
+      >
+        <.form for={@form} id="new-show-form" phx-change="validate" phx-submit="create">
+          <div class="app-fields">
+            <.input
+              field={@form[:title]}
+              label="Title"
+              placeholder="Summer Cup Grand Finals"
+              required
+              prose
+              phx-mounted={JS.focus()}
+            />
             <.input
               field={@form[:slug]}
               label="URL slug"
               placeholder="summer-cup-finals"
+              hint="Left empty, it is made from the title."
             />
-            <.input
-              field={@form[:sport]}
-              type="select"
-              label="Sport"
-              options={Showish.Broadcasts.Sport.options()}
-            />
+            <.input field={@form[:sport]} type="select" label="Sport" options={Sport.options()} />
           </div>
-          <div class="mt-4 flex gap-2">
+          <div class="ui-button-group app-form-actions">
             <.button variant="primary" phx-disable-with="Creating…">Create show</.button>
-            <.link patch={~p"/"} class="btn btn-ghost">Cancel</.link>
+            <.button patch={~p"/"} variant="ghost">Cancel</.button>
           </div>
         </.form>
+      </.panel>
+
+      <div :if={@show_count == 0} id="shows-empty" class="ui-empty">
+        No shows yet. Create a show to get its overlay URLs.
+        <.button :if={@live_action != :new} patch={~p"/shows/new"} variant="primary">
+          + New show
+        </.button>
       </div>
 
-      <div id="shows" phx-update="stream" class="grid gap-4 sm:grid-cols-2">
-        <div id="shows-empty" class="hidden text-base-content/60 only:block">
-          No shows yet. Create one to get your first overlay URL.
-        </div>
-
-        <div
-          :for={{dom_id, show} <- @streams.shows}
-          id={dom_id}
-          class="rounded-box border border-base-300 bg-base-100 p-5"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <.link navigate={~p"/shows/#{show.slug}"} class="text-lg font-bold hover:underline">
-                {show.title}
-              </.link>
-              <p class="truncate text-sm text-base-content/60">/{show.slug}</p>
-            </div>
-
-            <span
-              class="mt-1 size-3 shrink-0 rounded-full"
-              style={"background: #{show.accent_color}"}
-              aria-hidden="true"
-            >
-            </span>
-          </div>
-
-          <p class="mt-3 text-sm text-base-content/70">{matchup(show)}</p>
-
-          <div class="mt-4 flex flex-wrap gap-2">
-            <.link navigate={~p"/shows/#{show.slug}/control"} class="btn btn-sm btn-primary">
-              Control room
-            </.link>
-            <.link navigate={~p"/shows/#{show.slug}"} class="btn btn-sm">Overlay URLs</.link>
-            <button
-              type="button"
-              class="btn btn-sm btn-ghost text-error"
-              phx-click="delete"
-              phx-value-id={show.id}
-              data-confirm={"Delete #{show.title}? Its overlay URLs will stop working."}
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      </div>
+      <.table :if={@show_count > 0} id="shows" rows={@streams.shows}>
+        <:col :let={{_id, show}} label="Show">
+          <.link
+            navigate={~p"/shows/#{show.slug}/control"}
+            class="ui-quiet-link ui-row-name ui-truncate"
+            title={show.title}
+          >
+            {show.title}
+          </.link>
+        </:col>
+        <:col :let={{_id, show}} label="Slug" class="ui-cell-mono app-wide-only">/{show.slug}</:col>
+        <:col :let={{_id, show}} label="Teams" class="app-wide-only">
+          <span class="ui-truncate" title={matchup(show)}>{matchup(show)}</span>
+        </:col>
+        <:col :let={{_id, show}} label="Sport" class="app-wide-only">
+          {Sport.fetch(show.sport).name}
+        </:col>
+        <:col :let={{_id, show}} label="Look" class="app-wide-only">
+          {Preset.fetch(show.preset).name}
+        </:col>
+        <:col :let={{_id, show}} label="Accent" class="app-wide-only">
+          <span class="app-swatch-value">
+            <span class="ui-color-swatch" style={"--swatch: #{show.accent_color}"}></span>
+            <span class="ui-mono">{String.upcase(show.accent_color)}</span>
+          </span>
+        </:col>
+        <:col :let={{_id, show}} label="Updated (UTC)" class="ui-cell-mono app-wide-only">
+          {Calendar.strftime(show.updated_at, "%Y-%m-%d %H:%M")}
+        </:col>
+        <:action :let={{_id, show}}>
+          <.button navigate={~p"/shows/#{show.slug}/control"} size="small">Control room</.button>
+          <.button navigate={~p"/shows/#{show.slug}"} size="small" variant="quiet">
+            Overlay URLs
+          </.button>
+        </:action>
+        <:action :let={{_id, show}}>
+          <.button
+            type="button"
+            size="small"
+            variant="danger"
+            phx-click="delete"
+            phx-value-id={show.id}
+            data-confirm={"Delete #{show.title}?"}
+            data-confirm-body={"Its #{length(Scenes.for_sport(show.sport))} overlay URLs stop working at once. This cannot be undone."}
+            data-confirm-action="Delete show"
+          >
+            Delete
+          </.button>
+        </:action>
+      </.table>
     </Layouts.app>
     """
   end
@@ -134,7 +153,7 @@ defmodule ShowishWeb.ShowLive.Index do
       {:ok, show} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Show created.")
+         |> put_flash(:info, "Created #{show.title}. Its overlay URLs are live.")
          |> push_navigate(to: ~p"/shows/#{show.slug}/control")}
 
       {:error, changeset} ->
@@ -149,7 +168,8 @@ defmodule ShowishWeb.ShowLive.Index do
 
     {:noreply,
      socket
-     |> put_flash(:info, "Show deleted.")
+     |> put_flash(:info, "Deleted #{show.title}.")
+     |> update(:show_count, &(&1 - 1))
      |> stream_delete(:shows, show)}
   end
 
@@ -175,8 +195,11 @@ defmodule ShowishWeb.ShowLive.Index do
 
   defp matchup(show) do
     case Show.teams(show) do
-      [] -> "No teams yet"
+      [] -> "—"
       teams -> Enum.map_join(teams, " vs ", &Team.full_name/1)
     end
   end
+
+  defp count(1, noun), do: "1 #{noun}"
+  defp count(n, noun), do: "#{n} #{noun}s"
 end

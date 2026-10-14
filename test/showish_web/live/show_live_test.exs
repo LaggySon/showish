@@ -15,6 +15,26 @@ defmodule ShowishWeb.ShowLiveTest do
   describe "index" do
     setup :register_and_log_in_user
 
+    test "with no shows, says what to do", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "#shows-empty")
+      refute has_element?(view, "#shows")
+    end
+
+    test "asks before deleting a show, then removes it", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{title: "Autumn Cup"})
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view
+      |> element(~s{#shows button[phx-click="delete"][data-confirm="Delete Autumn Cup?"]})
+      |> render_click()
+
+      refute has_element?(view, "#shows-#{show.id}")
+      assert has_element?(view, "#shows-empty")
+    end
+
     test "lists shows and links to their control rooms", %{conn: conn, scope: scope} do
       show = show_fixture(scope, %{title: "Autumn Cup"})
 
@@ -68,7 +88,7 @@ defmodule ShowishWeb.ShowLiveTest do
         |> form("#new-show-form", show: %{title: "Another", slug: "duplicate"})
         |> render_submit()
 
-      assert html =~ "has already been taken"
+      assert html =~ "Has already been taken."
     end
   end
 
