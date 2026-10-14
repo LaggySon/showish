@@ -15,14 +15,15 @@ Follow DESIGN.md for all UI work. It replaces any other design instructions in t
   - You failed to follow the Authenticated Routes guidelines, or you failed to pass `current_scope` to `<Layouts.app>`
   - **Always** fix the `current_scope` error by moving your routes to the proper `live_session` and ensure you pass `current_scope` as needed
 - Phoenix v1.8 moved the `<.flash_group>` component to the `Layouts` module. You are **forbidden** from calling `<.flash_group>` outside of the `layouts.ex` module
-- Out of the box, `core_components.ex` imports an `<.icon name="hero-x-mark" class="w-5 h-5"/>` component for for hero icons. **Always** use the `<.icon>` component for icons, **never** use `Heroicons` modules or similar
+- There is no icon library. Use the Unicode glyphs in DESIGN.md section 9 (✕ ↑ ↓ ⇄ ↻ ✎ ↗ …) directly in templates. `<.icon name="hero-x-mark" />` still works and maps the old Heroicon names to those glyphs; **never** add Heroicons or another icon set back
 - **Always** use the imported `<.input>` component for form inputs from `core_components.ex` when available. `<.input>` is imported and using it will save steps and prevent errors
-- If you override the default input classes (`<.input class="myclass px-2 py-1 rounded-lg">)`) class with your own values, no default classes are inherited, so your
-custom classes must fully style the input
+- `<.input>`, `<.button>`, `<.panel>`, `<.table>` and `<.header>` render the guide's `ui-*` classes. Their `class` attribute is for layout only (on `<.input>` it lands on the field wrapper); the look comes from the `ui-*` classes and is never restyled with utilities. Pass `prose` to `<.input>` for a field that holds a sentence or a name
 
 ### JS and CSS guidelines
 
-- **Use Tailwind CSS classes and custom CSS rules** to create polished, responsive, and visually stunning interfaces.
+- Build the app's UI from the `ui-*` classes in `assets/css/components.css` (DESIGN.md section 7). Use Tailwind utilities for layout only (flex, grid, gaps), never for color, type, borders or radius
+- `assets/css/tokens.css` and `assets/css/components.css` are unchanged copies of the guide: **never** edit them. App-specific CSS goes in `assets/css/ui-local.css` and uses the tokens only
+- The overlays share the `app.css` bundle but are outside the guide: they keep their own CSS in `assets/css/overlays/` and `assets/css/presets/` and may use any Tailwind utility (see `docs/overlays.md`)
 - Tailwindcss v4 **no longer needs a tailwind.config.js** and uses a new import syntax in `app.css`:
 
       @import "tailwindcss" source(none);
@@ -32,7 +33,7 @@ custom classes must fully style the input
 
 - **Always use and maintain this import syntax** in the app.css file for projects generated with `phx.new`
 - **Never** use `@apply` when writing raw css
-- **Always** manually write your own tailwind-based components instead of using daisyUI for a unique, world-class design
+- **Never** add daisyUI or another component library
 - Out of the box **only the app.js and app.css bundles are supported**
   - You cannot reference an external vendor'd script `src` or link `href` in the layouts
   - You must import the vendor deps into app.js and app.css to use them
@@ -40,10 +41,9 @@ custom classes must fully style the input
 
 ### UI/UX & design guidelines
 
-- **Produce world-class UI designs** with a focus on usability, aesthetics, and modern design principles
-- Implement **subtle micro-interactions** (e.g., button hover effects, and smooth transitions)
-- Ensure **clean typography, spacing, and layout balance** for a refined, premium look
-- Focus on **delightful details** like hover effects, loading states, and smooth page transitions
+- DESIGN.md is the design guide for every page of the app; read it before the first UI change in a session
+- Motion is limited to color and opacity fades of at most 120ms: no transforms, no keyframes, no spinners, no page transitions (DESIGN.md section 8)
+- Before you report UI work as done, go through the checklist in DESIGN.md section 16 and run the contrast audit (DESIGN.md appendix B) in light and dark mode
 
 
 <!-- usage-rules-start -->
@@ -250,10 +250,10 @@ custom classes must fully style the input
          |> stream(:messages, messages, reset: true)}
       end
 
-- LiveView streams *do not support counting or empty states*. If you need to display a count, you must track it using a separate assign. For empty states, you can use Tailwind classes:
+- LiveView streams *do not support counting or empty states*. If you need to display a count, you must track it using a separate assign. For empty states, you can use Tailwind classes. Every child of a `phx-update="stream"` container needs an id, the empty state included:
 
       <div id="tasks" phx-update="stream">
-        <div class="hidden only:block">No tasks yet</div>
+        <div id="tasks-empty" class="ui-empty hidden only:flex">No tasks yet. Add the first task.</div>
         <div :for={{id, task} <- @stream.tasks} id={id}>
           {task.name}
         </div>
