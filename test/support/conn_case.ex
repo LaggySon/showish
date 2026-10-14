@@ -35,4 +35,29 @@ defmodule ShowishWeb.ConnCase do
     Showish.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
+
+  @doc """
+  Registers an account and logs it in.
+
+  Adds `:user` and `:scope` to the test context alongside the logged-in conn, so
+  a test can create shows that the logged-in operator actually owns.
+  """
+  def register_and_log_in_user(%{conn: conn}) do
+    user = Showish.AccountsFixtures.user_fixture()
+
+    %{
+      conn: log_in_user(conn, user),
+      user: user,
+      scope: Showish.Accounts.Scope.for_user(user)
+    }
+  end
+
+  @doc "Puts a session token for `user` on the connection."
+  def log_in_user(conn, user) do
+    token = Showish.Accounts.generate_user_session_token(user)
+
+    conn
+    |> Phoenix.ConnTest.init_test_session(%{})
+    |> Plug.Conn.put_session(:user_token, token)
+  end
 end

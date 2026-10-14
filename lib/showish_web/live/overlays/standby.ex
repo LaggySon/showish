@@ -7,16 +7,11 @@ defmodule ShowishWeb.Overlays.Standby do
 
   use ShowishWeb.OverlayLive
 
-  alias Showish.Broadcasts.Show
+  alias Showish.Text
 
   @impl Phoenix.LiveView
   def render(assigns) do
-    {left, right} = Show.sides(assigns.show)
-
-    assigns =
-      assigns
-      |> assign(:left, left)
-      |> assign(:right, right)
+    assigns = assign(assigns, :subtitle, subtitle(assigns.show))
 
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
@@ -26,10 +21,10 @@ defmodule ShowishWeb.Overlays.Standby do
         <div class="flex flex-col items-center gap-4 overlay-in-down" style="--overlay-delay: 120ms">
           <.eyebrow color={@show.accent_color}>Starting soon</.eyebrow>
           <h1 class="text-[72px] font-black uppercase leading-none tracking-tight">
-            {display(@show.title, "Showish")}
+            {Text.presence(@show.title, "Showish")}
           </h1>
-          <p :if={subtitle(@show) != ""} class="text-[26px] font-medium text-slate-300">
-            {subtitle(@show)}
+          <p :if={@subtitle != ""} class="text-[26px] font-medium text-slate-300">
+            {@subtitle}
           </p>
         </div>
 
@@ -53,16 +48,7 @@ defmodule ShowishWeb.Overlays.Standby do
         </div>
       </div>
 
-      <div
-        :if={@show.ticker not in [nil, ""]}
-        class="absolute inset-x-0 bottom-0 overflow-hidden border-t border-white/10 bg-slate-950/90 py-5 overlay-in-up"
-        style="--overlay-delay: 500ms"
-      >
-        <div class="overlay-marquee text-[22px] font-medium uppercase tracking-[0.2em] text-slate-300">
-          <span class="px-12">{@show.ticker}</span>
-          <span class="px-12">{@show.ticker}</span>
-        </div>
-      </div>
+      <.ticker_bar text={@show.ticker} delay={500} />
     </.stage>
     """
   end
@@ -84,7 +70,7 @@ defmodule ShowishWeb.Overlays.Standby do
           {full_name(@team)}
         </div>
         <div
-          :if={@team && @team.record not in [nil, ""]}
+          :if={@team && Text.present?(@team.record)}
           class="text-[16px] font-semibold uppercase tracking-[0.2em] text-slate-400"
         >
           {@team.record}
@@ -94,17 +80,7 @@ defmodule ShowishWeb.Overlays.Standby do
     """
   end
 
-  defp subtitle(show) do
-    [show.stage, show.subtitle]
-    |> Enum.map(&String.trim(to_string(&1 || "")))
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join(" · ")
-  end
-
-  defp display(value, fallback) do
-    case String.trim(to_string(value || "")) do
-      "" -> fallback
-      text -> text
-    end
-  end
+  # The two lines of copy under the title, as one line: whichever of them the
+  # operator filled in, and no stray separator for the one they did not.
+  defp subtitle(show), do: Text.join_present([show.stage, show.subtitle])
 end

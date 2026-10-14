@@ -7,26 +7,20 @@ defmodule ShowishWeb.Overlays.Ticker do
 
   use ShowishWeb.OverlayLive
 
-  alias Showish.Broadcasts.Show
+  alias Showish.Colors
+  alias Showish.Text
 
   @impl Phoenix.LiveView
   def render(assigns) do
-    {left, right} = Show.sides(assigns.show)
-
-    assigns =
-      assigns
-      |> assign(:left, left)
-      |> assign(:right, right)
-
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
       <div class="overlay-ticker absolute inset-x-0 bottom-0 flex h-[84px] items-stretch overlay-in-up">
         <div
           class="overlay-in-left flex items-center gap-4 px-8"
-          style={"background: #{@show.accent_color}; color: #{Showish.Colors.contrast_text(@show.accent_color)}; --overlay-delay: 260ms;"}
+          style={"background: #{@show.accent_color}; color: #{Colors.contrast_text(@show.accent_color)}; --overlay-delay: 260ms;"}
         >
           <span class="text-[20px] font-black uppercase tracking-[0.16em]">
-            {ticker_label(@show)}
+            {headline(@show)}
           </span>
         </div>
 
@@ -43,13 +37,12 @@ defmodule ShowishWeb.Overlays.Ticker do
         </div>
 
         <div class="overlay-ticker-copy flex flex-1 items-center overflow-hidden bg-slate-950/90">
-          <div
-            :if={@show.ticker not in [nil, ""]}
-            class="overlay-marquee text-[24px] font-medium uppercase tracking-[0.18em] text-slate-200"
-          >
-            <span class="px-16">{@show.ticker}</span>
-            <span class="px-16">{@show.ticker}</span>
-          </div>
+          <.marquee
+            :if={Text.present?(@show.ticker)}
+            text={@show.ticker}
+            spacing="px-16"
+            class="text-[24px] font-medium uppercase tracking-[0.18em] text-slate-200"
+          />
         </div>
       </div>
     </.stage>
@@ -70,9 +63,7 @@ defmodule ShowishWeb.Overlays.Ticker do
     """
   end
 
-  defp ticker_label(show) do
-    [show.stage, show.title]
-    |> Enum.map(&String.trim(to_string(&1 || "")))
-    |> Enum.find("Live", &(&1 != ""))
-  end
+  # The block on the left names the broadcast: the stage if there is one, the
+  # show's title if not, and "Live" for a show that has neither.
+  defp headline(show), do: Text.first_present([show.stage, show.title], "Live")
 end

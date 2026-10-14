@@ -1,52 +1,193 @@
 defmodule Showish.BroadcastsTest do
   use Showish.DataCase, async: true
 
+  import Showish.AccountsFixtures
   import Showish.BroadcastsFixtures
 
   alias Showish.Broadcasts
+  alias Showish.Broadcasts.NotOwnerError
   alias Showish.Broadcasts.Show
+  alias Showish.Broadcasts.Sport
 
   doctest Showish.Broadcasts.Show
 
-  describe "create_show/1" do
-    test "seeds two teams so a show can go on air immediately" do
-      show = show_fixture(%{title: "Cup Final", slug: "cup-final"})
+  describe "create_show/2" do
+    setup do
+      %{scope: user_scope_fixture()}
+    end
+
+    test "seeds two teams so a show can go on air immediately", %{scope: scope} do
+      show = show_fixture(scope, %{title: "Cup Final", slug: "cup-final"})
 
       assert show.slug == "cup-final"
       assert [%{position: 1}, %{position: 2}] = show.teams
+      assert show.sport == "esports"
+      assert show.sport_state == %{}
     end
 
-    test "tidies a human-typed slug rather than rejecting it" do
-      assert {:ok, show} = Broadcasts.create_show(%{"title" => "T", "slug" => "Not A Slug!"})
+    test "initializes state through the selected sport handler", %{scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+
+      assert show.sport == "baseball"
+      assert show.sport_state["inning"] == 1
+      assert show.sport_state["half"] == "top"
+
+      assert show.sport_state["bases"] == %{
+               "first" => false,
+               "second" => false,
+               "third" => false
+             }
+    end
+
+    test "rejects a sport that is not in the catalogue", %{scope: scope} do
+      assert {:error, changeset} =
+               Broadcasts.create_show(scope, %{
+                 "title" => "Mystery",
+                 "slug" => "mystery-sport",
+                 "sport" => "quidditch"
+               })
+
+      assert %{sport: ["is invalid"]} = errors_on(changeset)
+    end
+
+    test "gives the show to the account that created it", %{scope: scope} do
+      show = show_fixture(scope)
+
+      assert show.user_id == scope.user.id
+    end
+
+    test "ignores an owner smuggled in through the attributes", %{scope: scope} do
+      other = user_scope_fixture()
+
+      show = show_fixture(scope, %{"user_id" => other.user.id})
+
+      assert show.user_id == scope.user.id
+    end
+
+    test "tidies a human-typed slug rather than rejecting it", %{scope: scope} do
+      assert {:ok, show} =
+               Broadcasts.create_show(scope, %{"title" => "T", "slug" => "Not A Slug!"})
+
       assert show.slug == "not-a-slug"
     end
 
-    test "rejects a slug with nothing usable in it" do
-      assert {:error, changeset} = Broadcasts.create_show(%{"title" => "T", "slug" => "!!!"})
+    test "rejects a slug with nothing usable in it", %{scope: scope} do
+      assert {:error, changeset} =
+               Broadcasts.create_show(scope, %{"title" => "T", "slug" => "!!!"})
+
       assert %{slug: ["can't be blank"]} = errors_on(changeset)
     end
 
-    test "requires a unique slug" do
+    test "requires a slug that no account has taken", %{scope: scope} do
       show_fixture(%{slug: "taken"})
 
-      assert {:error, changeset} = Broadcasts.create_show(%{"title" => "T", "slug" => "taken"})
+      assert {:error, changeset} =
+               Broadcasts.create_show(scope, %{"title" => "T", "slug" => "taken"})
+
       assert %{slug: ["has already been taken"]} = errors_on(changeset)
     end
   end
 
-  describe "update_show/2" do
+  describe "update_show/3" do
     test "updates the show and keeps children ordered" do
-      show = show_with_games_fixture(3)
+      scope = user_scope_fixture()
+      show = show_with_games_fixture(3, scope)
 
-      assert {:ok, updated} = Broadcasts.update_show(show, %{"stage" => "Semi Final"})
+      assert {:ok, updated} = Broadcasts.update_show(scope, show, %{"stage" => "Semi Final"})
       assert updated.stage == "Semi Final"
       assert Enum.map(updated.games, & &1.position) == [0, 1, 2]
     end
 
     test "returns a changeset when the slug is invalid" do
-      show = show_fixture()
+      scope = user_scope_fixture()
+      show = show_fixture(scope)
 
-      assert {:error, %Ecto.Changeset{}} = Broadcasts.update_show(show, %{"slug" => ""})
+      assert {:error, %Ecto.Changeset{}} = Broadcasts.update_show(scope, show, %{"slug" => ""})
+    end
+  end
+
+  describe "ownership" do
+    test "list_shows/1 only returns the scope's own shows" do
+      scope = user_scope_fixture()
+      other = user_scope_fixture()
+
+      mine = show_fixture(scope, %{title: "Mine"})
+      _theirs = show_fixture(other, %{title: "Theirs"})
+
+      assert [%Show{id: id}] = Broadcasts.list_shows(scope)
+      assert id == mine.id
+    end
+
+    test "the scoped reads cannot reach somebody else's show" do
+      scope = user_scope_fixture()
+      theirs = show_fixture(user_scope_fixture())
+
+      assert_raise Ecto.NoResultsError, fn -> Broadcasts.get_show!(scope, theirs.id) end
+      assert_raise Ecto.NoResultsError, fn -> Broadcasts.get_show_by_slug!(scope, theirs.slug) end
+    end
+
+    test "the public read reaches any show, because overlays cannot log in" do
+      theirs = show_fixture(user_scope_fixture(), %{title: "On Air"})
+
+      assert Broadcasts.get_public_show_by_slug!(theirs.slug).title == "On Air"
+    end
+
+    test "writing to somebody else's show raises" do
+      scope = user_scope_fixture()
+      theirs = show_fixture(user_scope_fixture())
+
+      assert_raise NotOwnerError, fn ->
+        Broadcasts.update_show(scope, theirs, %{"stage" => "Hijacked"})
+      end
+
+      assert_raise NotOwnerError, fn -> Broadcasts.delete_show(scope, theirs) end
+      assert Broadcasts.get_public_show_by_slug!(theirs.slug).stage == ""
+    end
+
+    test "claim_unowned_shows/1 adopts shows that pre-date accounts" do
+      scope = user_scope_fixture()
+      orphan = show_fixture(user_scope_fixture())
+
+      Showish.Repo.update_all(
+        from(show in Show, where: show.id == ^orphan.id),
+        set: [user_id: nil]
+      )
+
+      assert Broadcasts.claim_unowned_shows(scope) == 1
+      assert Broadcasts.get_show!(scope, orphan.id).user_id == scope.user.id
+    end
+  end
+
+  describe "team library" do
+    test "saves a team identity once and applies it to another show" do
+      scope = user_scope_fixture()
+
+      source =
+        show_fixture(scope, %{
+          teams: [
+            %{
+              position: 1,
+              name: "Harbour Kings",
+              short_name: "Kings",
+              code: "HBR",
+              primary_color: "#123456",
+              secondary_color: "#ffffff"
+            },
+            %{position: 2, name: "Visitors"}
+          ]
+        })
+
+      target = show_fixture(scope)
+
+      assert {:ok, profile} =
+               Broadcasts.save_team_profile(scope, Show.team(source, 1))
+
+      assert [saved] = Broadcasts.list_team_profiles(scope)
+      assert saved.id == profile.id
+
+      assert {:ok, updated} = Broadcasts.apply_team_profile(scope, target, 2, profile.id)
+      team = Show.team(updated, 2)
+      assert {team.name, team.code, team.primary_color} == {"Harbour Kings", "HBR", "#123456"}
     end
   end
 
@@ -69,6 +210,830 @@ defmodule Showish.BroadcastsTest do
 
       assert {:ok, show} = Broadcasts.reset_scores(show)
       assert Enum.map(show.teams, & &1.score) == [0, 0]
+    end
+  end
+
+  describe "sports" do
+    test "the catalogue exposes baseball through the same API as other sports" do
+      assert {"Baseball", "baseball"} in Sport.options()
+      assert Sport.fetch("baseball").summary =~ "Innings"
+      assert Sport.fetch("unknown").key == Sport.default()
+    end
+
+    test "baseball actions normalize and clamp live state" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "adjust_count", %{
+                 "kind" => "balls",
+                 "delta" => "9"
+               })
+
+      assert show.sport_state["balls"] == 3
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "toggle_base", %{"base" => "first"})
+
+      assert show.sport_state["bases"]["first"]
+
+      assert show.baseball_game
+    end
+
+    test "advancing a half inning clears transient game state" do
+      show = show_fixture(%{sport: "baseball"})
+      {:ok, show} = Broadcasts.apply_sport_action(show, "toggle_base", %{"base" => "third"})
+
+      {:ok, show} =
+        Broadcasts.apply_sport_action(show, "adjust_count", %{
+          "kind" => "outs",
+          "delta" => "2"
+        })
+
+      assert {:ok, show} = Broadcasts.apply_sport_action(show, "next_half")
+      assert show.sport_state["half"] == "bottom"
+      assert show.sport_state["inning"] == 1
+      assert show.sport_state["outs"] == 0
+      refute show.sport_state["bases"]["third"]
+
+      assert {:ok, show} = Broadcasts.apply_sport_action(show, "next_half")
+      assert show.sport_state["half"] == "top"
+      assert show.sport_state["inning"] == 2
+    end
+
+    test "baseball lineups and pitchers retain validated live stats" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "A. Leadoff\nB. Slugger"}
+               })
+
+      assert Enum.map(show.sport_state["lineups"]["1"], & &1["name"]) == [
+               "A. Leadoff",
+               "B. Slugger"
+             ]
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "set_batter", %{
+                 "position" => "1",
+                 "index" => "1"
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "record_play", %{"result" => "single"})
+
+      assert Enum.at(show.sport_state["lineups"]["1"], 1)["at_bats"] == 1
+      assert Enum.at(show.sport_state["lineups"]["1"], 1)["hits"] == 1
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_pitcher", %{
+                 "pitcher" => %{"position" => "2", "name" => "Phillips"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "adjust_pitch_count", %{
+                 "position" => "2",
+                 "delta" => "30"
+               })
+
+      assert Map.take(show.sport_state["pitchers"]["2"], ~w(name pitch_count)) == %{
+               "name" => "Phillips",
+               "pitch_count" => 30
+             }
+    end
+
+    test "the substitution action handles pitchers and preserves their counts" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "change_pitcher", %{
+                 "pitcher_change" => %{"position" => "2", "name" => "First Arm"}
+               })
+
+      first_id = show.sport_state["pitchers"]["2"]["id"]
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "adjust_pitch_count", %{
+                 "position" => "2",
+                 "delta" => "12"
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "change_pitcher", %{
+                 "pitcher_change" => %{"position" => "2", "name" => "Second Arm"}
+               })
+
+      second_id = show.sport_state["pitchers"]["2"]["id"]
+      assert show.sport_state["pitchers"]["2"]["pitch_count"] == 0
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "adjust_pitch_count", %{
+                 "position" => "2",
+                 "delta" => "4"
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "substitute_player", %{
+                 "substitution" => %{
+                   "position" => "2",
+                   "outgoing_player_id" => to_string(second_id),
+                   "incoming_player_id" => to_string(first_id)
+                 }
+               })
+
+      assert Map.take(show.sport_state["pitchers"]["2"], ~w(name pitch_count)) == %{
+               "name" => "First Arm",
+               "pitch_count" => 12
+             }
+    end
+
+    test "a quick substitution replaces the lineup spot and defensive assignment" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_roster", %{
+                 "roster" => %{
+                   "position" => "1",
+                   "entries" => "1. A. Leadoff | CF\n2. B. Slugger | 1B"
+                 }
+               })
+
+      outgoing_id = hd(show.sport_state["lineups"]["1"])["id"]
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "substitute_player", %{
+                 "substitution" => %{
+                   "position" => "1",
+                   "outgoing_player_id" => to_string(outgoing_id),
+                   "name" => "C. Pinch Runner",
+                   "field_position" => "RF"
+                 }
+               })
+
+      assert Enum.map(show.sport_state["lineups"]["1"], & &1["name"]) == [
+               "C. Pinch Runner",
+               "B. Slugger"
+             ]
+
+      assert show.sport_state["defense"]["1"]["RF"] == "C. Pinch Runner"
+      assert show.sport_state["defense"]["1"]["CF"] == ""
+    end
+
+    test "a combined roster paste saves batting order and defensive alignment" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_roster", %{
+                 "roster" => %{
+                   "position" => "1",
+                   "entries" =>
+                     "1. A. Leadoff | CF\n2) B. Slugger, 1B\nC. Shortstop - SS\nP: D. Pitcher"
+                 }
+               })
+
+      assert Enum.map(show.sport_state["lineups"]["1"], & &1["name"]) == [
+               "A. Leadoff",
+               "B. Slugger",
+               "C. Shortstop"
+             ]
+
+      assert show.sport_state["defense"]["1"]["CF"] == "A. Leadoff"
+      assert show.sport_state["defense"]["1"]["1B"] == "B. Slugger"
+      assert show.sport_state["defense"]["1"]["SS"] == "C. Shortstop"
+      assert show.sport_state["defense"]["1"]["P"] == "D. Pitcher"
+      assert Enum.at(show.sport_state["lineups"]["1"], 0)["field_position"] == "CF"
+    end
+
+    test "one game roster paste saves both complete 26-player teams" do
+      show = show_fixture(%{sport: "baseball"})
+
+      away_lineup = Enum.map_join(1..9, "\n", &"#{&1}. Away Batter #{&1} | CF")
+      home_lineup = Enum.map_join(1..9, "\n", &"#{&1}. Home Batter #{&1} | SS")
+
+      away_bullpen = Enum.map_join(1..7, "\n", &"Away Reliever #{&1} | Available")
+      home_bullpen = Enum.map_join(1..7, "\n", &"Home Reliever #{&1} | Ready")
+
+      away_bench = Enum.map_join(1..9, "\n", &"Away Bench #{&1}")
+      home_bench = Enum.map_join(1..9, "\n", &"Home Bench #{&1}")
+
+      data = """
+      AWAY
+      TEAM
+      Name: Bay City Captains
+      Short name: Captains
+      Code: BCC
+      Logo URL: https://example.com/captains.svg
+      Primary color: #123456
+      Secondary color: #abcdef
+      Record: 18-8
+      Side label: Visitors
+      LINEUP
+      #{away_lineup}
+      STARTING PITCHER
+      Away Starter
+      BULLPEN
+      #{away_bullpen}
+      ROSTER
+      #{away_bench}
+
+      HOME
+      TEAM
+      Name: Summit Foxes
+      Short name: Foxes
+      Code: SFX
+      Logo URL: https://example.com/foxes.svg
+      Primary color: #654321
+      Secondary color: #fedcba
+      Record: 16-10
+      Side label: Hosts
+      LINEUP
+      #{home_lineup}
+      STARTING PITCHER
+      Home Starter
+      BULLPEN
+      #{home_bullpen}
+      ROSTER
+      #{home_bench}
+      """
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_game_rosters", %{
+                 "game_rosters" => %{"data" => data}
+               })
+
+      assert length(show.sport_state["rosters"]["1"]) == 26
+      assert length(show.sport_state["rosters"]["2"]) == 26
+      assert length(show.sport_state["lineups"]["1"]) == 9
+      assert length(show.sport_state["lineups"]["2"]) == 9
+      assert show.sport_state["pitchers"]["1"]["name"] == "Away Starter"
+      assert show.sport_state["pitchers"]["2"]["name"] == "Home Starter"
+
+      assert Map.take(Show.team(show, 1), [
+               :name,
+               :short_name,
+               :code,
+               :logo_url,
+               :primary_color,
+               :secondary_color,
+               :record,
+               :side
+             ]) == %{
+               name: "Bay City Captains",
+               short_name: "Captains",
+               code: "BCC",
+               logo_url: "https://example.com/captains.svg",
+               primary_color: "#123456",
+               secondary_color: "#abcdef",
+               record: "18-8",
+               side: "Visitors"
+             }
+
+      assert Map.take(Show.team(show, 2), [:name, :code, :logo_url, :primary_color]) == %{
+               name: "Summit Foxes",
+               code: "SFX",
+               logo_url: "https://example.com/foxes.svg",
+               primary_color: "#654321"
+             }
+
+      assert Enum.map(show.sport_state["bullpens"]["1"], & &1["name"]) ==
+               Enum.map(1..7, &"Away Reliever #{&1}")
+
+      assert Enum.map(show.sport_state["bullpens"]["2"], & &1["status"]) ==
+               List.duplicate("Ready", 7)
+    end
+
+    test "live pitch actions advance the count, pitcher and inning and can be undone" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "record_pitch", %{"result" => "ball"})
+
+      assert show.sport_state["balls"] == 1
+      assert show.sport_state["pitchers"]["2"]["pitch_count"] == 1
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "record_pitch", %{"result" => "strike"})
+
+      assert show.sport_state["strikes"] == 1
+      assert show.sport_state["pitchers"]["2"]["pitch_count"] == 2
+
+      assert {:ok, show} = Broadcasts.apply_sport_action(show, "undo")
+      assert show.sport_state["strikes"] == 0
+      assert show.sport_state["pitchers"]["2"]["pitch_count"] == 1
+
+      show =
+        Enum.reduce(1..3, show, fn _out, current_show ->
+          assert {:ok, updated_show} =
+                   Broadcasts.apply_sport_action(current_show, "record_play", %{
+                     "result" => "out"
+                   })
+
+          updated_show
+        end)
+
+      assert show.sport_state["half"] == "bottom"
+      assert show.sport_state["outs"] == 0
+      assert show.sport_state["pitchers"]["2"]["pitch_count"] == 1
+    end
+
+    test "baseball scene data is parsed into safe structured fields" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_defense", %{
+                 "defense" => %{
+                   "position" => "1",
+                   "players" => "P: Jordan Lee\nSS: Morgan Ellis\nNOPE: Ignored"
+                 }
+               })
+
+      assert show.sport_state["defense"]["1"]["P"] == "Jordan Lee"
+      assert show.sport_state["defense"]["1"]["SS"] == "Morgan Ellis"
+      refute Map.has_key?(show.sport_state["defense"]["1"], "NOPE")
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_bullpen", %{
+                 "bullpen" => %{
+                   "position" => "2",
+                   "pitchers" => "Taylor Reed | Warming\nCasey Park"
+                 }
+               })
+
+      assert Enum.map(show.sport_state["bullpens"]["2"], &Map.take(&1, ~w(name status))) == [
+               %{"name" => "Taylor Reed", "status" => "Warming"},
+               %{"name" => "Casey Park", "status" => "Available"}
+             ]
+    end
+
+    test "current pitchers can drive database-backed spotlight graphics" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_pitcher", %{
+                 "pitcher" => %{"position" => "2", "name" => "Phillips"}
+               })
+
+      show =
+        Enum.reduce(1..3, show, fn _pitch, current ->
+          assert {:ok, updated} =
+                   Broadcasts.apply_sport_action(current, "record_pitch", %{
+                     "result" => "strike"
+                   })
+
+          updated
+        end)
+
+      pitcher_id = show.sport_state["pitchers"]["2"]["id"]
+
+      assert {:ok, selected} =
+               Broadcasts.apply_sport_action(show, "select_highlights", %{
+                 "highlight" => %{"spotlight_player_id" => to_string(pitcher_id)}
+               })
+
+      graphic = selected.sport_state["graphics"]["single"]
+      assert graphic["name"] == "Phillips"
+      assert graphic["detail"] == "PITCHER"
+      assert graphic["selected_player_id"] == pitcher_id
+
+      assert graphic["stats"] == [
+               %{"label" => "IP", "value" => "0.1"},
+               %{"label" => "P", "value" => "3"},
+               %{"label" => "BF", "value" => "1"},
+               %{"label" => "H", "value" => "0"},
+               %{"label" => "BB", "value" => "0"},
+               %{"label" => "SO", "value" => "1"}
+             ]
+    end
+
+    test "a strikeout records an at-bat before advancing the lineup" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "A. Leadoff\nB. Slugger"}
+               })
+
+      show =
+        Enum.reduce(1..3, show, fn _pitch, current_show ->
+          assert {:ok, updated_show} =
+                   Broadcasts.apply_sport_action(current_show, "record_pitch", %{
+                     "result" => "strike"
+                   })
+
+          updated_show
+        end)
+
+      assert Map.take(Enum.at(show.sport_state["lineups"]["1"], 0), ~w(name hits at_bats)) == %{
+               "name" => "A. Leadoff",
+               "hits" => 0,
+               "at_bats" => 1
+             }
+
+      assert show.sport_state["active_batters"]["1"] == 1
+      assert show.sport_state["outs"] == 1
+    end
+
+    test "special plate appearance outcomes preserve official at-bat semantics" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      for {result, expected} <- [
+            {"sacrifice_bunt", %{at_bats: 0, strikeouts: 0, outs: 1, first: false}},
+            {"interference", %{at_bats: 0, strikeouts: 0, outs: 0, first: true}},
+            {"strikeout_reached", %{at_bats: 1, strikeouts: 1, outs: 0, first: true}},
+            {"strikeout", %{at_bats: 1, strikeouts: 1, outs: 1, first: false}}
+          ] do
+        assert {:ok, played} =
+                 Broadcasts.apply_sport_action(show, "record_play", %{"result" => result})
+
+        [batter] = played.sport_state["lineups"]["1"]
+        assert batter["at_bats"] == expected.at_bats
+        assert batter["strikeouts"] == expected.strikeouts
+        assert played.sport_state["outs"] == expected.outs
+        assert played.sport_state["bases"]["first"] == expected.first
+
+        assert {:ok, undone} = Broadcasts.apply_sport_action(played, "undo")
+        [batter] = undone.sport_state["lineups"]["1"]
+        assert batter["at_bats"] == 0
+        assert batter["strikeouts"] == 0
+        assert undone.sport_state["outs"] == 0
+        refute undone.sport_state["bases"]["first"]
+      end
+    end
+
+    test "sacrifice flies and home runs update scores and undo atomically" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "toggle_base", %{"base" => "third"})
+
+      assert {:ok, sacrifice} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "result" => "sacrifice_fly"
+               })
+
+      [batter] = sacrifice.sport_state["lineups"]["1"]
+      assert batter["at_bats"] == 0
+      assert batter["rbi"] == 1
+      assert Show.team(sacrifice, 1).score == 1
+      assert sacrifice.sport_state["outs"] == 1
+      refute sacrifice.sport_state["bases"]["third"]
+
+      assert {:ok, undone} = Broadcasts.apply_sport_action(sacrifice, "undo")
+      assert Show.team(undone, 1).score == 0
+      assert undone.sport_state["outs"] == 0
+      assert undone.sport_state["bases"]["third"]
+      assert undone.baseball_game.plate_appearances == []
+
+      assert {:ok, homer} =
+               Broadcasts.apply_sport_action(undone, "record_play", %{
+                 "result" => "home_run"
+               })
+
+      assert Show.team(homer, 1).score == 2
+      assert {:ok, homer_undone} = Broadcasts.apply_sport_action(homer, "undo")
+      assert Show.team(homer_undone, 1).score == 0
+      assert homer_undone.sport_state["bases"]["third"]
+    end
+
+    test "walks force occupied runners and double plays record two outs" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      show =
+        Enum.reduce(~w(first second third), show, fn base, current ->
+          assert {:ok, updated} =
+                   Broadcasts.apply_sport_action(current, "toggle_base", %{"base" => base})
+
+          updated
+        end)
+
+      assert {:ok, walked} =
+               Broadcasts.apply_sport_action(show, "record_play", %{"result" => "walk"})
+
+      assert Show.team(walked, 1).score == 1
+      assert Enum.all?(Map.values(walked.sport_state["bases"]))
+
+      assert {:ok, reset} = Broadcasts.apply_sport_action(walked, "undo")
+
+      assert {:ok, doubled_up} =
+               Broadcasts.apply_sport_action(reset, "record_play", %{
+                 "result" => "double_play",
+                 "notation" => "463"
+               })
+
+      assert doubled_up.sport_state["outs"] == 2
+      refute doubled_up.sport_state["bases"]["first"]
+
+      assert doubled_up.sport_state["last_play"] == %{
+               "result" => "double_play",
+               "notation" => "4-6-3"
+             }
+
+      assert List.last(doubled_up.baseball_game.plate_appearances).notation == "4-6-3"
+    end
+
+    test "bases-loaded reaches score the forced runner and preserve a loaded diamond" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      loaded =
+        Enum.reduce(~w(first second third), show, fn base, current ->
+          assert {:ok, updated} =
+                   Broadcasts.apply_sport_action(current, "toggle_base", %{"base" => base})
+
+          updated
+        end)
+
+      for {result, expected_rbi} <- [
+            {"single", 1},
+            {"walk", 1},
+            {"hit_by_pitch", 1},
+            {"interference", 1},
+            {"reached_on_error", 0},
+            {"strikeout_reached", 0}
+          ] do
+        assert {:ok, played} =
+                 Broadcasts.apply_sport_action(loaded, "record_play", %{"result" => result})
+
+        [batter] = played.sport_state["lineups"]["1"]
+        assert Show.team(played, 1).score == 1
+        assert batter["rbi"] == expected_rbi
+        assert played.sport_state["outs"] == 0
+        assert Enum.all?(Map.values(played.sport_state["bases"]))
+
+        assert {:ok, undone} = Broadcasts.apply_sport_action(played, "undo")
+        assert Show.team(undone, 1).score == 0
+        assert Enum.all?(Map.values(undone.sport_state["bases"]))
+      end
+    end
+
+    test "a single advances existing runners one base when no notation overrides it" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "toggle_base", %{"base" => "third"})
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{"result" => "single"})
+
+      assert Show.team(played, 1).score == 1
+
+      assert played.sport_state["bases"] == %{
+               "first" => true,
+               "second" => false,
+               "third" => false
+             }
+    end
+
+    test "explicit single advances do not move the same runner twice" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "toggle_base", %{"base" => "first"})
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "1B.1-3"}
+               })
+
+      [batter] = played.sport_state["lineups"]["1"]
+      assert {batter["hits"], batter["at_bats"], batter["rbi"]} == {1, 1, 0}
+      assert Show.team(played, 1).score == 0
+
+      assert played.sport_state["bases"] == %{
+               "first" => true,
+               "second" => false,
+               "third" => true
+             }
+    end
+
+    test "unspecified runners still take their normal advance on an explicit single" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Test Batter"}
+               })
+
+      show =
+        Enum.reduce(~w(first third), show, fn base, current ->
+          assert {:ok, updated} =
+                   Broadcasts.apply_sport_action(current, "toggle_base", %{"base" => base})
+
+          updated
+        end)
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "1B.1-3"}
+               })
+
+      assert Show.team(played, 1).score == 1
+
+      assert Enum.all?([
+               played.sport_state["bases"]["first"],
+               played.sport_state["bases"]["third"]
+             ])
+
+      refute played.sport_state["bases"]["second"]
+    end
+
+    test "scorebook notation overrides a mismatched quick-result button" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Error Batter"}
+               })
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "E1"}
+               })
+
+      [batter] = played.sport_state["lineups"]["1"]
+      assert {batter["hits"], batter["at_bats"]} == {0, 1}
+      assert played.sport_state["outs"] == 0
+      assert played.sport_state["bases"]["first"]
+      assert played.sport_state["errors"]["2"] == 1
+
+      assert played.sport_state["last_play"] == %{
+               "result" => "reached_on_error",
+               "notation" => "E1"
+             }
+    end
+
+    test "scorebook advance clauses move existing runners without overwriting them" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Runner\nError Batter"}
+               })
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "record_play", %{"result" => "single"})
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "E1.1-3"}
+               })
+
+      assert played.sport_state["outs"] == 0
+
+      assert played.sport_state["bases"] == %{
+               "first" => true,
+               "second" => false,
+               "third" => true
+             }
+
+      assert played.sport_state["last_play"] == %{
+               "result" => "reached_on_error",
+               "notation" => "E1.1-3"
+             }
+    end
+
+    test "scorebook advance clauses score runners without crediting an RBI on an error" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Error Batter"}
+               })
+
+      show =
+        Enum.reduce(~w(first second), show, fn base, current ->
+          assert {:ok, updated} =
+                   Broadcasts.apply_sport_action(current, "toggle_base", %{"base" => base})
+
+          updated
+        end)
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "E1.1-3;2-H"}
+               })
+
+      [batter] = played.sport_state["lineups"]["1"]
+      assert Show.team(played, 1).score == 1
+      assert batter["rbi"] == 0
+
+      assert played.sport_state["bases"] == %{
+               "first" => true,
+               "second" => false,
+               "third" => true
+             }
+    end
+
+    test "scorebook batter advances can place an error batter directly on second" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Error Batter"}
+               })
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "out", "notation" => "E1.B-2"}
+               })
+
+      [batter] = played.sport_state["lineups"]["1"]
+      assert {batter["hits"], batter["at_bats"], batter["rbi"]} == {0, 1, 0}
+      assert played.sport_state["outs"] == 0
+
+      assert played.sport_state["bases"] == %{
+               "first" => false,
+               "second" => true,
+               "third" => false
+             }
+    end
+
+    test "notation-only submissions infer a complete plate appearance" do
+      show = show_fixture(%{sport: "baseball"})
+
+      assert {:ok, show} =
+               Broadcasts.apply_sport_action(show, "save_lineup", %{
+                 "lineup" => %{"position" => "1", "names" => "Batter"}
+               })
+
+      assert {:ok, played} =
+               Broadcasts.apply_sport_action(show, "record_play", %{
+                 "play" => %{"result" => "auto", "notation" => "F8"}
+               })
+
+      assert played.sport_state["outs"] == 1
+      assert played.sport_state["last_play"] == %{"result" => "out", "notation" => "F8"}
+    end
+
+    test "hits, errors and walks derive different batting lines from plate appearances" do
+      show = show_fixture(%{sport: "baseball"})
+
+      {:ok, show} =
+        Broadcasts.apply_sport_action(show, "save_lineup", %{
+          "lineup" => %{"position" => "1", "names" => "Hit Batter\nError Batter\nWalk Batter"}
+        })
+
+      {:ok, show} = Broadcasts.apply_sport_action(show, "record_play", %{"result" => "single"})
+
+      {:ok, show} =
+        Broadcasts.apply_sport_action(show, "record_play", %{"result" => "reached_on_error"})
+
+      {:ok, show} = Broadcasts.apply_sport_action(show, "record_play", %{"result" => "walk"})
+
+      [hit, error, walk] = show.sport_state["lineups"]["1"]
+      assert {hit["hits"], hit["at_bats"]} == {1, 1}
+      assert {error["hits"], error["at_bats"]} == {0, 1}
+      assert {walk["hits"], walk["at_bats"]} == {0, 0}
+      assert show.sport_state["hits"]["1"] == 1
+      assert show.sport_state["errors"]["2"] == 1
+      assert show.sport_state["graphics"]["single"]["name"] == "Hit Batter"
+      assert length(show.baseball_game.plate_appearances) == 3
+    end
+
+    test "resetting a baseball game clears state and runs together" do
+      show = show_fixture(%{sport: "baseball"})
+      {:ok, show} = Broadcasts.adjust_score(show, 1, 4)
+
+      assert {:ok, show} = Broadcasts.reset_sport(show)
+      assert Enum.map(show.teams, & &1.score) == [0, 0]
+      assert show.sport_state["inning"] == 1
+      assert show.sport_state["hits"] == %{"1" => 0, "2" => 0}
+      assert show.sport_state["errors"] == %{"1" => 0, "2" => 0}
+      assert show.baseball_game.plate_appearances == []
     end
   end
 
@@ -135,10 +1100,11 @@ defmodule Showish.BroadcastsTest do
 
   describe "pubsub" do
     test "subscribers are pushed the whole show on every write" do
-      show = show_fixture()
+      scope = user_scope_fixture()
+      show = show_fixture(scope)
       :ok = Broadcasts.subscribe(show.slug)
 
-      {:ok, _updated} = Broadcasts.update_show(show, %{"stage" => "Finals"})
+      {:ok, _updated} = Broadcasts.update_show(scope, show, %{"stage" => "Finals"})
 
       assert_receive {:show_updated, %Show{stage: "Finals", teams: [_, _]}}
     end
@@ -168,17 +1134,21 @@ defmodule Showish.BroadcastsTest do
     end
 
     test "center_line/1 prefers the explicit status, then the current game" do
+      scope = user_scope_fixture()
+
       show =
-        show_fixture(%{
+        show_fixture(scope, %{
           "status_center" => "Overtime",
           "show_status_center" => true
         })
 
       assert Show.center_line(show) == "Overtime"
 
-      {:ok, show} = Broadcasts.update_show(show, %{"show_status_center" => false})
+      {:ok, show} = Broadcasts.update_show(scope, show, %{"show_status_center" => false})
       {:ok, show} = Broadcasts.add_game(show)
-      {:ok, show} = Broadcasts.update_show(show, %{"games" => game_params(show, "Old Harbour")})
+
+      {:ok, show} =
+        Broadcasts.update_show(scope, show, %{"games" => game_params(show, "Old Harbour")})
 
       assert Show.center_line(show) == "Game 1 · Old Harbour"
     end

@@ -2,6 +2,13 @@ defmodule ShowishWeb.Layouts do
   @moduledoc """
   This module holds layouts and related functionality
   used by your application.
+
+  The app layout is the page shell from the Laggish design guide (DESIGN.md
+  section 5.2): a skip link, a top bar with the brand, the site nav and the
+  user menu, the app-wide notices, then `main`. Like the other apps built on
+  the guide (transitmaps), a lost connection is one full-width notice under
+  the top bar. Overlays do not use it; they render into the bare
+  `overlay_root` layout.
   """
   use ShowishWeb, :html
 
@@ -14,14 +21,10 @@ defmodule ShowishWeb.Layouts do
   @doc """
   Renders your app layout.
 
-  This function is typically invoked from every template,
-  and it often contains your application menu, sidebar,
-  or similar.
-
   ## Examples
 
-      <Layouts.app flash={@flash}>
-        <h1>Content</h1>
+      <Layouts.app flash={@flash} section="shows">
+        <.header>Shows</.header>
       </Layouts.app>
 
   """
@@ -31,44 +34,50 @@ defmodule ShowishWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
 
-  slot :inner_block, required: true
+  attr :section, :string,
+    default: nil,
+    doc: "the site nav entry for the current page, when the page is that entry"
 
-  attr :max_width, :string,
-    default: "max-w-5xl",
-    doc: "the container width; the control room needs more room than a list page"
+  slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
-    <header class="border-b border-base-300">
-      <div class={["mx-auto flex items-center gap-4 px-4 py-3 sm:px-6", @max_width]}>
-        <.link navigate={~p"/"} class="flex items-center gap-2.5">
-          <span class="flex size-8 items-center justify-center rounded-md bg-primary text-primary-content">
-            <.icon name="hero-tv-mini" class="size-5" />
-          </span>
-          <span class="text-lg font-black tracking-tight">Showish</span>
+    <a class="ui-skip-link" href="#main">Skip to content</a>
+    <div class="ui-shell">
+      <header class="ui-topbar">
+        <.link navigate={~p"/"} class="ui-brand">
+          <span class="ui-brand-mark" aria-hidden="true"></span>Showish
         </.link>
-
-        <span class="text-sm text-base-content/60">Web overlays for live broadcasts</span>
-
-        <div class="ml-auto flex items-center gap-2">
-          <.link navigate={~p"/"} class="btn btn-ghost btn-sm">Shows</.link>
-          <.theme_toggle />
+        <nav :if={@current_scope} class="ui-sitenav" aria-label="Site">
+          <.link navigate={~p"/"} aria-current={@section == "shows" && "page"}>Shows</.link>
+        </nav>
+        <div class="ui-topbar-aside">
+          <.user_menu :if={@current_scope} current_scope={@current_scope} />
+          <.link
+            :if={!@current_scope && @section != "sign-in"}
+            navigate={~p"/users/log-in"}
+            class="ui-button ui-button--small"
+          >
+            Sign in
+          </.link>
         </div>
+      </header>
+      <div id="connection-lost" class="ui-notice app-connection" data-status="warning" role="alert">
+        {gettext("Connection lost. Reconnecting…")}
       </div>
-    </header>
-
-    <main class="px-4 py-10 sm:px-6">
-      <div class={["mx-auto space-y-8", @max_width]}>
+      <.flash_group flash={@flash} />
+      <main class="ui-main" id="main">
         {render_slot(@inner_block)}
-      </div>
-    </main>
-
-    <.flash_group flash={@flash} />
+      </main>
+    </div>
     """
   end
 
   @doc """
-  Shows the flash group with standard titles and content.
+  Shows the flash messages.
+
+  Notices sit under the top bar, not in a corner, and stay until they are
+  dismissed. The connection notice is part of the shell (see `app/1`).
 
   ## Examples
 
@@ -79,69 +88,75 @@ defmodule ShowishWeb.Layouts do
 
   def flash_group(assigns) do
     ~H"""
-    <div id={@id} aria-live="polite">
+    <div id={@id} class="app-notices">
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
-
-      <.flash
-        id="client-error"
-        kind={:error}
-        title={gettext("We can't find the internet")}
-        phx-disconnected={show(".phx-client-error #client-error") |> JS.remove_attribute("hidden")}
-        phx-connected={hide("#client-error") |> JS.set_attribute({"hidden", ""})}
-        hidden
-      >
-        {gettext("Attempting to reconnect")}
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
-      </.flash>
-
-      <.flash
-        id="server-error"
-        kind={:error}
-        title={gettext("Something went wrong!")}
-        phx-disconnected={show(".phx-server-error #server-error") |> JS.remove_attribute("hidden")}
-        phx-connected={hide("#server-error") |> JS.set_attribute({"hidden", ""})}
-        hidden
-      >
-        {gettext("Attempting to reconnect")}
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
-      </.flash>
     </div>
     """
   end
 
   @doc """
-  Provides dark vs light theme toggle based on themes defined in app.css.
+  The signed-in operator's menu (DESIGN.md section 7.15): their name in the top
+  bar, and behind it the theme choice (section 2.4) and the way out.
+  """
+  attr :current_scope, :map, required: true
 
-  See <head> in root.html.heex which applies the theme before page load.
+  def user_menu(assigns) do
+    ~H"""
+    <details phx-mounted={JS.ignore_attributes(["open"])} id="user-menu" class="ui-menu">
+      <summary
+        class="ui-button ui-button--ghost ui-button--small app-user"
+        title={@current_scope.user.email}
+      >
+        <span id="signed-in-as" class="ui-truncate">
+          {Showish.Accounts.User.display_name(@current_scope.user)}
+        </span>
+        <span aria-hidden="true">▾</span>
+      </summary>
+      <div class="ui-menu-panel">
+        <span class="ui-label">Theme</span>
+        <.theme_toggle />
+        <.link
+          id="sign-out"
+          href={~p"/users/log-out"}
+          method="delete"
+          class="ui-button ui-button--small app-menu-item"
+        >
+          Sign out
+        </.link>
+      </div>
+    </details>
+    """
+  end
+
+  @doc """
+  The theme picker: System, Light or Dark (DESIGN.md section 2.4).
+
+  "Light" and "Dark" set `data-theme` on `<html>`, "System" removes it. The
+  script in root.html.heex applies the stored choice before the first paint;
+  the `ThemePicker` hook in app.js marks the current choice and moves it with
+  the arrow keys.
   """
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 transition-[left]" />
-
+    <div
+      id="theme-picker"
+      class="ui-segmented"
+      role="radiogroup"
+      aria-label="Theme"
+      phx-hook="ThemePicker"
+      phx-update="ignore"
+    >
       <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="system"
+        :for={{choice, label} <- [{"system", "System"}, {"light", "Light"}, {"dark", "Dark"}]}
+        type="button"
+        class="ui-chip"
+        role="radio"
+        aria-checked={to_string(choice == "system")}
+        tabindex={if choice == "system", do: "0", else: "-1"}
+        data-phx-theme={choice}
       >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
-      >
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-
-      <button
-        class="flex p-2 cursor-pointer w-1/3"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="dark"
-      >
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
+        {label}
       </button>
     </div>
     """

@@ -3,7 +3,7 @@ defmodule ShowishWeb.ShowJSONControllerTest do
 
   import Showish.BroadcastsFixtures
 
-  test "returns a snapshot of the show", %{conn: conn} do
+  test "returns a snapshot of the show without a login", %{conn: conn} do
     show = show_fixture(%{title: "Autumn Cup", stage: "Grand Finals"})
 
     body =
@@ -13,6 +13,8 @@ defmodule ShowishWeb.ShowJSONControllerTest do
 
     assert body["data"]["title"] == "Autumn Cup"
     assert body["data"]["stage"] == "Grand Finals"
+    assert body["data"]["sport"] == "esports"
+    assert body["data"]["sport_state"] == %{}
     assert length(body["data"]["teams"]) == 2
   end
 

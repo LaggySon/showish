@@ -2,11 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+    <%!-- The brand mark, the same square in every app built on the design guide --%>
+    <link rel="icon" href={~p"/favicon.ico"} sizes="48x48" />
+    <link rel="icon" href={~p"/favicon.svg"} type="image/svg+xml" />
+    <link rel="apple-touch-icon" href={~p"/apple-touch-icon.png"} />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="Showish" suffix=" · Phoenix Framework">
+    <.live_title default="Showish" suffix=" · Showish">
       {assigns[:page_title]}
     </.live_title>
+    <link
+      rel="preload"
+      href={~p"/fonts/Geist-Variable.woff2"}
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
@@ -25,12 +39,31 @@
           setTheme(localStorage.getItem("phx:theme") || "system");
         }
         window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
-        
+
         window.addEventListener("phx:set-theme", (e) => setTheme(e.target.dataset.phxTheme));
       })();
     </script>
   </head>
   <body>
     {@inner_content}
+
+    <%!-- The one confirmation dialog for every [data-confirm] control (DESIGN.md
+    section 7.16). It sits outside the LiveView so a patch never closes it;
+    the ConfirmDialog code in app.js fills it from the control's data-confirm,
+    data-confirm-body and data-confirm-action attributes. --%>
+    <dialog id="confirm-dialog" class="ui-dialog" aria-labelledby="confirm-dialog-title">
+      <div class="ui-dialog-header">
+        <h2 class="ui-dialog-title" id="confirm-dialog-title"></h2>
+      </div>
+      <div class="ui-dialog-body">
+        <p id="confirm-dialog-body"></p>
+      </div>
+      <div class="ui-dialog-footer">
+        <button type="button" class="ui-button" id="confirm-dialog-cancel" autofocus>
+          Cancel
+        </button>
+        <button type="button" class="ui-button ui-button--danger" id="confirm-dialog-ok"></button>
+      </div>
+    </dialog>
   </body>
 </html>

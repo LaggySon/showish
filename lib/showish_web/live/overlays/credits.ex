@@ -5,9 +5,12 @@ defmodule ShowishWeb.Overlays.Credits do
 
   use ShowishWeb.OverlayLive
 
+  alias Showish.Broadcasts.Show
+  alias Showish.Text
+
   @impl Phoenix.LiveView
   def render(assigns) do
-    assigns = assign(assigns, :groups, group_by_role(assigns.show.talents))
+    assigns = assign(assigns, :groups, group_by_role(Show.talents(assigns.show)))
 
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
@@ -29,12 +32,12 @@ defmodule ShowishWeb.Overlays.Credits do
                 {person.name}
               </span>
               <span
-                :if={person.pronouns not in [nil, ""]}
+                :if={Text.present?(person.pronouns)}
                 class="overlay-pronouns text-[18px] text-slate-400"
               >
                 {person.pronouns}
               </span>
-              <span :if={person.social not in [nil, ""]} class="text-[18px] text-slate-500">
+              <span :if={Text.present?(person.social)} class="text-[18px] text-slate-500">
                 {person.social}
               </span>
             </div>
@@ -50,19 +53,15 @@ defmodule ShowishWeb.Overlays.Credits do
   end
 
   # Keeps the order the operator arranged rows in, while collapsing consecutive
-  # people who share a role under one heading.
+  # people who share a role under one heading. Nameless rows are left out: an
+  # operator part way through filling the crew in should not put a blank line on
+  # air.
   defp group_by_role(talents) do
     talents
-    |> List.wrap()
-    |> Enum.reject(&(String.trim(to_string(&1.name || "")) == ""))
+    |> Enum.reject(&Text.blank?(&1.name))
     |> Enum.chunk_by(&role_of/1)
     |> Enum.map(fn [first | _rest] = people -> {role_of(first), people} end)
   end
 
-  defp role_of(talent) do
-    case String.trim(to_string(talent.role || "")) do
-      "" -> "Crew"
-      role -> role
-    end
-  end
+  defp role_of(talent), do: Text.presence(talent.role, "Crew")
 end

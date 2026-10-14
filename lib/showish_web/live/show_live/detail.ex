@@ -6,6 +6,8 @@ defmodule ShowishWeb.ShowLive.Detail do
 
   use ShowishWeb, :live_view
 
+  import ShowishWeb.ShowLive.Components
+
   alias Showish.Broadcasts
   alias ShowishWeb.Scenes
 
@@ -13,84 +15,116 @@ defmodule ShowishWeb.ShowLive.Detail do
   def mount(%{"slug" => slug}, _session, socket) do
     if connected?(socket), do: Broadcasts.subscribe(slug)
 
-    show = Broadcasts.get_show_by_slug!(slug)
+    show = Broadcasts.get_show_by_slug!(socket.assigns.current_scope, slug)
 
     {:ok,
      socket
      |> assign(:show, show)
-     |> assign(:page_title, show.title)}
+     |> assign(:page_title, "#{show.title} · Overlay URLs")}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
-      <div class="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p class="text-sm text-base-content/60">/{@show.slug}</p>
-          <h1 class="text-3xl font-black tracking-tight">{@show.title}</h1>
-        </div>
-        <.link navigate={~p"/shows/#{@show.slug}/control"} class="btn btn-primary">
-          Open control room
-        </.link>
-      </div>
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
+      <.header>
+        {@show.title}
+        <:aside>
+          <span class="ui-mono">{length(Scenes.for_sport(@show.sport))} scenes</span>
+          <span class="ui-sep" aria-hidden="true">·</span>
+          <span class="ui-mono">1920×1080</span>
+        </:aside>
+      </.header>
 
-      <div class="rounded-box border border-base-300 bg-base-200 p-5">
-        <h2 class="font-bold">Adding an overlay to your broadcast software</h2>
-        <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm text-base-content/70">
+      <.show_nav show={@show} current={:overlays} />
+
+      <.panel id="obs" title="All of it at once, for OBS" class="app-block">
+        <div class="app-obs">
+          <p class="app-prose-block">
+            A scene collection with one OBS scene per scene below, each holding its browser source
+            already sized and pointed at this show. In OBS, choose <strong>Scene Collection</strong>
+            › <strong>Import</strong>, pick the file, then <strong>Import</strong>.
+          </p>
+          <.button
+            href={~p"/shows/#{@show.slug}/obs.json"}
+            download
+            id="download-obs-scene-collection"
+            variant="primary"
+          >
+            Download for OBS
+          </.button>
+        </div>
+      </.panel>
+
+      <.panel id="setup" title="Or add a scene by hand" class="app-block">
+        <ol class="app-steps">
           <li>Add a <strong>Browser</strong> source to your scene.</li>
-          <li>Paste one of the URLs below, and set the size to <strong>1920 × 1080</strong>.</li>
+          <li>Paste one of the URLs below, and set the size to <strong>1920×1080</strong>.</li>
+          <li>Leave the background transparent. A scene draws nothing outside its own graphics.</li>
           <li>
-            Leave the background transparent — the scenes draw nothing where nothing belongs.
-          </li>
-          <li>
-            Everything you change in the control room appears on air immediately; there is
-            nothing to refresh.
+            Changes made in the control room are on air at once. The browser source never needs a refresh.
           </li>
         </ol>
-      </div>
+      </.panel>
 
-      <div class="grid gap-3">
-        <div
-          :for={scene <- Scenes.all()}
-          class="rounded-box flex flex-wrap items-center gap-4 border border-base-300 bg-base-100 p-4"
-        >
-          <div class="min-w-[220px] flex-1">
-            <div class="font-bold">{scene.name}</div>
-            <div class="text-sm text-base-content/60">{scene.summary}</div>
-          </div>
-
-          <code class="rounded bg-base-200 px-3 py-2 text-xs break-all">
-            {Scenes.url(@show.slug, scene.key)}
-          </code>
-
-          <div class="flex gap-2">
-            <button
+      <div class="app-block">
+        <.table id="scenes" rows={Scenes.for_sport(@show.sport)} row_id={&"scene-#{&1.key}"}>
+          <:col :let={scene} label="Scene"><span class="ui-row-name">{scene.name}</span></:col>
+          <:col :let={scene} label="What it shows" class="ui-cell-wrap app-muted-cell app-wide-only">
+            {scene.summary}
+          </:col>
+          <:col :let={scene} label="Browser source URL" class="ui-cell-mono">
+            <span class="ui-truncate" title={Scenes.url(@show.slug, scene.key)}>
+              {Scenes.url(@show.slug, scene.key)}
+            </span>
+          </:col>
+          <:action :let={scene}>
+            <.button
               type="button"
               id={"copy-#{scene.key}"}
               phx-hook="ClipboardCopy"
               data-clipboard-text={Scenes.url(@show.slug, scene.key)}
-              class="btn btn-sm"
+              size="small"
+              variant="ghost"
+              aria-label={"Copy the #{scene.name} URL"}
             >
               Copy
-            </button>
-            <a href={Scenes.path(@show.slug, scene.key)} target="_blank" class="btn btn-sm btn-ghost">
-              Open
-            </a>
-          </div>
-        </div>
+            </.button>
+            <.button
+              href={Scenes.path(@show.slug, scene.key)}
+              target="_blank"
+              size="small"
+              variant="ghost"
+              aria-label={"Open #{scene.name} in a new tab"}
+            >
+              Open <span aria-hidden="true">↗</span>
+            </.button>
+          </:action>
+        </.table>
       </div>
 
-      <div class="rounded-box border border-base-300 bg-base-100 p-5">
-        <h2 class="font-bold">Read the show as JSON</h2>
-        <p class="mt-1 text-sm text-base-content/70">
-          For anything that cannot hold a websocket open — a static overlay, a bot, a
-          scoreboard on a different stack.
+      <.panel id="json" title="Read the show as JSON" class="app-block">
+        <p class="ui-muted app-prose-block">
+          For anything that cannot hold a websocket open: a static overlay, a bot, a scoreboard on another stack.
+          It returns the show as it is now; ask again for an update.
         </p>
-        <code class="mt-3 block rounded bg-base-200 px-3 py-2 text-xs break-all">
-          {url(~p"/api/shows/#{@show.slug}")}
-        </code>
-      </div>
+        <div class="app-url-row">
+          <code class="ui-pre ui-truncate" title={url(~p"/api/shows/#{@show.slug}")}>
+            {url(~p"/api/shows/#{@show.slug}")}
+          </code>
+          <.button
+            type="button"
+            id="copy-json"
+            phx-hook="ClipboardCopy"
+            data-clipboard-text={url(~p"/api/shows/#{@show.slug}")}
+            size="small"
+            variant="ghost"
+            aria-label="Copy the JSON URL"
+          >
+            Copy
+          </.button>
+        </div>
+      </.panel>
     </Layouts.app>
     """
   end

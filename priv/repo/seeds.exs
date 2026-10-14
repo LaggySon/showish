@@ -3,16 +3,35 @@
 #
 #     mix run priv/repo/seeds.exs
 
+alias Showish.Accounts
+alias Showish.Accounts.Scope
 alias Showish.Broadcasts
+
+# Shows belong to an account now, so the demo needs someone to own it. Sign-in
+# is Google's job, so the account is provisioned by address: the first time you
+# sign in with that Google address, this row — and the demo show — become yours.
+email = System.get_env("SEED_EMAIL") || "operator@example.com"
+
+user =
+  case Accounts.get_user_by_email(email) do
+    nil ->
+      {:ok, user} = Accounts.provision_user(%{"email" => email})
+      user
+
+    user ->
+      user
+  end
+
+scope = Scope.for_user(user)
 
 slug = "demo"
 
-if show = Broadcasts.get_show_by_slug(slug) do
-  {:ok, _show} = Broadcasts.delete_show(show)
+if show = Broadcasts.get_public_show_by_slug(slug) do
+  {:ok, _show} = Broadcasts.delete_show(scope, show)
 end
 
 {:ok, show} =
-  Broadcasts.create_show(%{
+  Broadcasts.create_show(scope, %{
     "slug" => slug,
     "title" => "Showish Invitational",
     "subtitle" => "Week 5",
@@ -127,7 +146,9 @@ end
 
 IO.puts("""
 
-Seeded the "#{slug}" show.
+Seeded the "#{slug}" show, owned by #{user.email}.
+
+  Sign in with Google as #{user.email} to claim it.
 
   Control room: #{ShowishWeb.Endpoint.url()}/shows/#{slug}/control
   Scorebug:     #{ShowishWeb.Endpoint.url()}/overlay/#{slug}/scorebug

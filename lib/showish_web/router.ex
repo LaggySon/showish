@@ -1,6 +1,8 @@
 defmodule ShowishWeb.Router do
   use ShowishWeb, :router
 
+  import ShowishWeb.UserAuth
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -8,6 +10,7 @@ defmodule ShowishWeb.Router do
     plug :put_root_layout, html: {ShowishWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :fetch_current_scope_for_user
   end
 
   # Overlays are loaded as browser sources inside broadcast software. They get a
@@ -25,19 +28,76 @@ defmodule ShowishWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # A signed-in file download: it needs the session the browser pipeline sets up
+  # so it can sit behind the same login, but it answers with a file rather than
+  # a page.
+  pipeline :download do
+    plug :accepts, ["json", "html"]
+    plug :fetch_session
+    plug :fetch_flash
+    plug :put_secure_browser_headers
+    plug :fetch_current_scope_for_user
+  end
+
+  # Everything that can change a show sits behind a login.
+  scope "/", ShowishWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :require_authenticated_user,
+      on_mount: [{ShowishWeb.UserAuth, :require_authenticated}] do
+      live "/", ShowLive.Index, :index
+      live "/shows/new", ShowLive.Index, :new
+      live "/shows/:slug", ShowLive.Detail, :show
+      live "/shows/:slug/control", ShowLive.Control, :control
+    end
+  end
+
+  # Every overlay of a show at once, as a scene collection OBS can import.
+  scope "/", ShowishWeb do
+    pipe_through [:download, :require_authenticated_user]
+
+    get "/shows/:slug/obs.json", ObsController, :download
+  end
+
+  scope "/", ShowishWeb do
+    pipe_through [:browser, :redirect_if_user_is_authenticated]
+
+    live_session :redirect_if_user_is_authenticated,
+      on_mount: [{ShowishWeb.UserAuth, :mount_current_scope}] do
+      live "/users/log-in", UserLive.Login, :new
+    end
+  end
+
+  # Identity comes from Google; these two are the round trip.
+  scope "/auth", ShowishWeb do
+    pipe_through :browser
+
+    get "/google", GoogleAuthController, :request
+    get "/google/callback", GoogleAuthController, :callback
+    get "/google/preview/callback", GoogleAuthController, :preview_callback
+  end
+
+  scope "/auth", ShowishWeb do
+    pipe_through :api
+
+    post "/google/preview/exchange", GoogleAuthController, :exchange
+  end
+
   scope "/", ShowishWeb do
     pipe_through :browser
 
-    live "/", ShowLive.Index, :index
-    live "/shows/new", ShowLive.Index, :new
-    live "/shows/:slug", ShowLive.Detail, :show
-    live "/shows/:slug/control", ShowLive.Control, :control
+    delete "/users/log-out", UserSessionController, :delete
   end
 
   scope "/overlay", ShowishWeb.Overlays do
     pipe_through :overlay
 
     live "/:slug/scorebug", Scorebug
+    live "/:slug/baseball-lineup", BaseballLineup
+    live "/:slug/baseball-defense", BaseballDefense
+    live "/:slug/baseball-bullpen", BaseballBullpen
+    live "/:slug/baseball-player", BaseballPlayer
+    live "/:slug/baseball-comparison", BaseballComparison
     live "/:slug/series", Series
     live "/:slug/talent", Talent
     live "/:slug/cams", Cams

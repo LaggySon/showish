@@ -6,14 +6,38 @@ defmodule Showish.Broadcasts do
   Every write funnels through here so that a single `{:show_updated, show}`
   message can be pushed to every overlay watching the show. Overlays never poll;
   they subscribe once at mount and re-render when this module says so.
+
+  ## Who can see what
+
+  A show belongs to the account that created it, and there are exactly two ways
+  to get hold of one:
+
+    * the scoped reads — `list_shows/1`, `get_show!/2`, `get_show_by_slug!/2` —
+      which only ever return that scope's own shows, and the scoped writes,
+      which refuse a show belonging to anyone else; and
+    * `get_public_show_by_slug!/1`, which deliberately checks nothing.
+
+  The second exists because an overlay is loaded as a browser source inside
+  broadcast software, which cannot log in. Anyone with the slug can *watch* a
+  show — that is the point of an overlay URL — but only its owner can change it.
+  So the operator actions further down take a `%Show{}` that one of the calls
+  above has already vouched for.
   """
 
   import Ecto.Query, warn: false
 
+  alias Showish.Accounts.Scope
+  alias Showish.Accounts.User
+  alias Showish.Baseball
+  alias Showish.Baseball.Game, as: BaseballGame
+  alias Showish.Baseball.Player
   alias Showish.Broadcasts.Game
+  alias Showish.Broadcasts.NotOwnerError
   alias Showish.Broadcasts.Show
+  alias Showish.Broadcasts.Sport
   alias Showish.Broadcasts.Talent
   alias Showish.Broadcasts.Team
+  alias Showish.Broadcasts.TeamProfile
   alias Showish.Repo
 
   @pubsub Showish.PubSub
@@ -45,69 +69,207 @@ defmodule Showish.Broadcasts do
 
   ## Reading
 
-  @doc "All shows, most recently updated first."
-  def list_shows do
+  @doc "The scope's own shows, most recently updated first."
+  def list_shows(%Scope{user: %User{id: user_id}}) do
     Show
+    |> where(user_id: ^user_id)
     |> order_by(desc: :updated_at)
     |> Repo.all()
     |> Repo.preload(preloads())
+    |> Enum.map(&hydrate_baseball/1)
   end
 
-  @doc "Fetches a show by id, raising if it is missing."
-  def get_show!(id), do: Show |> Repo.get!(id) |> Repo.preload(preloads())
+  @doc "Fetches one of the scope's shows by id, raising if there is no such show."
+  def get_show!(%Scope{user: %User{id: user_id}}, id) do
+    Show
+    |> Repo.get_by!(id: id, user_id: user_id)
+    |> Repo.preload(preloads())
+    |> hydrate_baseball()
+  end
 
-  @doc "Fetches a show by its URL slug, raising if it is missing."
-  def get_show_by_slug!(slug), do: Show |> Repo.get_by!(slug: slug) |> Repo.preload(preloads())
+  @doc """
+  Fetches one of the scope's shows by its URL slug.
 
-  @doc "Fetches a show by its URL slug, or `nil`."
-  def get_show_by_slug(slug), do: Show |> Repo.get_by(slug: slug) |> preload_maybe()
+  Raises `Ecto.NoResultsError` for a slug that belongs to somebody else, which
+  is deliberate: a stranger's control room should look exactly like a control
+  room that does not exist.
+  """
+  def get_show_by_slug!(%Scope{user: %User{id: user_id}}, slug) do
+    Show
+    |> Repo.get_by!(slug: slug, user_id: user_id)
+    |> Repo.preload(preloads())
+    |> hydrate_baseball()
+  end
+
+  @doc """
+  Fetches any show by its URL slug, with no owner check, raising if missing.
+
+  For overlays and the JSON snapshot only — see "Who can see what" above.
+  """
+  def get_public_show_by_slug!(slug) when is_binary(slug) do
+    Show |> Repo.get_by!(slug: slug) |> Repo.preload(preloads()) |> hydrate_baseball()
+  end
+
+  @doc "Like `get_public_show_by_slug!/1`, but `nil` rather than raising."
+  def get_public_show_by_slug(slug) when is_binary(slug) do
+    Show |> Repo.get_by(slug: slug) |> preload_maybe()
+  end
 
   defp preload_maybe(nil), do: nil
-  defp preload_maybe(%Show{} = show), do: Repo.preload(show, preloads())
+  defp preload_maybe(%Show{} = show), do: show |> Repo.preload(preloads()) |> hydrate_baseball()
 
-  defp preloads, do: [:teams, :games, :talents]
+  defp preloads, do: [:teams, :games, :talents, baseball_game: Baseball.preloads()]
 
   @doc "Reloads a show along with all of its children."
-  def reload(%Show{} = show), do: get_show!(show.id)
+  def reload(%Show{} = show) do
+    Show |> Repo.get!(show.id) |> Repo.preload(preloads()) |> hydrate_baseball()
+  end
 
   ## Writing
 
   @doc """
-  Creates a show. Two teams are seeded automatically unless the caller supplies
-  their own, since a show without competitors cannot be put on air.
+  Creates a show owned by the scope's user.
+
+  Two teams are seeded automatically unless the caller supplies their own, since
+  a show without competitors cannot be put on air.
   """
-  def create_show(attrs \\ %{}) do
+  def create_show(scope, attrs \\ %{})
+
+  def create_show(%Scope{user: %User{id: user_id}}, attrs) do
     attrs =
       attrs
       |> stringify_keys()
       |> Map.put_new("teams", default_teams())
 
-    %Show{}
+    %Show{user_id: user_id}
     |> Show.changeset(attrs)
     |> Repo.insert()
     |> after_write()
   end
 
   @doc "Updates a show and everything nested under it."
-  def update_show(%Show{} = show, attrs) do
+  def update_show(%Scope{} = scope, %Show{} = show, attrs) do
+    show
+    |> owned!(scope)
+    |> write_show(attrs)
+  end
+
+  @doc "Deletes a show and, by way of the database, its children."
+  def delete_show(%Scope{} = scope, %Show{} = show) do
+    show
+    |> owned!(scope)
+    |> Repo.delete()
+  end
+
+  # The unguarded write. Private on purpose: the operator actions below reach it
+  # with a show that a scoped read already vouched for.
+  defp write_show(%Show{} = show, attrs) do
     show
     |> Show.changeset(stringify_keys(attrs))
     |> Repo.update()
     |> after_write()
   end
 
-  @doc "Deletes a show and, by way of the database, its children."
-  def delete_show(%Show{} = show), do: Repo.delete(show)
+  defp owned!(%Show{user_id: user_id} = show, %Scope{user: %User{id: user_id}}), do: show
+  defp owned!(%Show{} = show, %Scope{}), do: raise(NotOwnerError, slug: show.slug)
+
+  @doc """
+  Hands every ownerless show to the scope's user, returning how many moved.
+
+  Shows created before accounts existed have no owner, which makes them
+  invisible to everybody. This is the one-time migration for them; see
+  `mix showish.claim_shows`.
+  """
+  def claim_unowned_shows(%Scope{user: %User{id: user_id}}) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {count, _returned} =
+      Show
+      |> where([show], is_nil(show.user_id))
+      |> Repo.update_all(set: [user_id: user_id, updated_at: now])
+
+    count
+  end
 
   @doc "Builds a changeset for the control panel forms."
   def change_show(%Show{} = show, attrs \\ %{}) do
     Show.changeset(show, stringify_keys(attrs))
   end
 
+  @doc "Lists the reusable teams saved by an account."
+  def list_team_profiles(%Scope{user: %User{id: user_id}}) do
+    TeamProfile
+    |> where(user_id: ^user_id)
+    |> order_by(asc: :name)
+    |> Repo.all()
+  end
+
+  @doc "Saves the current team identity to the account library, updating a same-named entry."
+  def save_team_profile(%Scope{user: %User{id: user_id}}, %Team{} = team) do
+    profile =
+      Repo.get_by(TeamProfile, user_id: user_id, name: team.name) ||
+        %TeamProfile{user_id: user_id}
+
+    attrs =
+      team
+      |> Map.from_struct()
+      |> Map.take(~w(name short_name code logo_url record primary_color secondary_color)a)
+      |> Map.put(:roster, %{
+        "players" =>
+          Player
+          |> where(team_id: ^team.id)
+          |> order_by(asc: :name)
+          |> Repo.all()
+          |> Enum.map(&Map.take(&1, ~w(name jersey_number bats throws active)a))
+      })
+
+    profile |> TeamProfile.changeset(attrs) |> Repo.insert_or_update()
+  end
+
+  @doc "Copies a saved team identity into one of a show's two live team slots."
+  def apply_team_profile(
+        %Scope{user: %User{id: user_id}} = scope,
+        %Show{} = show,
+        position,
+        profile_id
+      )
+      when position in [1, 2] do
+    show = owned!(show, scope)
+
+    with %Team{} = team <- Show.team(show, position),
+         %TeamProfile{} = profile <- Repo.get_by(TeamProfile, id: profile_id, user_id: user_id) do
+      result =
+        Repo.transaction(fn ->
+          team = team |> Team.changeset(TeamProfile.team_attrs(profile)) |> Repo.update!()
+
+          profile.roster
+          |> Map.get("players", [])
+          |> Enum.each(fn attrs ->
+            case Repo.get_by(Player, team_id: team.id, name: attrs["name"]) do
+              nil -> %Player{team_id: team.id} |> Player.changeset(attrs) |> Repo.insert!()
+              player -> player |> Player.changeset(attrs) |> Repo.update!()
+            end
+          end)
+
+          team
+        end)
+
+      after_write(result, show)
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
   ## Operator actions
   #
   # These are the buttons an operator hits mid-match, when there is no time to
   # tab through a form.
+  #
+  # Games and talent are edited the same way — appended, deleted, reordered — so
+  # each of those actions is written once against a child collection, and the
+  # public function names the collection it works on.
+
+  @child_schemas %{games: Game, talents: Talent}
 
   @doc "Adds `delta` to a team's score, clamped at zero."
   def adjust_score(%Show{} = show, position, delta) when position in [1, 2] do
@@ -119,35 +281,95 @@ defmodule Showish.Broadcasts do
         |> after_write(show)
 
       nil ->
-        {:error, :no_such_team}
+        {:error, :not_found}
     end
   end
 
   @doc "Sets both teams back to zero."
   def reset_scores(%Show{} = show) do
-    Enum.each(List.wrap(show.teams), fn team ->
+    Enum.each(Show.teams(show), fn team ->
       team |> Team.changeset(%{"score" => 0}) |> Repo.update()
     end)
 
     {:ok, show |> reload() |> broadcast_show()}
   end
 
+  @doc "Applies a sport-specific operator action and broadcasts the new state."
+  def apply_sport_action(%Show{} = show, action, params \\ %{}) when is_binary(action) do
+    if show.sport == "baseball" do
+      case Baseball.apply_action(show, action, params) do
+        {:ok, game} -> {:ok, show |> refresh_baseball(game) |> broadcast_show()}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      with {:ok, state} <- Sport.transition(show.sport, show.sport_state, action, params) do
+        write_show(show, %{"sport_state" => state})
+      end
+    end
+  end
+
+  @doc "Resets sport state and both team scores as one operator action."
+  def reset_sport(%Show{} = show) do
+    if show.sport == "baseball" do
+      reset_baseball(show)
+    else
+      reset_legacy_sport(show)
+    end
+  end
+
+  defp reset_baseball(show) do
+    result =
+      Repo.transaction(fn ->
+        Enum.each(List.wrap(show.teams), fn team ->
+          team |> Team.changeset(%{"score" => 0}) |> Repo.update!()
+        end)
+
+        case Baseball.apply_action(show, "reset", %{}) do
+          {:ok, game} -> game
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+
+    case result do
+      {:ok, _game} -> {:ok, show |> reload() |> broadcast_show()}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp reset_legacy_sport(show) do
+    result =
+      Repo.transaction(fn ->
+        Enum.each(List.wrap(show.teams), fn team ->
+          team |> Team.changeset(%{"score" => 0}) |> Repo.update!()
+        end)
+
+        show
+        |> Show.changeset(%{"sport_state" => Sport.default_state(show.sport)})
+        |> Repo.update!()
+      end)
+
+    case result do
+      {:ok, show} -> {:ok, show |> reload() |> broadcast_show()}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   @doc "Flips which team is drawn on the left."
   def swap_sides(%Show{} = show) do
-    update_show(show, %{"swap_sides" => !show.swap_sides})
+    write_show(show, %{"swap_sides" => !show.swap_sides})
   end
 
   @doc "Moves the series pointer, clamped to the games that exist."
   def move_current_game(%Show{} = show, delta) do
-    count = max(length(List.wrap(show.games)), 1)
+    count = max(length(Show.games(show)), 1)
     next = show.current_game + delta
 
-    update_show(show, %{"current_game" => next |> max(1) |> min(count)})
+    write_show(show, %{"current_game" => next |> max(1) |> min(count)})
   end
 
   @doc "Jumps the series pointer to a specific 1-indexed game."
   def set_current_game(%Show{} = show, number) do
-    update_show(show, %{"current_game" => number})
+    write_show(show, %{"current_game" => number})
   end
 
   @doc """
@@ -157,66 +379,28 @@ defmodule Showish.Broadcasts do
   and undoes a call.
   """
   def set_game_winner(%Show{} = show, game_id, winner) when winner in ["a", "b", "draw"] do
-    case find_game(show, game_id) do
-      %Game{} = game ->
-        attrs =
-          if game.winner == winner,
-            do: %{"winner" => "", "completed" => false},
-            else: %{"winner" => winner, "completed" => true}
-
-        game
-        |> Game.changeset(attrs)
-        |> Repo.update()
-        |> after_write(show)
-
-      nil ->
-        {:error, :no_such_game}
-    end
+    with_child(show, :games, game_id, fn game ->
+      game
+      |> Game.changeset(winner_attrs(game, winner))
+      |> Repo.update()
+      |> after_write(show)
+    end)
   end
+
+  defp winner_attrs(%Game{winner: winner}, winner), do: %{"winner" => "", "completed" => false}
+  defp winner_attrs(%Game{}, winner), do: %{"winner" => winner, "completed" => true}
 
   @doc "Appends an empty game to the series."
-  def add_game(%Show{} = show) do
-    show
-    |> Ecto.build_assoc(:games)
-    |> Game.changeset(%{"position" => length(List.wrap(show.games))})
-    |> Repo.insert()
-    |> after_write(show)
-  end
+  def add_game(%Show{} = show), do: add_child(show, :games)
 
   @doc "Appends an empty talent row."
-  def add_talent(%Show{} = show) do
-    show
-    |> Ecto.build_assoc(:talents)
-    |> Talent.changeset(%{"position" => length(List.wrap(show.talents))})
-    |> Repo.insert()
-    |> after_write(show)
-  end
+  def add_talent(%Show{} = show), do: add_child(show, :talents)
 
   @doc "Removes a game from the series and renumbers what is left."
-  def delete_game(%Show{} = show, game_id) do
-    case find_game(show, game_id) do
-      %Game{} = game ->
-        Repo.delete(game)
-        renumber(Game, show.id)
-        {:ok, show |> reload() |> broadcast_show()}
-
-      nil ->
-        {:error, :no_such_game}
-    end
-  end
+  def delete_game(%Show{} = show, game_id), do: delete_child(show, :games, game_id)
 
   @doc "Removes a talent row and renumbers what is left."
-  def delete_talent(%Show{} = show, talent_id) do
-    case find_talent(show, talent_id) do
-      %Talent{} = talent ->
-        Repo.delete(talent)
-        renumber(Talent, show.id)
-        {:ok, show |> reload() |> broadcast_show()}
-
-      nil ->
-        {:error, :no_such_talent}
-    end
-  end
+  def delete_talent(%Show{} = show, talent_id), do: delete_child(show, :talents, talent_id)
 
   @doc """
   Moves a game up (`-1`) or down (`+1`) the running order.
@@ -230,9 +414,28 @@ defmodule Showish.Broadcasts do
   def move_talent(%Show{} = show, talent_id, delta),
     do: move_child(show, :talents, talent_id, delta)
 
+  defp add_child(%Show{} = show, key) do
+    schema = schema_for(key)
+
+    show
+    |> Ecto.build_assoc(key)
+    |> schema.changeset(%{"position" => length(Show.children(show, key))})
+    |> Repo.insert()
+    |> after_write(show)
+  end
+
+  defp delete_child(%Show{} = show, key, id) do
+    with_child(show, key, id, fn row ->
+      Repo.delete(row)
+      renumber(schema_for(key), show.id)
+
+      {:ok, show |> reload() |> broadcast_show()}
+    end)
+  end
+
   defp move_child(%Show{} = show, key, id, delta) do
     id = to_integer(id)
-    rows = show |> Map.fetch!(key) |> List.wrap()
+    rows = Show.children(show, key)
     index = Enum.find_index(rows, &(&1.id == id))
     target_index = index && index + delta
 
@@ -256,15 +459,23 @@ defmodule Showish.Broadcasts do
     end
   end
 
-  defp find_game(%Show{} = show, id) do
-    id = to_integer(id)
-    show.games |> List.wrap() |> Enum.find(&(&1.id == id))
+  # Every row action starts by finding the row on the show it was handed. A row
+  # that is not there means a control room got ahead of itself — an operator who
+  # hit remove twice — which is a stale click rather than something to raise on.
+  defp with_child(%Show{} = show, key, id, action) do
+    case find_child(show, key, id) do
+      nil -> {:error, :not_found}
+      row -> action.(row)
+    end
   end
 
-  defp find_talent(%Show{} = show, id) do
+  defp find_child(%Show{} = show, key, id) do
     id = to_integer(id)
-    show.talents |> List.wrap() |> Enum.find(&(&1.id == id))
+
+    show |> Show.children(key) |> Enum.find(&(&1.id == id))
   end
+
+  defp schema_for(key), do: Map.fetch!(@child_schemas, key)
 
   defp to_integer(id) when is_integer(id), do: id
 
@@ -315,6 +526,29 @@ defmodule Showish.Broadcasts do
         "secondary_color" => "#f8fafc"
       }
     ]
+  end
+
+  defp hydrate_baseball(%Show{sport: "baseball", baseball_game: %BaseballGame{}} = show) do
+    %{show | sport_state: Baseball.project(show)}
+  end
+
+  defp hydrate_baseball(%Show{} = show), do: show
+
+  # Live baseball controls are the hottest write path in the app. The show,
+  # series, and talent rows are already present on the socket and cannot have
+  # changed inside a baseball action, so only refresh the game ledger and team
+  # scores needed to build the next authoritative projection.
+  defp refresh_baseball(%Show{} = show, %BaseballGame{} = game) do
+    game = Repo.preload(game, Baseball.preloads(), force: true)
+
+    teams =
+      Team
+      |> where(show_id: ^show.id)
+      |> order_by(asc: :position)
+      |> Repo.all()
+
+    %{show | teams: teams, baseball_game: game}
+    |> hydrate_baseball()
   end
 
   # Forms hand us string keys and tests hand us atoms; Ecto insists on one or
