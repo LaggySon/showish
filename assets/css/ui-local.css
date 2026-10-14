@@ -220,18 +220,12 @@
 
 /* ---------- Connection (section 12.1) ---------- */
 
-/* LiveView's connection state, from the classes it sets on its root. The
-   same pattern as the other apps on the guide (transitmaps): "Live" in the top
-   bar only while connected; while the socket is down, one full-width notice
-   under the top bar, and the controls that need the server look and act
-   disabled. */
-.app-live,
+/* LiveView's connection state, from the classes it sets on its root. As in
+   the other apps on the guide (transitmaps): while the socket is down, one
+   full-width notice under the top bar, and the controls that need the server
+   look and act disabled. */
 .app-connection {
   display: none;
-}
-
-.phx-connected .app-live {
-  display: inline-flex;
 }
 
 :is(.phx-client-error, .phx-server-error) .app-connection {

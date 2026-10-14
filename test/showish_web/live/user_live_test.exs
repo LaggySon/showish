@@ -41,11 +41,11 @@ defmodule ShowishWeb.UserLiveTest do
       assert has_element?(view, ~s{details#user-menu a#sign-out[href="/users/log-out"]})
     end
 
-    test "shows the connection in the shell, as every app on the guide does", %{conn: conn} do
+    test "keeps the lost-connection notice under the top bar, and no Live badge", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      assert has_element?(view, "header.ui-topbar #connection-live.ui-badge")
       assert has_element?(view, "header.ui-topbar + #connection-lost.ui-notice")
+      refute has_element?(view, "header.ui-topbar .ui-badge")
     end
   end
 

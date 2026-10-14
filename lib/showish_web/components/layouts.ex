@@ -4,12 +4,11 @@ defmodule ShowishWeb.Layouts do
   used by your application.
 
   The app layout is the page shell from the Laggish design guide (DESIGN.md
-  section 5.2): a skip link, a top bar with the brand, the site nav, the
-  connection badge and the user menu, the app-wide notices, then `main`.
-  It matches the shell of the other apps built on the guide (transitmaps):
-  "Live" sits in the top bar while the socket is up, and a lost connection
-  is one full-width notice under it. Overlays do not use it; they render
-  into the bare `overlay_root` layout.
+  section 5.2): a skip link, a top bar with the brand, the site nav and the
+  user menu, the app-wide notices, then `main`. Like the other apps built on
+  the guide (transitmaps), a lost connection is one full-width notice under
+  the top bar. Overlays do not use it; they render into the bare
+  `overlay_root` layout.
   """
   use ShowishWeb, :html
 
@@ -53,16 +52,6 @@ defmodule ShowishWeb.Layouts do
           <.link navigate={~p"/"} aria-current={@section == "shows" && "page"}>Shows</.link>
         </nav>
         <div class="ui-topbar-aside">
-          <span
-            id="connection-live"
-            class="ui-badge app-live"
-            data-status={elem(ShowishWeb.Status.connection(:connected), 1)}
-          >
-            <span class="ui-dot" aria-hidden="true"></span>{elem(
-              ShowishWeb.Status.connection(:connected),
-              0
-            )}
-          </span>
           <.user_menu :if={@current_scope} current_scope={@current_scope} />
           <.link
             :if={!@current_scope && @section != "sign-in"}
