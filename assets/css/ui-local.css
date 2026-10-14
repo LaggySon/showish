@@ -24,26 +24,6 @@
   font-display: swap;
 }
 
-/* ---------- Fixes to guide classes ---------- */
-
-/* .ui-pre comes after .ui-truncate in components.css, so its pre-wrap wins and
-   a one-line URL wraps. Keep a truncated code line on one line. */
-.ui-pre.ui-truncate {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/* A toggle button that is on inverts, like a pressed chip (section 3.4). */
-.ui-button[aria-pressed="true"] {
-  color: var(--background);
-  background: var(--foreground);
-}
-
-.ui-button[aria-pressed="true"]:hover:not(:disabled) {
-  opacity: 0.85;
-}
-
 /* ---------- Page blocks ---------- */
 
 /* Flash notices sit under the top bar, above the page (as in transitmaps) */
