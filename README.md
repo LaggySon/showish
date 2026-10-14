@@ -351,9 +351,9 @@ for the between-games board.
 
 Everything above is safe to do while live. Writes go out over the open
 websocket, so overlays never flicker, reload or drop a frame when something
-changes. The **Live** badge in the top bar says that socket is up. If it goes
-away and a *Connection lost* strip appears under the top bar, nothing you press
-reaches the overlays until it reconnects; the buttons are greyed out until then.
+changes. If the socket drops, a *Connection lost* strip appears under the top
+bar: nothing you press reaches the overlays until it reconnects, and the
+buttons are greyed out until then.
 
 ## Scene reference
 
