@@ -46,8 +46,10 @@
 
 /* ---------- Page blocks ---------- */
 
+/* Flash notices sit under the top bar, above the page (as in transitmaps) */
 .app-notices > * {
-  margin-bottom: var(--space-4);
+  flex-shrink: 0;
+  margin: var(--space-4) var(--page-pad-x) 0;
 }
 
 .app-block {
@@ -218,19 +220,28 @@
 
 /* ---------- Connection (section 12.1) ---------- */
 
-/* LiveView puts phx-client-error or phx-server-error on its root while the
-   socket is down. The badge then says Offline, and the controls that need the
-   server look and act disabled. */
-.app-connection-disconnected {
+/* LiveView's connection state, from the classes it sets on its root. The
+   same pattern as the other apps on the guide (transitmaps): "Live" in the top
+   bar only while connected; while the socket is down, one full-width notice
+   under the top bar, and the controls that need the server look and act
+   disabled. */
+.app-live,
+.app-connection {
   display: none;
 }
 
-:is(.phx-client-error, .phx-server-error) .app-connection-connected {
-  display: none;
-}
-
-:is(.phx-client-error, .phx-server-error) .app-connection-disconnected {
+.phx-connected .app-live {
   display: inline-flex;
+}
+
+:is(.phx-client-error, .phx-server-error) .app-connection {
+  display: flex;
+}
+
+.app-connection {
+  flex-shrink: 0;
+  border-width: 0 0 1px;
+  border-radius: 0;
 }
 
 :is(.phx-client-error, .phx-server-error) :is(.ui-button, .ui-chip)[phx-click] {
@@ -439,8 +450,17 @@
 
 /* ---------- Top bar, sign-in, Overlay URLs ---------- */
 
+/* The user menu in the top bar (DESIGN.md section 7.15) */
 .app-user {
-  max-width: 18ch;
+  max-width: 22ch;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+#user-menu .ui-menu-panel {
+  min-width: 14rem;
 }
 
 /* Sign-in recipe (section 5.9): one panel, 22rem wide, a third of the way down */

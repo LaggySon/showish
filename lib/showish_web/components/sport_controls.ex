@@ -69,7 +69,12 @@ defmodule ShowishWeb.SportControls do
         </span>
       </div>
 
-      <details id="baseball-live-actions" open class="app-section">
+      <details
+        phx-mounted={JS.ignore_attributes(["open"])}
+        id="baseball-live-actions"
+        open
+        class="app-section"
+      >
         <summary class="app-section-title">
           <span class="app-collapsible-name">Live actions</span>
           <span class="ui-panel-title-aside app-matchup">
@@ -293,7 +298,12 @@ defmodule ShowishWeb.SportControls do
         </div>
       </details>
 
-      <details id="baseball-scoreboard" open class="app-section">
+      <details
+        phx-mounted={JS.ignore_attributes(["open"])}
+        id="baseball-scoreboard"
+        open
+        class="app-section"
+      >
         <summary class="app-section-title">
           <span class="app-collapsible-name">Scoreboard</span>
         </summary>
@@ -440,7 +450,11 @@ defmodule ShowishWeb.SportControls do
       </details>
 
       <section id="baseball-quick-changes" aria-label="Personnel changes">
-        <details id="baseball-personnel-change" class="app-section">
+        <details
+          phx-mounted={JS.ignore_attributes(["open"])}
+          id="baseball-personnel-change"
+          class="app-section"
+        >
           <summary class="app-section-title">
             <span class="app-collapsible-name">Personnel changes</span>
             <span class="ui-panel-title-aside">Change a pitcher or replace a lineup player.</span>
@@ -460,7 +474,7 @@ defmodule ShowishWeb.SportControls do
         </details>
       </section>
 
-      <details id="baseball-rosters" class="app-section">
+      <details phx-mounted={JS.ignore_attributes(["open"])} id="baseball-rosters" class="app-section">
         <summary class="app-section-title">
           <span class="app-collapsible-name">Teams and lineups</span>
           <span class="ui-panel-title-aside">
@@ -570,7 +584,11 @@ defmodule ShowishWeb.SportControls do
         </div>
       </div>
 
-      <details id="baseball-graphics-controls" class="app-section">
+      <details
+        phx-mounted={JS.ignore_attributes(["open"])}
+        id="baseball-graphics-controls"
+        class="app-section"
+      >
         <summary class="app-section-title">
           <span class="app-collapsible-name">Broadcast graphics</span>
           <span class="ui-panel-title-aside">

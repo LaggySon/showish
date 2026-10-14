@@ -183,6 +183,21 @@ if (confirmDialog) {
   })
 }
 
+// Menus are <details class="ui-menu">, which do not close by themselves: close
+// them on a click outside and on Escape (DESIGN.md section 7.15).
+document.addEventListener("click", (event) => {
+  for (const menu of document.querySelectorAll("details.ui-menu[open]")) {
+    if (!menu.contains(event.target)) { menu.open = false }
+  }
+})
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") { return }
+  for (const menu of document.querySelectorAll("details.ui-menu[open]")) {
+    menu.open = false
+    menu.querySelector("summary").focus()
+  }
+})
+
 // A slow navigation keeps the old page on screen under a static "Loading…"
 // overlay (DESIGN.md section 7.14). Nothing moves; fast navigations show nothing.
 // A lost connection also starts a page load ("error"); the connection notice
