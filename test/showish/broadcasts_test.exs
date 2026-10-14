@@ -302,7 +302,7 @@ defmodule Showish.BroadcastsTest do
              }
     end
 
-    test "pitching changes preserve each pitcher's own count" do
+    test "the substitution action handles pitchers and preserves their counts" do
       show = show_fixture(%{sport: "baseball"})
 
       assert {:ok, show} =
@@ -323,6 +323,7 @@ defmodule Showish.BroadcastsTest do
                  "pitcher_change" => %{"position" => "2", "name" => "Second Arm"}
                })
 
+      second_id = show.sport_state["pitchers"]["2"]["id"]
       assert show.sport_state["pitchers"]["2"]["pitch_count"] == 0
 
       assert {:ok, show} =
@@ -332,11 +333,11 @@ defmodule Showish.BroadcastsTest do
                })
 
       assert {:ok, show} =
-               Broadcasts.apply_sport_action(show, "change_pitcher", %{
-                 "pitcher_change" => %{
+               Broadcasts.apply_sport_action(show, "substitute_player", %{
+                 "substitution" => %{
                    "position" => "2",
-                   "player_id" => to_string(first_id),
-                   "name" => ""
+                   "outgoing_player_id" => to_string(second_id),
+                   "incoming_player_id" => to_string(first_id)
                  }
                })
 
