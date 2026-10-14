@@ -28,7 +28,9 @@ defmodule ShowishWeb.ControlLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
-      view |> element("#score-down-2") |> render_click()
+      # The button is disabled at zero, and the server clamps a stray event too.
+      assert has_element?(view, "#score-down-2[disabled]")
+      render_click(view, "score", %{"position" => "2", "delta" => "-1"})
 
       assert Show.team(Broadcasts.get_show!(scope, show.id), 2).score == 0
     end
@@ -49,7 +51,10 @@ defmodule ShowishWeb.ControlLiveTest do
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
       view |> element("#next-game") |> render_click()
-      view |> element("#next-game") |> render_click()
+
+      # On the last game the button is disabled, and the server clamps a stray event too.
+      assert has_element?(view, "#next-game[disabled]")
+      render_click(view, "step_game", %{"delta" => "1"})
 
       assert Broadcasts.get_show!(scope, show.id).current_game == 2
     end
@@ -360,8 +365,47 @@ defmodule ShowishWeb.ControlLiveTest do
         view |> element("#baseball-pitch-strike") |> render_click()
       end
 
-      assert has_element?(view, "#baseball-batter-1-0 span.font-mono", "0-1")
-      assert has_element?(view, "#baseball-batter-1-1 span.font-mono", "0-0")
+      assert has_element?(view, "#baseball-batter-1-0 span.ui-mono", "0-1")
+      assert has_element?(view, "#baseball-batter-1-1 span.ui-mono", "0-0")
+    end
+  end
+
+  describe "the live controls" do
+    test "explain a control that does not apply instead of hiding it", %{conn: conn, scope: scope} do
+      show = show_fixture(scope)
+
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      assert has_element?(view, ~s{#reset-scores[disabled][title="Both scores are already 0"]})
+      assert has_element?(view, ~s{#previous-game[disabled][title="Game 1 is the first game"]})
+
+      view |> element("#score-up-1") |> render_click()
+
+      assert has_element?(view, ~s{#reset-scores[data-confirm]:not([disabled])})
+    end
+
+    test "show swapped sides as a pressed toggle", %{conn: conn, scope: scope} do
+      show = show_fixture(scope)
+
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      assert has_element?(view, ~s{#swap-sides[aria-pressed="false"]})
+      view |> element("#swap-sides") |> render_click()
+      assert has_element?(view, ~s{#swap-sides[aria-pressed="true"]})
+    end
+
+    test "baseball plays that cannot happen say why", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      assert has_element?(
+               view,
+               ~s{#baseball-play-sac-fly[disabled][title="Needs a runner on third and fewer than 2 outs"]}
+             )
+
+      assert has_element?(view, ~s{#baseball-undo[disabled][title="Nothing to undo yet"]})
+      assert has_element?(view, ~s{#baseball-reset-game[data-confirm]})
     end
   end
 
@@ -390,7 +434,9 @@ defmodule ShowishWeb.ControlLiveTest do
         |> form("#control-form")
         |> render_change(show: %{title: ""})
 
-      assert html =~ "can&#39;t be blank"
+      assert html =~ "Can&#39;t be blank."
+      assert has_element?(view, "#show_title[aria-invalid=true]")
+      assert has_element?(view, "#save-failed")
       assert Broadcasts.get_show!(scope, show.id).title == "Keep Me"
     end
   end
@@ -404,6 +450,33 @@ defmodule ShowishWeb.ControlLiveTest do
       view |> element("#add-game") |> render_click()
 
       assert length(Broadcasts.get_show!(scope, show.id).games) == 1
+    end
+
+    test "removing a game asks first", %{conn: conn, scope: scope} do
+      show = show_with_games_fixture(2, scope)
+      [first, _second] = show.games
+
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      view
+      |> element(
+        ~s{#game-#{first.id} button[phx-click="delete_game"][data-confirm="Remove game 1?"]}
+      )
+      |> render_click()
+
+      assert length(Broadcasts.get_show!(scope, show.id).games) == 1
+    end
+
+    test "the game on air carries the rail and the On air state", %{conn: conn, scope: scope} do
+      show = show_with_games_fixture(2, scope)
+      [first, _second] = show.games
+
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
+
+      assert has_element?(
+               view,
+               ~s{#game-#{first.id}[aria-current="true"].ui-rail .ui-badge[data-status="progress"]}
+             )
     end
 
     test "adding a person appends a talent row", %{conn: conn, scope: scope} do
@@ -423,9 +496,26 @@ defmodule ShowishWeb.ControlLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control")
 
-      html = view |> element(~s{button[phx-value-scene="series"]}) |> render_click()
+      view |> form("#preview-form", %{scene: "series"}) |> render_change()
 
-      assert html =~ "/overlay/#{show.slug}/series"
+      assert_patch(view, "/shows/#{show.slug}/control?scene=series")
+      assert has_element?(view, ~s{#preview-series[src="/overlay/#{show.slug}/series"]})
+    end
+
+    test "keeps the previewed scene across a refresh", %{conn: conn, scope: scope} do
+      show = show_fixture(scope)
+
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control?scene=credits")
+
+      assert has_element?(view, ~s{#preview-credits[src="/overlay/#{show.slug}/credits"]})
+    end
+
+    test "falls back to a scene the sport offers", %{conn: conn, scope: scope} do
+      show = show_fixture(scope, %{sport: "baseball"})
+
+      {:ok, view, _html} = live(conn, ~p"/shows/#{show.slug}/control?scene=series")
+
+      assert has_element?(view, ~s{#preview-scorebug[src="/overlay/#{show.slug}/scorebug"]})
     end
   end
 

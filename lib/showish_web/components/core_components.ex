@@ -2,29 +2,18 @@ defmodule ShowishWeb.CoreComponents do
   @moduledoc """
   Provides core UI components.
 
-  At first glance, this module may seem daunting, but its goal is to provide
-  core building blocks for your application, such as tables, forms, and
-  inputs. The components consist mostly of markup and are well-documented
-  with doc strings and declarative assigns. You may customize and style
-  them in any way you want, based on your application growth and needs.
+  The control room follows the Laggish design guide (`DESIGN.md` in the
+  project root): flat, dense, grayscale chrome with color only where something
+  has a state. These components render the guide's `ui-*` classes from
+  `assets/css/components.css`, so templates keep using `<.button>`, `<.input>`
+  and friends and get the look for free.
 
-  The foundation for styling is Tailwind CSS, a utility-first CSS framework,
-  augmented with daisyUI, a Tailwind CSS plugin that provides UI components
-  and themes. Here are useful references:
+  Tailwind is still available for layout (flex, grid, gaps). Colors, type,
+  borders and shapes come from the `ui-*` classes and the tokens, never from
+  utilities.
 
-    * [daisyUI](https://daisyui.com/docs/intro/) - a good place to get
-      started and see the available components.
-
-    * [Tailwind CSS](https://tailwindcss.com) - the foundational framework
-      we build on. You will use it for layout, sizing, flexbox, grid, and
-      spacing.
-
-    * [Heroicons](https://heroicons.com) - see `icon/1` for usage.
-
-    * [Phoenix.Component](https://hexdocs.pm/phoenix_live_view/Phoenix.Component.html) -
-      the component system used by Phoenix. Some components, such as `<.link>`
-      and `<.form>`, are defined there.
-
+  The overlays are product output with their own design and do not use these
+  components; see `ShowishWeb.OverlayComponents`.
   """
   use Phoenix.Component
   use Gettext, backend: ShowishWeb.Gettext
@@ -32,16 +21,18 @@ defmodule ShowishWeb.CoreComponents do
   alias Phoenix.LiveView.JS
 
   @doc """
-  Renders flash notices.
+  Renders a flash message as a notice at the top of the page.
+
+  Info messages are a progress notice, errors a failure notice. A notice stays
+  until the user dismisses it or navigates away; there are no toasts.
 
   ## Examples
 
       <.flash kind={:info} flash={@flash} />
-      <.flash kind={:info} phx-mounted={show("#flash")}>Welcome Back!</.flash>
+      <.flash kind={:error} id="save-error">Save failed.</.flash>
   """
   attr :id, :string, doc: "the optional id of flash container"
   attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
-  attr :title, :string, default: nil
   attr :kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup"
   attr :rest, :global, doc: "the arbitrary HTML attributes to add to the flash container"
 
@@ -54,74 +45,79 @@ defmodule ShowishWeb.CoreComponents do
     <div
       :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
       id={@id}
-      phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
-      role="alert"
-      class="toast toast-top toast-end z-50"
+      class="ui-notice"
+      data-status={if @kind == :error, do: "failure", else: "progress"}
+      role={if @kind == :error, do: "alert", else: "status"}
       {@rest}
     >
-      <div class={[
-        "alert w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
-        @kind == :info && "alert-info",
-        @kind == :error && "alert-error"
-      ]}>
-        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
-        <div>
-          <p :if={@title} class="font-semibold">{@title}</p>
-          <p>{msg}</p>
-        </div>
-        <div class="flex-1" />
-        <button type="button" class="group self-start cursor-pointer" aria-label={gettext("close")}>
-          <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
-        </button>
-      </div>
+      <span>{msg}</span>
+      <button
+        type="button"
+        class="ui-button ui-button--ghost ui-button--small ui-notice-end"
+        aria-label={gettext("Dismiss")}
+        phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
+      >
+        ✕
+      </button>
     </div>
     """
   end
 
   @doc """
-  Renders a button with navigation support.
+  Renders a button, or a link that looks like one.
+
+  Labels are a verb or a verb and a noun. An action that adds an item starts
+  with "+ ". While the action runs, pass `phx-disable-with="Saving…"`.
 
   ## Examples
 
-      <.button>Send!</.button>
-      <.button phx-click="go" variant="primary">Send!</.button>
-      <.button navigate={~p"/"}>Home</.button>
+      <.button>Retry</.button>
+      <.button variant="primary" phx-disable-with="Creating…">Create show</.button>
+      <.button variant="danger" size="small" data-confirm="Delete 1 show?">Delete</.button>
+      <.button navigate={~p"/"} variant="ghost">Cancel</.button>
   """
-  attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
-  attr :class, :any
-  attr :variant, :string, values: ~w(primary)
+  attr :rest, :global,
+    include: ~w(href navigate patch method download name value disabled type form target)
+
+  attr :class, :any, default: nil, doc: "extra classes, for layout only"
+
+  attr :variant, :string,
+    default: nil,
+    values: [nil | ~w(primary danger quiet ghost)],
+    doc: "primary is the one commit action of a region, danger is destructive"
+
+  attr :size, :string, default: nil, values: [nil | ~w(compact small)]
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
-
     assigns =
-      assign_new(assigns, :class, fn ->
-        ["btn", Map.fetch!(variants, assigns[:variant])]
-      end)
+      assign(assigns, :classes, [
+        "ui-button",
+        assigns.variant && "ui-button--#{assigns.variant}",
+        assigns.size && "ui-button--#{assigns.size}",
+        assigns.class
+      ])
 
     if rest[:href] || rest[:navigate] || rest[:patch] do
       ~H"""
-      <.link class={@class} {@rest}>
-        {render_slot(@inner_block)}
-      </.link>
+      <.link class={@classes} {@rest}>{render_slot(@inner_block)}</.link>
       """
     else
       ~H"""
-      <button class={@class} {@rest}>
-        {render_slot(@inner_block)}
-      </button>
+      <button class={@classes} {@rest}>{render_slot(@inner_block)}</button>
       """
     end
   end
 
   @doc """
-  Renders an input with label and error messages.
+  Renders an input with its label, hint and error messages.
 
   A `Phoenix.HTML.FormField` may be passed as argument,
   which is used to retrieve the input name, id, and values.
   Otherwise all attributes may be passed explicitly.
+
+  The label sits above the field and the hint under it. Values are set in the
+  mono face; pass `prose` for a field that holds a sentence or a name.
 
   ## Types
 
@@ -129,7 +125,11 @@ defmodule ShowishWeb.CoreComponents do
 
     * You may also set `type="select"` to render a `<select>` tag
 
-    * `type="checkbox"` is used exclusively to render boolean values
+    * `type="checkbox"` is used exclusively to render boolean values, with
+      the label to the right of the box
+
+    * `type="color"` renders the picker next to its value in mono, because a
+      color chosen by a user is shown as a swatch and its hex code
 
     * For live file uploads, see `Phoenix.Component.live_file_input/1`
 
@@ -140,8 +140,8 @@ defmodule ShowishWeb.CoreComponents do
   ## Examples
 
   ```heex
-  <.input field={@form[:email]} type="email" />
-  <.input name="my-input" errors={["oh no!"]} />
+  <.input field={@form[:title]} label="Title" prose />
+  <.input field={@form[:slug]} label="URL slug" hint="Part of every overlay URL." />
   ```
 
   ## Select type
@@ -159,6 +159,7 @@ defmodule ShowishWeb.CoreComponents do
   attr :id, :any, default: nil
   attr :name, :any
   attr :label, :string, default: nil
+  attr :hint, :string, default: nil, doc: "a short line under the field"
   attr :value, :any
 
   attr :type, :string,
@@ -174,12 +175,17 @@ defmodule ShowishWeb.CoreComponents do
   attr :prompt, :string, default: nil, doc: "the prompt for select inputs"
   attr :options, :list, doc: "the options to pass to Phoenix.HTML.Form.options_for_select/2"
   attr :multiple, :boolean, default: false, doc: "the multiple flag for select inputs"
-  attr :class, :any, default: nil, doc: "the input class to use over defaults"
-  attr :error_class, :any, default: nil, doc: "the input error class to use over defaults"
+  attr :prose, :boolean, default: false, doc: "set the value in the sans face"
+
+  attr :required, :boolean,
+    default: false,
+    doc: "mark the field as required; the server still validates it"
+
+  attr :class, :any, default: nil, doc: "extra classes for the field wrapper, for layout only"
 
   attr :rest, :global,
     include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
-                multiple pattern placeholder readonly required rows size step)
+                multiple pattern placeholder readonly rows size step)
 
   def input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     errors = if Phoenix.Component.used_input?(field), do: field.errors, else: []
@@ -200,13 +206,15 @@ defmodule ShowishWeb.CoreComponents do
 
   def input(%{type: "checkbox"} = assigns) do
     assigns =
-      assign_new(assigns, :checked, fn ->
+      assigns
+      |> assign_new(:checked, fn ->
         Phoenix.HTML.Form.normalize_value("checkbox", assigns[:value])
       end)
+      |> assign_described_by()
 
     ~H"""
-    <div class="fieldset mb-2">
-      <label>
+    <div class={["ui-field", @class]}>
+      <label class="app-check">
         <input
           type="hidden"
           name={@name}
@@ -214,134 +222,234 @@ defmodule ShowishWeb.CoreComponents do
           disabled={@rest[:disabled]}
           form={@rest[:form]}
         />
-        <span class="label">
-          <input
-            type="checkbox"
-            id={@id}
-            name={@name}
-            value="true"
-            checked={@checked}
-            class={@class || "checkbox checkbox-sm"}
-            {@rest}
-          />{@label}
-        </span>
+        <input
+          type="checkbox"
+          id={@id}
+          name={@name}
+          value="true"
+          checked={@checked}
+          aria-invalid={@errors != [] && "true"}
+          aria-required={@required && "true"}
+          aria-describedby={@described_by}
+          {@rest}
+        />
+        <span>{@label}</span>
       </label>
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <.hint :if={@hint} id={"#{@id}-hint"}>{@hint}</.hint>
+      <.error :if={@errors != []} id={"#{@id}-error"} messages={@errors} />
     </div>
     """
   end
 
   def input(%{type: "select"} = assigns) do
+    assigns = assign_described_by(assigns)
+
     ~H"""
-    <div class="fieldset mb-2">
-      <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <select
-          id={@id}
-          name={@name}
-          class={[@class || "w-full select", @errors != [] && (@error_class || "select-error")]}
-          multiple={@multiple}
-          {@rest}
-        >
-          <option :if={@prompt} value="">{@prompt}</option>
-          {Phoenix.HTML.Form.options_for_select(@options, @value)}
-        </select>
+    <div class={["ui-field", @class]}>
+      <label :if={@label} for={@id} class="ui-field-label">
+        {@label}<span :if={@required} class="ui-required" aria-hidden="true">*</span>
       </label>
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <select
+        id={@id}
+        name={@name}
+        class="ui-select"
+        multiple={@multiple}
+        aria-invalid={@errors != [] && "true"}
+        aria-required={@required && "true"}
+        aria-describedby={@described_by}
+        {@rest}
+      >
+        <option :if={@prompt} value="">{@prompt}</option>
+        {Phoenix.HTML.Form.options_for_select(@options, @value)}
+      </select>
+      <.hint :if={@hint} id={"#{@id}-hint"}>{@hint}</.hint>
+      <.error :if={@errors != []} id={"#{@id}-error"} messages={@errors} />
     </div>
     """
   end
 
   def input(%{type: "textarea"} = assigns) do
+    assigns = assign_described_by(assigns)
+
     ~H"""
-    <div class="fieldset mb-2">
-      <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <textarea
-          id={@id}
-          name={@name}
-          class={[
-            @class || "w-full textarea",
-            @errors != [] && (@error_class || "textarea-error")
-          ]}
-          {@rest}
-        >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
+    <div class={["ui-field", @class]}>
+      <label :if={@label} for={@id} class="ui-field-label">
+        {@label}<span :if={@required} class="ui-required" aria-hidden="true">*</span>
       </label>
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <textarea
+        id={@id}
+        name={@name}
+        class={["ui-textarea", @prose && "app-prose"]}
+        aria-invalid={@errors != [] && "true"}
+        aria-required={@required && "true"}
+        aria-describedby={@described_by}
+        {@rest}
+      >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
+      <.hint :if={@hint} id={"#{@id}-hint"}>{@hint}</.hint>
+      <.error :if={@errors != []} id={"#{@id}-error"} messages={@errors} />
+    </div>
+    """
+  end
+
+  def input(%{type: "color"} = assigns) do
+    assigns = assign_described_by(assigns)
+
+    ~H"""
+    <div class={["ui-field", @class]}>
+      <label :if={@label} for={@id} class="ui-field-label">
+        {@label}<span :if={@required} class="ui-required" aria-hidden="true">*</span>
+      </label>
+      <div class="app-color">
+        <input
+          type="color"
+          name={@name}
+          id={@id}
+          value={Phoenix.HTML.Form.normalize_value("color", @value)}
+          class="app-color-input"
+          aria-invalid={@errors != [] && "true"}
+          aria-required={@required && "true"}
+          aria-describedby={@described_by}
+          {@rest}
+        />
+        <span class="ui-mono">{format_color(@value)}</span>
+      </div>
+      <.hint :if={@hint} id={"#{@id}-hint"}>{@hint}</.hint>
+      <.error :if={@errors != []} id={"#{@id}-error"} messages={@errors} />
     </div>
     """
   end
 
   # All other inputs text, datetime-local, url, password, etc. are handled here...
   def input(assigns) do
+    assigns = assign_described_by(assigns)
+
     ~H"""
-    <div class="fieldset mb-2">
-      <label>
-        <span :if={@label} class="label mb-1">{@label}</span>
-        <input
-          type={@type}
-          name={@name}
-          id={@id}
-          value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-          class={[
-            @class || "w-full input",
-            @errors != [] && (@error_class || "input-error")
-          ]}
-          {@rest}
-        />
+    <div class={["ui-field", @class]}>
+      <label :if={@label} for={@id} class="ui-field-label">
+        {@label}<span :if={@required} class="ui-required" aria-hidden="true">*</span>
       </label>
-      <.error :for={msg <- @errors}>{msg}</.error>
+      <input
+        type={@type}
+        name={@name}
+        id={@id}
+        value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+        class={["ui-input", @prose && "app-prose"]}
+        aria-invalid={@errors != [] && "true"}
+        aria-required={@required && "true"}
+        aria-describedby={@described_by}
+        {@rest}
+      />
+      <.hint :if={@hint} id={"#{@id}-hint"}>{@hint}</.hint>
+      <.error :if={@errors != []} id={"#{@id}-error"} messages={@errors} />
     </div>
     """
   end
 
-  # Helper used by inputs to generate form errors
-  defp error(assigns) do
+  # Points the input at its hint and its error, so a screen reader reads both.
+  defp assign_described_by(assigns) do
+    ids =
+      [assigns.hint && "#{assigns.id}-hint", assigns.errors != [] && "#{assigns.id}-error"]
+      |> Enum.filter(& &1)
+
+    assign(assigns, :described_by, if(ids != [], do: Enum.join(ids, " ")))
+  end
+
+  defp format_color("#" <> _ = hex), do: String.upcase(hex)
+  defp format_color(_value), do: "—"
+
+  attr :id, :string, required: true
+  slot :inner_block, required: true
+
+  defp hint(assigns) do
     ~H"""
-    <p class="mt-1.5 flex gap-2 items-center text-sm text-error">
-      <.icon name="hero-exclamation-circle" class="size-5" />
-      {render_slot(@inner_block)}
-    </p>
+    <span id={@id} class="ui-hint">{render_slot(@inner_block)}</span>
     """
   end
 
+  # Helper used by inputs to generate form errors. Ecto's messages are
+  # fragments ("can't be blank"); the hint writes them as sentences.
+  attr :id, :string, required: true
+  attr :messages, :list, required: true
+
+  defp error(assigns) do
+    ~H"""
+    <span id={@id} class="ui-hint ui-hint--error">{Enum.map_join(@messages, " ", &sentence/1)}</span>
+    """
+  end
+
+  defp sentence(message) do
+    {first, rest} = String.split_at(message, 1)
+    String.upcase(first) <> String.trim_trailing(rest, ".") <> "."
+  end
+
   @doc """
-  Renders a header with title.
+  Renders the page header: the title on the left and a muted aside on the
+  right (counts, state, actions), baseline-aligned.
+
+  ## Examples
+
+      <.header>
+        Shows
+        <:aside><span class="ui-mono">3 shows</span></:aside>
+      </.header>
   """
   slot :inner_block, required: true
-  slot :subtitle
-  slot :actions
+  slot :aside, doc: "counts, state and the page's actions, on the right"
 
   def header(assigns) do
     ~H"""
-    <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
-      <div>
-        <h1 class="text-lg font-semibold leading-8">
-          {render_slot(@inner_block)}
-        </h1>
-        <p :if={@subtitle != []} class="text-sm text-base-content/70">
-          {render_slot(@subtitle)}
-        </p>
-      </div>
-      <div class="flex-none">{render_slot(@actions)}</div>
+    <header class="ui-page-header">
+      <h1 class="ui-title">{render_slot(@inner_block)}</h1>
+      <div :if={@aside != []} class="ui-title-aside">{render_slot(@aside)}</div>
     </header>
     """
   end
 
   @doc """
-  Renders a table with generic styling.
+  Renders a panel: a hairline box with a micro-label title.
+
+  ## Examples
+
+      <.panel id="match" title="Match">
+        <:aside>saved 2s ago</:aside>
+        ...
+      </.panel>
+  """
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :class, :any, default: nil
+  attr :rest, :global
+  slot :aside, doc: "a short note or controls on the right of the title row"
+  slot :inner_block, required: true
+
+  def panel(assigns) do
+    ~H"""
+    <section id={@id} class={["ui-panel", @class]} aria-labelledby={"#{@id}-title"} {@rest}>
+      <h2 class="ui-panel-title" id={"#{@id}-title"}>
+        {@title}
+        <span :if={@aside != []} class="ui-panel-title-aside">{render_slot(@aside)}</span>
+      </h2>
+      {render_slot(@inner_block)}
+    </section>
+    """
+  end
+
+  @doc """
+  Renders a table.
+
+  Cells do not wrap. Give a column `class="ui-cell-mono"` for IDs and values,
+  `"ui-cell-num"` for numbers and `"ui-cell-wrap"` for prose.
 
   ## Examples
 
       <.table id="users" rows={@users}>
-        <:col :let={user} label="id">{user.id}</:col>
-        <:col :let={user} label="username">{user.username}</:col>
+        <:col :let={user} label="ID" class="ui-cell-mono">{user.id}</:col>
+        <:col :let={user} label="Username">{user.username}</:col>
       </.table>
   """
   attr :id, :string, required: true
   attr :rows, :list, required: true
   attr :row_id, :any, default: nil, doc: "the function for generating the row id"
-  attr :row_click, :any, default: nil, doc: "the function for handling phx-click on each row"
 
   attr :row_item, :any,
     default: &Function.identity/1,
@@ -349,6 +457,7 @@ defmodule ShowishWeb.CoreComponents do
 
   slot :col, required: true do
     attr :label, :string
+    attr :class, :string
   end
 
   slot :action, doc: "the slot for showing user actions in the last table column"
@@ -360,39 +469,37 @@ defmodule ShowishWeb.CoreComponents do
       end
 
     ~H"""
-    <table class="table table-zebra">
-      <thead>
-        <tr>
-          <th :for={col <- @col}>{col[:label]}</th>
-          <th :if={@action != []}>
-            <span class="sr-only">{gettext("Actions")}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody id={@id} phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}>
-        <tr :for={row <- @rows} id={@row_id && @row_id.(row)}>
-          <td
-            :for={col <- @col}
-            phx-click={@row_click && @row_click.(row)}
-            class={@row_click && "hover:cursor-pointer"}
-          >
-            {render_slot(col, @row_item.(row))}
-          </td>
-          <td :if={@action != []} class="w-0 font-semibold">
-            <div class="flex gap-4">
-              <%= for action <- @action do %>
-                {render_slot(action, @row_item.(row))}
-              <% end %>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="ui-table-wrap">
+      <table class="ui-table">
+        <thead>
+          <tr>
+            <th :for={col <- @col} class={col[:class]}>{col[:label]}</th>
+            <th :if={@action != []}>
+              <span class="ui-sr-only">{gettext("Actions")}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody id={@id} phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}>
+          <tr :for={row <- @rows} id={@row_id && @row_id.(row)}>
+            <td :for={col <- @col} class={col[:class]}>
+              {render_slot(col, @row_item.(row))}
+            </td>
+            <td :if={@action != []}>
+              <div class="ui-button-group app-row-actions">
+                <%= for action <- @action do %>
+                  {render_slot(action, @row_item.(row))}
+                <% end %>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     """
   end
 
   @doc """
-  Renders a data list.
+  Renders a key-value list.
 
   ## Examples
 
@@ -407,65 +514,58 @@ defmodule ShowishWeb.CoreComponents do
 
   def list(assigns) do
     ~H"""
-    <ul class="list">
-      <li :for={item <- @item} class="list-row">
-        <div class="list-col-grow">
-          <div class="font-bold">{item.title}</div>
-          <div>{render_slot(item)}</div>
-        </div>
-      </li>
-    </ul>
+    <dl class="ui-kv">
+      <%= for item <- @item do %>
+        <dt>{item.title}</dt>
+        <dd>{render_slot(item)}</dd>
+      <% end %>
+    </dl>
     """
   end
 
   @doc """
-  Renders a [Heroicon](https://heroicons.com).
+  Renders a glyph.
 
-  Heroicons come in three styles – outline, solid, and mini.
-  By default, the outline style is used, but solid and mini may
-  be applied by using the `-solid` and `-mini` suffix.
-
-  You can customize the size and colors of the icons by setting
-  width, height, and background color classes.
-
-  Icons are extracted from the `deps/heroicons` directory and bundled within
-  your compiled app.css by the plugin in `assets/vendor/heroicons.js`.
+  The design guide uses Unicode glyphs instead of an icon library. The names
+  are the Heroicon names this app used before, mapped to their glyph. A glyph
+  next to a word is decoration; an icon-only button needs an `aria-label`.
 
   ## Examples
 
       <.icon name="hero-x-mark" />
-      <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
+      <.icon name="hero-arrow-path" />
   """
   attr :name, :string, required: true
-  attr :class, :any, default: "size-4"
 
-  def icon(%{name: "hero-" <> _} = assigns) do
+  @glyphs %{
+    "hero-x-mark" => "✕",
+    "hero-arrow-up-mini" => "↑",
+    "hero-arrow-down-mini" => "↓",
+    "hero-arrows-right-left-mini" => "⇄",
+    "hero-arrow-path" => "↻",
+    "hero-pencil" => "✎",
+    "hero-arrow-top-right-on-square" => "↗",
+    "hero-check" => "✓"
+  }
+
+  def icon(%{name: name} = assigns) do
+    assigns = assign(assigns, :glyph, Map.fetch!(@glyphs, name))
+
     ~H"""
-    <span class={[@name, @class]} />
+    <span aria-hidden="true">{@glyph}</span>
     """
   end
 
   ## JS Commands
 
+  # Nothing moves or fades in (DESIGN.md section 8), so these show and hide
+  # without a transition.
   def show(js \\ %JS{}, selector) do
-    JS.show(js,
-      to: selector,
-      time: 300,
-      transition:
-        {"transition-all ease-out duration-300",
-         "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95",
-         "opacity-100 translate-y-0 sm:scale-100"}
-    )
+    JS.show(js, to: selector)
   end
 
   def hide(js \\ %JS{}, selector) do
-    JS.hide(js,
-      to: selector,
-      time: 200,
-      transition:
-        {"transition-all ease-in duration-200", "opacity-100 translate-y-0 sm:scale-100",
-         "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"}
-    )
+    JS.hide(js, to: selector)
   end
 
   @doc """

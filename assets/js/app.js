@@ -23,7 +23,6 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/showish"
-import topbar from "../vendor/topbar"
 
 // Overlays are authored on a fixed 1920x1080 canvas so that what the operator
 // sees in the preview is pixel-identical to what the broadcast software
@@ -43,7 +42,8 @@ const OverlayScale = {
 }
 
 // Copies the overlay URL next to it, so an operator can paste straight into a
-// browser source without leaving the page.
+// browser source without leaving the page. The label reads "Copied" for two
+// seconds, then goes back.
 const ClipboardCopy = {
   mounted() {
     this.el.addEventListener("click", async () => {
@@ -59,46 +59,162 @@ const ClipboardCopy = {
         document.execCommand("copy")
         scratch.remove()
       }
+      // A named button ("Copy the Scorebug URL") says Copied to a screen reader too.
       const original = this.el.dataset.originalLabel || this.el.textContent
+      const originalName = this.el.dataset.originalName || this.el.getAttribute("aria-label")
       this.el.dataset.originalLabel = original
+      if (originalName) {
+        this.el.dataset.originalName = originalName
+        this.el.setAttribute("aria-label", "Copied")
+      }
       this.el.textContent = "Copied"
       clearTimeout(this.resetTimer)
-      this.resetTimer = setTimeout(() => { this.el.textContent = original }, 1200)
+      this.resetTimer = setTimeout(() => {
+        this.el.textContent = original
+        if (originalName) { this.el.setAttribute("aria-label", originalName) }
+      }, 2000)
     })
   },
   destroyed() { clearTimeout(this.resetTimer) }
+}
+
+// The System / Light / Dark radio group in the top bar. The choice itself is
+// applied by the script in root.html.heex; this marks the current one and moves
+// it with the arrow keys (a roving tabindex, DESIGN.md section 7.3).
+const ThemePicker = {
+  mounted() {
+    this.options = [...this.el.querySelectorAll("[role=radio]")]
+    this.mark(localStorage.getItem("phx:theme") || "system")
+    this.el.addEventListener("click", (event) => {
+      const option = event.target.closest("[role=radio]")
+      if (option) { this.choose(option) }
+    })
+    this.el.addEventListener("keydown", (event) => {
+      const step = {ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1}[event.key]
+      if (!step) { return }
+      event.preventDefault()
+      const index = this.options.indexOf(document.activeElement)
+      this.choose(this.options[(index + step + this.options.length) % this.options.length])
+    })
+    this.onStorage = (event) => event.key === "phx:theme" && this.mark(event.newValue || "system")
+    window.addEventListener("storage", this.onStorage)
+  },
+  choose(option) {
+    option.dispatchEvent(new Event("phx:set-theme", {bubbles: true}))
+    this.mark(option.dataset.phxTheme)
+    option.focus()
+  },
+  mark(theme) {
+    for (const option of this.options) {
+      const on = option.dataset.phxTheme === theme
+      option.setAttribute("aria-checked", String(on))
+      option.tabIndex = on ? 0 : -1
+    }
+  },
+  destroyed() { window.removeEventListener("storage", this.onStorage) }
+}
+
+// "saved 4s ago" after an autosave (DESIGN.md section 7.7). The server sets
+// data-saved-at (milliseconds) after each write; this keeps the age current.
+const SavedAge = {
+  mounted() {
+    this.render()
+    this.timer = setInterval(() => this.render(), 1000)
+  },
+  updated() { this.render() },
+  render() {
+    const savedAt = Number(this.el.dataset.savedAt)
+    if (!savedAt) { return }
+    const seconds = Math.max(0, Math.floor((Date.now() - savedAt) / 1000))
+    const age =
+      seconds < 60 ? `${seconds}s` :
+      seconds < 3600 ? `${Math.floor(seconds / 60)}m` :
+      `${Math.floor(seconds / 3600)}h`
+    this.el.textContent = `saved ${age} ago`
+    this.el.title = new Date(savedAt).toLocaleString()
+  },
+  destroyed() { clearInterval(this.timer) }
 }
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, OverlayScale, ClipboardCopy},
+  hooks: {...colocatedHooks, OverlayScale, ClipboardCopy, ThemePicker, SavedAge},
 })
 
-// Show progress bar on live navigation and form submits
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
-window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
-
-const optimisticTimer = new WeakMap()
-
-const markOptimistic = element => {
-  if (!element) { return }
-  element.classList.remove("optimistic-value")
-  window.requestAnimationFrame(() => element.classList.add("optimistic-value"))
-  window.clearTimeout(optimisticTimer.get(element))
-  optimisticTimer.set(element, window.setTimeout(() => {
-    element.classList.remove("optimistic-value")
-  }, 1100))
+// Confirmation dialog (DESIGN.md sections 7.16 and 12.5). phoenix_html asks
+// window.confirm() for every [data-confirm] control; this answers first, with
+// the native <dialog> in root.html.heex. data-confirm holds the question,
+// data-confirm-body the consequence and data-confirm-action the verb on the
+// danger button. Cancel has the focus, so Enter never destroys anything.
+const confirmDialog = document.getElementById("confirm-dialog")
+if (confirmDialog) {
+  let opener = null
+  let confirmed = null
+  window.addEventListener("phoenix.link.click", (event) => {
+    const control = event.target
+    const question = control.getAttribute && control.getAttribute("data-confirm")
+    if (!question) { return }
+    // Keep phoenix_html's window.confirm() from asking a second time.
+    event.stopImmediatePropagation()
+    if (control === confirmed) {
+      confirmed = null
+      return
+    }
+    event.preventDefault()
+    opener = control
+    document.getElementById("confirm-dialog-title").textContent = question
+    document.getElementById("confirm-dialog-body").textContent = control.dataset.confirmBody || ""
+    document.getElementById("confirm-dialog-ok").textContent = control.dataset.confirmAction || "Confirm"
+    confirmDialog.showModal()
+  }, true)
+  document.getElementById("confirm-dialog-cancel").addEventListener("click", () => confirmDialog.close())
+  document.getElementById("confirm-dialog-ok").addEventListener("click", () => {
+    confirmDialog.close()
+    if (opener && opener.isConnected) {
+      confirmed = opener
+      opener.click()
+    }
+  })
+  confirmDialog.addEventListener("close", () => {
+    if (opener && opener.isConnected) { opener.focus() }
+    opener = null
+  })
 }
+
+// A slow navigation keeps the old page on screen under a static "Loading…"
+// overlay (DESIGN.md section 7.14). Nothing moves; fast navigations show nothing.
+// A lost connection also starts a page load ("error"); the connection notice
+// covers that one, so only navigations get the overlay.
+let loadingTimer = null
+window.addEventListener("phx:page-loading-start", (event) => {
+  if (!["redirect", "patch"].includes(event.detail.kind)) { return }
+  clearTimeout(loadingTimer)
+  loadingTimer = setTimeout(() => {
+    const main = document.getElementById("main")
+    if (!main || main.querySelector(".app-loading-overlay")) { return }
+    main.setAttribute("aria-busy", "true")
+    const overlay = document.createElement("div")
+    overlay.className = "ui-region-overlay app-loading-overlay"
+    overlay.setAttribute("role", "status")
+    overlay.textContent = "Loading…"
+    main.appendChild(overlay)
+  }, 300)
+})
+window.addEventListener("phx:page-loading-stop", () => {
+  clearTimeout(loadingTimer)
+  const main = document.getElementById("main")
+  if (!main) { return }
+  main.removeAttribute("aria-busy")
+  main.querySelectorAll(".app-loading-overlay").forEach((overlay) => overlay.remove())
+})
 
 const setOptimisticNumber = (selector, value, minimum = 0, maximum = Number.MAX_SAFE_INTEGER) => {
   const element = document.querySelector(selector)
   if (!element) { return }
   const next = Math.max(minimum, Math.min(maximum, value))
   element.textContent = String(next)
-  markOptimistic(element)
 }
 
 const bumpOptimisticNumber = (selector, delta, minimum = 0, maximum = Number.MAX_SAFE_INTEGER) => {
@@ -108,11 +224,10 @@ const bumpOptimisticNumber = (selector, delta, minimum = 0, maximum = Number.MAX
   setOptimisticNumber(selector, current + delta, minimum, maximum)
 }
 
+// A base is a toggle: aria-pressed is both its state and its look.
 const setOptimisticBase = (button, occupied) => {
   if (!button) { return }
   button.setAttribute("aria-pressed", String(occupied))
-  button.classList.toggle("optimistic-base-occupied", occupied)
-  button.classList.toggle("optimistic-base-empty", !occupied)
 }
 
 const predictControlAction = button => {
@@ -196,14 +311,14 @@ const predictControlAction = button => {
 // Every control-room shortcut acknowledges the operator and predicts simple
 // counters immediately. The next LiveView patch remains authoritative and
 // naturally reconciles any prediction affected by baseball rules or another
-// connected operator.
+// connected operator. The acknowledgement is a color change only: the button
+// shows pressed for a moment (DESIGN.md section 8: nothing moves).
 document.addEventListener("click", event => {
   const button = event.target.closest("#control-room button")
   if (!button || button.disabled) { return }
 
   predictControlAction(button)
-  button.classList.remove("shortcut-confirmed")
-  window.requestAnimationFrame(() => button.classList.add("shortcut-confirmed"))
+  button.classList.add("shortcut-confirmed")
   window.setTimeout(() => button.classList.remove("shortcut-confirmed"), 300)
 })
 

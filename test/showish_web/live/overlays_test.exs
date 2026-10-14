@@ -45,6 +45,13 @@ defmodule ShowishWeb.OverlaysTest do
     end
   end
 
+  test "overlays opt out of the control room's design guide", %{conn: conn, show: show} do
+    html = conn |> get(Scenes.path(show.slug, "scorebug")) |> html_response(200)
+
+    assert html =~ ~s{data-surface="output"}
+    refute html =~ "ui-topbar"
+  end
+
   test "the scorebug names both teams and the stage", %{conn: conn, show: show} do
     {:ok, _view, html} = live(conn, Scenes.path(show.slug, "scorebug"))
 
