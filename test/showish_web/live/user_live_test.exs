@@ -33,5 +33,26 @@ defmodule ShowishWeb.UserLiveTest do
       assert html =~ user.name
       assert has_element?(view, ~s{a[href="/users/log-out"]})
     end
+
+    test "keeps the theme choice and sign-out in the user menu", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "header.ui-topbar details#user-menu #theme-picker")
+      assert has_element?(view, ~s{details#user-menu a#sign-out[href="/users/log-out"]})
+    end
+
+    test "shows the connection in the shell, as every app on the guide does", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "header.ui-topbar #connection-live.ui-badge")
+      assert has_element?(view, "header.ui-topbar + #connection-lost.ui-notice")
+    end
+  end
+
+  describe "the brand mark" do
+    test "is the favicon", %{conn: conn} do
+      assert conn |> get("/favicon.svg") |> response(200) =~ "<rect"
+      assert conn |> get("/apple-touch-icon.png") |> response(200)
+    end
   end
 end

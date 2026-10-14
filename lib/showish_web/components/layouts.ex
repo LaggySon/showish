@@ -4,8 +4,11 @@ defmodule ShowishWeb.Layouts do
   used by your application.
 
   The app layout is the page shell from the Laggish design guide (DESIGN.md
-  section 5.2): a skip link, a top bar with the brand, the site nav, who is
-  signed in and the theme picker, then `main` with the page. Overlays do not use it; they render
+  section 5.2): a skip link, a top bar with the brand, the site nav, the
+  connection badge and the user menu, the app-wide notices, then `main`.
+  It matches the shell of the other apps built on the guide (transitmaps):
+  "Live" sits in the top bar while the socket is up, and a lost connection
+  is one full-width notice under it. Overlays do not use it; they render
   into the bare `overlay_root` layout.
   """
   use ShowishWeb, :html
@@ -50,32 +53,31 @@ defmodule ShowishWeb.Layouts do
           <.link navigate={~p"/"} aria-current={@section == "shows" && "page"}>Shows</.link>
         </nav>
         <div class="ui-topbar-aside">
-          <%= if @current_scope do %>
-            <span id="signed-in-as" class="ui-truncate app-user" title={@current_scope.user.email}>
-              {Showish.Accounts.User.display_name(@current_scope.user)}
-            </span>
-            <.link
-              href={~p"/users/log-out"}
-              method="delete"
-              class="ui-button ui-button--ghost ui-button--small"
-            >
-              Sign out
-            </.link>
-          <% else %>
-            <.link
-              :if={@section != "sign-in"}
-              navigate={~p"/users/log-in"}
-              class="ui-button ui-button--small"
-            >
-              Sign in
-            </.link>
-          <% end %>
-          <.theme_toggle />
+          <span
+            id="connection-live"
+            class="ui-badge app-live"
+            data-status={elem(ShowishWeb.Status.connection(:connected), 1)}
+          >
+            <span class="ui-dot" aria-hidden="true"></span>{elem(
+              ShowishWeb.Status.connection(:connected),
+              0
+            )}
+          </span>
+          <.user_menu :if={@current_scope} current_scope={@current_scope} />
+          <.link
+            :if={!@current_scope && @section != "sign-in"}
+            navigate={~p"/users/log-in"}
+            class="ui-button ui-button--small"
+          >
+            Sign in
+          </.link>
         </div>
       </header>
-
+      <div id="connection-lost" class="ui-notice app-connection" data-status="warning" role="alert">
+        {gettext("Connection lost. Reconnecting…")}
+      </div>
+      <.flash_group flash={@flash} />
       <main class="ui-main" id="main">
-        <.flash_group flash={@flash} />
         {render_slot(@inner_block)}
       </main>
     </div>
@@ -83,11 +85,10 @@ defmodule ShowishWeb.Layouts do
   end
 
   @doc """
-  Shows the flash messages, and the app-wide notice while the connection to
-  the server is lost.
+  Shows the flash messages.
 
-  Notices sit at the top of `main`, not in a corner, and stay until they are
-  dismissed or the condition ends.
+  Notices sit under the top bar, not in a corner, and stay until they are
+  dismissed. The connection notice is part of the shell (see `app/1`).
 
   ## Examples
 
@@ -101,31 +102,41 @@ defmodule ShowishWeb.Layouts do
     <div id={@id} class="app-notices">
       <.flash kind={:info} flash={@flash} />
       <.flash kind={:error} flash={@flash} />
-
-      <div
-        id="client-error"
-        class="ui-notice"
-        data-status="warning"
-        role="status"
-        phx-disconnected={JS.remove_attribute("hidden", to: ".phx-client-error #client-error")}
-        phx-connected={JS.set_attribute({"hidden", ""}, to: "#client-error")}
-        hidden
-      >
-        {gettext("Connection lost. Changes do not reach the overlays until it is back. Reconnecting…")}
-      </div>
-
-      <div
-        id="server-error"
-        class="ui-notice"
-        data-status="failure"
-        role="alert"
-        phx-disconnected={JS.remove_attribute("hidden", to: ".phx-server-error #server-error")}
-        phx-connected={JS.set_attribute({"hidden", ""}, to: "#server-error")}
-        hidden
-      >
-        {gettext("Server error. This page stopped. Reconnecting…")}
-      </div>
     </div>
+    """
+  end
+
+  @doc """
+  The signed-in operator's menu (DESIGN.md section 7.15): their name in the top
+  bar, and behind it the theme choice (section 2.4) and the way out.
+  """
+  attr :current_scope, :map, required: true
+
+  def user_menu(assigns) do
+    ~H"""
+    <details phx-mounted={JS.ignore_attributes(["open"])} id="user-menu" class="ui-menu">
+      <summary
+        class="ui-button ui-button--ghost ui-button--small app-user"
+        title={@current_scope.user.email}
+      >
+        <span id="signed-in-as" class="ui-truncate">
+          {Showish.Accounts.User.display_name(@current_scope.user)}
+        </span>
+        <span aria-hidden="true">▾</span>
+      </summary>
+      <div class="ui-menu-panel">
+        <span class="ui-label">Theme</span>
+        <.theme_toggle />
+        <.link
+          id="sign-out"
+          href={~p"/users/log-out"}
+          method="delete"
+          class="ui-button ui-button--small app-menu-item"
+        >
+          Sign out
+        </.link>
+      </div>
+    </details>
     """
   end
 

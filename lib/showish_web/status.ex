@@ -11,16 +11,14 @@ defmodule ShowishWeb.Status do
   alias Showish.Broadcasts.Show
 
   @doc """
-  The connection to the server. While connected, every change is on air.
+  The connection to the server, shown in the top bar while the socket is up.
+  While connected, every change is on air. A lost connection is a notice, not
+  a badge (see `ShowishWeb.Layouts.app/1`).
 
       iex> ShowishWeb.Status.connection(:connected)
       {"Live", "progress"}
-
-      iex> ShowishWeb.Status.connection(:disconnected)
-      {"Offline", "warning"}
   """
   def connection(:connected), do: {"Live", "progress"}
-  def connection(:disconnected), do: {"Offline", "warning"}
 
   @doc """
   A game in the series, by its 1-indexed place.

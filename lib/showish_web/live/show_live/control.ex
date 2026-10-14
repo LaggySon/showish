@@ -53,7 +53,6 @@ defmodule ShowishWeb.ShowLive.Control do
       <.header>
         {@show.title}
         <:aside>
-          <.connection_badges />
           <span class="ui-mono">/{@show.slug}</span>
         </:aside>
       </.header>
@@ -425,22 +424,6 @@ defmodule ShowishWeb.ShowLive.Control do
 
   ## Components
 
-  # "Live" while the socket is up, "Offline" while it is not. CSS picks one
-  # from the connection class LiveView puts on its root (see ui-local.css),
-  # so the badge changes even when the server cannot be reached.
-  defp connection_badges(assigns) do
-    ~H"""
-    <span
-      :for={state <- [:connected, :disconnected]}
-      class={["ui-badge", "app-connection-#{state}"]}
-      data-status={elem(Status.connection(state), 1)}
-    >
-      <span :if={state == :connected} class="ui-dot" aria-hidden="true"></span>
-      {elem(Status.connection(state), 0)}
-    </span>
-    """
-  end
-
   attr :show, :any, required: true
   attr :scene, :map, required: true
 
@@ -503,7 +486,11 @@ defmodule ShowishWeb.ShowLive.Control do
     assigns = assign(assigns, :position, assigns.form.data.position)
 
     ~H"""
-    <details id={"team-config-#{@position}"} class="app-item app-team">
+    <details
+      phx-mounted={JS.ignore_attributes(["open"])}
+      id={"team-config-#{@position}"}
+      class="app-item app-team"
+    >
       <summary class="app-item-header app-team-summary">
         <span class="app-item-title">
           <span class="app-collapsible-name">Team {@form.index + 1}</span>
@@ -553,7 +540,12 @@ defmodule ShowishWeb.ShowLive.Control do
         >
           Save to team library
         </button>
-        <details :if={@team_profiles != []} class="ui-menu">
+        <details
+          :if={@team_profiles != []}
+          phx-mounted={JS.ignore_attributes(["open"])}
+          id={"team-library-menu-#{@position}"}
+          class="ui-menu"
+        >
           <summary class="ui-button ui-button--small">Use saved team ▾</summary>
           <div class="ui-menu-panel app-menu-left">
             <button

@@ -39,6 +39,10 @@ defmodule ShowishWeb.ShowLive.Components do
   `<.panel>`, on a `<details>` element, with ▸ / ▾ in front of the title
   (DESIGN.md sections 7.6 and 7.15). The control room keeps the panels an
   operator rarely needs during a match closed.
+
+  Every `<details>` in a LiveView needs `JS.ignore_attributes(["open"])`:
+  otherwise the next patch (another operator's score change) strips the
+  `open` the browser set, and the section folds away mid-edit.
   """
   attr :id, :string, required: true
   attr :title, :string, required: true
@@ -49,7 +53,12 @@ defmodule ShowishWeb.ShowLive.Components do
 
   def collapsible_panel(assigns) do
     ~H"""
-    <details id={@id} open={@open} class={["ui-panel app-collapsible", @class]}>
+    <details
+      phx-mounted={JS.ignore_attributes(["open"])}
+      id={@id}
+      open={@open}
+      class={["ui-panel app-collapsible", @class]}
+    >
       <summary class="ui-panel-title app-collapsible-title">
         <span class="app-collapsible-name">{@title}</span>
         <span :if={@aside != []} class="ui-panel-title-aside">{render_slot(@aside)}</span>
