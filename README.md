@@ -204,6 +204,10 @@ source, so text stays crisp and the layout stays put.
 frame — they are full-frame cards, so put them in their own OBS scene rather
 than on top of a game feed.
 
+**One ticker for everything:** only the `ticker` scene draws the ticker. For a
+ticker on standby, break or anything else, add the Ticker source above that
+scene in OBS, so every scene shows the same bar.
+
 The same URLs work anywhere with a browser source: Streamlabs, vMix, Wirecast,
 XSplit, Ecamm. There is nothing OBS-specific about them.
 
@@ -261,7 +265,7 @@ refused (the field says why, and the overlays keep the last good version).
 | --- | --- |
 | **Status, left / centre / right** | Free-text slots, each with its own *Show on air* toggle |
 | **Show side labels** | Whether each team's side label appears on the scorebug |
-| **Ticker** | Scrolling copy on standby, break and ticker |
+| **Ticker** | Scrolling copy on the ticker scene |
 
 The three status slots are the escape hatch for whatever your broadcast needs
 that the schema does not have — `OVERTIME`, `TECHNICAL PAUSE`, `MAP 3 PENDING`.
@@ -363,8 +367,8 @@ buttons are greyed out until then.
 | **Series** | `/overlay/:slug/series` | Clear | Every game, its result and what is next |
 | **Talent** | `/overlay/:slug/talent` | Clear | Lower thirds — role, name, pronouns, social |
 | **Caster cams** | `/overlay/:slug/cams` | Clear | Frames and name plates for a desk of camera sources |
-| **Standby** | `/overlay/:slug/standby` | Full | Pre-show card: title, countdown, matchup, ticker |
-| **Break** | `/overlay/:slug/break` | Full | Intermission: message, clock back to air, score, ticker |
+| **Standby** | `/overlay/:slug/standby` | Full | Pre-show card: title, countdown, matchup |
+| **Break** | `/overlay/:slug/break` | Full | Intermission: message, clock back to air, score |
 | **Credits** | `/overlay/:slug/credits` | Full | Scrolling roll of the crew, grouped by role |
 | **Ticker** | `/overlay/:slug/ticker` | Clear | Bottom bar: compact score and scrolling copy |
 

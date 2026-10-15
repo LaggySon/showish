@@ -47,8 +47,6 @@ defmodule ShowishWeb.Overlays.Standby do
           <.matchup_side team={@right} enter="overlay-in-right" delay={320} />
         </div>
       </div>
-
-      <.ticker_bar text={@show.ticker} delay={500} />
     </.stage>
     """
   end
