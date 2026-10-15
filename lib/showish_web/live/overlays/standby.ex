@@ -15,7 +15,7 @@ defmodule ShowishWeb.Overlays.Standby do
 
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
-      <div class="absolute inset-0 overlay-in-fade"></div>
+      <div class="overlay-backdrop absolute inset-0 overlay-in-fade"></div>
 
       <div class="absolute inset-0 flex flex-col items-center justify-center gap-12">
         <div class="flex flex-col items-center gap-4 overlay-in-down" style="--overlay-delay: 120ms">

@@ -264,6 +264,115 @@ defmodule ShowishWeb.OverlaysTest do
     assert html =~ "Kings"
   end
 
+  # Each preset can rebuild a scene from its own markup, so the facts every look
+  # must put on air are checked under all of them, not just the default.
+  for preset <- Showish.Broadcasts.Preset.keys() do
+    describe "under the #{preset} preset" do
+      setup %{scope: scope, show: show} do
+        {:ok, show} = Broadcasts.update_show(scope, show, %{"preset" => unquote(preset)})
+        %{show: show}
+      end
+
+      test "every scene of either sport renders", %{conn: conn, scope: scope, show: show} do
+        for scene <- Scenes.for_sport(show.sport) do
+          {:ok, view, _html} = live(conn, Scenes.path(show.slug, scene.key))
+          assert has_element?(view, "#overlay-stage.preset-#{unquote(preset)}")
+        end
+
+        {:ok, show} = Broadcasts.update_show(scope, show, %{"sport" => "baseball"})
+
+        for scene <- Scenes.for_sport(show.sport) do
+          {:ok, view, _html} = live(conn, Scenes.path(show.slug, scene.key))
+          assert has_element?(view, "#overlay-stage.preset-#{unquote(preset)}")
+        end
+      end
+
+      test "the scorebug names both teams, the stage and the game", %{conn: conn, show: show} do
+        {:ok, view, html} = live(conn, Scenes.path(show.slug, "scorebug"))
+
+        assert html =~ "Kings"
+        assert html =~ "Foxes"
+        assert html =~ "Grand Finals"
+
+        {:ok, show} = Broadcasts.add_game(show)
+        {:ok, show} = Broadcasts.add_game(show)
+        {:ok, show} = Broadcasts.set_current_game(show, 2)
+        {:ok, _show} = Broadcasts.adjust_score(show, 1, 3)
+
+        html = render(view)
+        assert html =~ "Game 2"
+        assert html =~ ~r{>\s*3\s*</div>}
+      end
+
+      test "swapping sides reorders the scorebug", %{conn: conn, show: show} do
+        {:ok, view, _html} = live(conn, Scenes.path(show.slug, "scorebug"))
+        assert index_of(render(view), "Kings") < index_of(render(view), "Foxes")
+
+        {:ok, _show} = Broadcasts.swap_sides(show)
+        assert index_of(render(view), "Foxes") < index_of(render(view), "Kings")
+      end
+
+      test "the baseball scorebug keeps its live state", %{conn: conn, scope: scope, show: show} do
+        {:ok, show} = Broadcasts.update_show(scope, show, %{"sport" => "baseball"})
+        {:ok, view, _html} = live(conn, Scenes.path(show.slug, "scorebug"))
+
+        assert has_element?(view, "#baseball-scorebug")
+        assert has_element?(view, "#baseball-overlay-inning")
+        assert has_element?(view, "#baseball-overlay-bases")
+        assert has_element?(view, "#baseball-overlay-outs")
+        assert has_element?(view, "#baseball-overlay-count", "0-0")
+        assert has_element?(view, "#baseball-overlay-pitcher", "PITCHER P: 0")
+        assert has_element?(view, "#baseball-overlay-batter", "BATTER —")
+
+        {:ok, _show} = Broadcasts.adjust_score(show, 1, 2)
+        assert has_element?(view, "#baseball-overlay-runs-1", "2")
+      end
+
+      test "the series board lists every game", %{conn: conn, scope: scope, show: show} do
+        {:ok, show} = Broadcasts.add_game(show)
+
+        {:ok, show} =
+          Broadcasts.update_show(scope, show, %{
+            "games" => [%{"id" => hd(show.games).id, "name" => "Old Harbour"}]
+          })
+
+        {:ok, _view, html} = live(conn, Scenes.path(show.slug, "series"))
+
+        assert html =~ "Old Harbour"
+      end
+    end
+  end
+
+  describe "the laggish preset" do
+    setup %{scope: scope, show: show} do
+      {:ok, show} = Broadcasts.update_show(scope, show, %{"preset" => "laggish"})
+      %{show: show}
+    end
+
+    test "the series board says where each game stands", %{conn: conn, show: show} do
+      {:ok, show} = Broadcasts.add_game(show)
+      {:ok, show} = Broadcasts.add_game(show)
+      {:ok, _show} = Broadcasts.set_current_game(show, 2)
+
+      {:ok, view, _html} = live(conn, Scenes.path(show.slug, "series"))
+
+      assert has_element?(view, ".lg-map-current .lg-map-state-progress", "On air")
+      assert has_element?(view, ".lg-map .lg-map-state-neutral", "Upcoming")
+    end
+
+    test "occupied bases and recorded outs are filled", %{conn: conn, scope: scope, show: show} do
+      {:ok, show} = Broadcasts.update_show(scope, show, %{"sport" => "baseball"})
+      {:ok, show} = Broadcasts.apply_sport_action(show, "record_play", %{"result" => "reached"})
+      {:ok, _show} = Broadcasts.apply_sport_action(show, "record_play", %{"result" => "out"})
+
+      {:ok, view, _html} = live(conn, Scenes.path(show.slug, "scorebug"))
+
+      assert has_element?(view, "#baseball-overlay-bases .lg-bb-first.lg-bb-base-on")
+      refute has_element?(view, "#baseball-overlay-bases .lg-bb-second.lg-bb-base-on")
+      assert has_element?(view, "#baseball-overlay-outs .lg-bb-out-on")
+    end
+  end
+
   defp index_of(html, needle) do
     case :binary.match(html, needle) do
       {index, _length} -> index

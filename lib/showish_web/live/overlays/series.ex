@@ -9,6 +9,7 @@ defmodule ShowishWeb.Overlays.Series do
   alias Showish.Broadcasts.Game
   alias Showish.Broadcasts.Show
   alias Showish.Text
+  alias ShowishWeb.Status
 
   @impl Phoenix.LiveView
   def render(assigns) do
@@ -18,8 +19,9 @@ defmodule ShowishWeb.Overlays.Series do
   end
 
   # Like the scorebug, this scene is laid out differently rather than merely
-  # restyled under Tranquility, so it dispatches on the preset.
+  # restyled under Tranquility and Laggish, so it dispatches on the preset.
   defp render_preset(%{show: %{preset: "tranquility"}} = assigns), do: tranquility(assigns)
+  defp render_preset(%{show: %{preset: "laggish"}} = assigns), do: laggish(assigns)
   defp render_preset(assigns), do: broadcast(assigns)
 
   defp broadcast(assigns) do
@@ -89,6 +91,119 @@ defmodule ShowishWeb.Overlays.Series do
     </.stage>
     """
   end
+
+  # The scorebug's bar, grown to full names, over a row of game cards. Each card
+  # says where it stands in words (on air, played, upcoming) and in one rail:
+  # the accent across the top of the game on air, the winner's colour along the
+  # bottom of a game that has been played.
+  defp laggish(assigns) do
+    ~H"""
+    <.stage preset={@show.preset} accent={@show.accent_color}>
+      <div class="lg-series">
+        <div class="lg-series-head">
+          <.eyebrow color={@show.accent_color} class="overlay-in-fade">
+            {header_label(@show)}
+          </.eyebrow>
+
+          <div class="lg-series-bar">
+            <.lg_series_team team={@left} side="left" enter="overlay-in-right" />
+            <div class="lg-series-score tabular overlay-in-pop" style={lg_score_style(@left)}>
+              {score(@left)}
+            </div>
+            <div class="lg-series-score tabular overlay-in-pop" style={lg_score_style(@right)}>
+              {score(@right)}
+            </div>
+            <.lg_series_team team={@right} side="right" enter="overlay-in-left" />
+          </div>
+        </div>
+
+        <div class="lg-maps">
+          <div
+            :for={{game, index} <- Enum.with_index(@games)}
+            class={[
+              "lg-map overlay-in-up",
+              index + 1 == @show.current_game && "lg-map-current",
+              game.completed && "lg-map-done"
+            ]}
+            style={"--overlay-delay: #{160 + index * 70}ms; --winner: #{lg_winner_color(game, @show)};"}
+          >
+            <div class="lg-map-head">
+              <span>{Game.label(game)}</span>
+              <.lg_map_state show={@show} number={index + 1} game={game} />
+            </div>
+
+            <div
+              class="lg-map-media"
+              style={Text.present?(game.image_url) && "background-image: url('#{game.image_url}');"}
+            >
+            </div>
+
+            <div class="lg-map-body">
+              <div class="lg-map-name">{Text.presence(game.name, "TBD")}</div>
+              <div class="lg-map-foot">
+                <span class="lg-map-mode">{Text.presence(game.mode, "—")}</span>
+                <span class="lg-map-score tabular">
+                  <span class={game.winner == "a" && "lg-map-won"}>{game.score_a}</span>
+                  <span class="lg-map-dash">–</span>
+                  <span class={game.winner == "b" && "lg-map-won"}>{game.score_b}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <.empty_notice :if={@games == []} class="overlay-in-up" style="--overlay-delay: 160ms">
+          No games have been added to this series yet.
+        </.empty_notice>
+      </div>
+    </.stage>
+    """
+  end
+
+  attr :team, :any, required: true
+  attr :side, :string, required: true
+  attr :enter, :string, default: nil
+
+  defp lg_series_team(assigns) do
+    ~H"""
+    <div
+      class={["lg-series-team", @side == "right" && "lg-series-team-right", @enter]}
+      style={"#{team_vars(@team)} --overlay-delay: 120ms;"}
+    >
+      <div class="lg-series-team-text">
+        <div class="overlay-teamname lg-series-team-name">{full_name(@team)}</div>
+        <div :if={@team && Text.present?(@team.record)} class="lg-series-team-record tabular">
+          {@team.record}
+        </div>
+      </div>
+      <.team_logo team={@team} size={72} />
+    </div>
+    """
+  end
+
+  # The control room's status words for a game, in the guide's state colours;
+  # the accent stands in for "in progress" so the game on air matches its rail.
+  attr :show, :any, required: true
+  attr :number, :integer, required: true
+  attr :game, :any, required: true
+
+  defp lg_map_state(assigns) do
+    {label, tone} = Status.game(assigns.show, assigns.number, assigns.game)
+    assigns = assign(assigns, label: label, tone: tone)
+
+    ~H"""
+    <span class={["lg-map-state", "lg-map-state-#{@tone}"]}>{@label}</span>
+    """
+  end
+
+  defp lg_score_style(team), do: "#{team_vars(team)} color: #{contrast(team)};"
+
+  # A drawn game has no winner to colour, and an unplayed one has nothing at all.
+  defp lg_winner_color(%{winner: winner} = game, show) when winner in ["a", "b"],
+    do: winner_color(game, show)
+
+  defp lg_winner_color(%{winner: "draw"}, _show), do: "var(--lg-muted)"
+  defp lg_winner_color(_game, _show), do: "transparent"
 
   # The map board: a team column pinned to each edge and the series stacked down
   # the middle, with the game on air grown to fill whatever room the others leave

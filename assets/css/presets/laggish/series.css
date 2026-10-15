@@ -1,0 +1,265 @@
+/* Laggish: series board
+   ---------------------------------------------------------------------------
+   The scorebug's bar at full-name size, then the series as a row of cards.
+   Each card says where it stands twice, once in words and once in a rail: the
+   control room's status word in the guide's state colour at the top, the
+   accent across the top edge of the game on air, and the winner's colour along
+   the bottom of a game that has been played. Played maps go gray, so the eye
+   lands on what is still to come.
+
+   Emitted only by the `laggish/1` clause in ShowishWeb.Overlays.Series. */
+
+.lg-series {
+  position: absolute;
+  inset: 120px 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 48px;
+}
+
+.lg-series-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.lg-series-head .overlay-eyebrow {
+  font-size: 15px;
+}
+
+.lg-series-bar {
+  display: flex;
+  align-items: stretch;
+  height: 104px;
+}
+
+.lg-series-team {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 24px;
+  width: 540px;
+  padding: 0 24px 0 40px;
+  background: var(--lg-panel);
+  border: 1px solid var(--lg-line);
+  border-right: 0;
+  border-radius: var(--lg-radius) 0 0 var(--lg-radius);
+}
+
+.lg-series-team-right {
+  flex-direction: row-reverse;
+  padding: 0 40px 0 24px;
+  border-right: 1px solid var(--lg-line);
+  border-left: 0;
+  border-radius: 0 var(--lg-radius) var(--lg-radius) 0;
+}
+
+.lg-series-team::before {
+  content: "";
+  position: absolute;
+  inset: -1px auto -1px -1px;
+  width: var(--lg-rail);
+  background: var(--team-primary);
+}
+
+.lg-series-team-right::before {
+  inset: -1px -1px -1px auto;
+}
+
+.lg-series-team-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 9px;
+}
+
+.lg-series-team-right .lg-series-team-text {
+  align-items: flex-start;
+}
+
+.lg-series-team-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lg-series-team-record {
+  color: var(--lg-label);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.lg-series-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 116px;
+  background: var(--team-primary);
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lg-maps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  padding-inline: 96px;
+}
+
+.lg-map {
+  position: relative;
+  display: flex;
+  width: 292px;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--lg-panel);
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius);
+}
+
+/* The rails: the accent across the top of the game on air, the winner along
+   the bottom of a played one. Both sit over the hairline, not inside it. */
+.lg-map::before,
+.lg-map::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  height: var(--lg-rail);
+}
+
+.lg-map::after {
+  bottom: 0;
+  background: var(--winner);
+}
+
+.lg-map-current {
+  border-color: var(--lg-line-strong);
+}
+
+.lg-map-current::before {
+  top: 0;
+  z-index: 1;
+  background: var(--lg-accent);
+}
+
+.lg-map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 13px;
+  color: var(--lg-label);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lg-map-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
+}
+
+.lg-map-state::before {
+  content: "";
+  width: 0.65em;
+  height: 0.65em;
+  background: currentColor;
+}
+
+.lg-map-state-progress {
+  color: var(--lg-accent);
+}
+
+.lg-map-state-success {
+  color: var(--lg-success);
+}
+
+.lg-map-state-neutral {
+  color: var(--lg-faint);
+}
+
+.lg-map-state-neutral::before {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+/* The map shot, or the guide's hatch where there is none. */
+.lg-map-media {
+  height: 128px;
+  background: var(--lg-hatch), var(--lg-raised);
+  background-position: center;
+  background-size: cover;
+  border-block: 1px solid var(--lg-line);
+}
+
+.lg-map-done .lg-map-media {
+  filter: grayscale(1) brightness(0.7);
+}
+
+.lg-map-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px calc(16px + var(--lg-rail));
+}
+
+.lg-map-name {
+  overflow: hidden;
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lg-map-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lg-map-mode {
+  color: var(--lg-label);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lg-map-score {
+  color: var(--lg-muted);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lg-map-done .lg-map-score {
+  color: var(--lg-faint);
+}
+
+.lg-map-score .lg-map-won {
+  color: var(--lg-ink);
+}
+
+.lg-map-dash {
+  padding-inline: 0.2em;
+  color: var(--lg-faint);
+}

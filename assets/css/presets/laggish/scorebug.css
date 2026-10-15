@@ -1,0 +1,399 @@
+/* Laggish: scorebug
+   ---------------------------------------------------------------------------
+   One black bar hung just below the top edge. Each team's colour appears in
+   two places only: a rail along the plate's outer edge and the fill of its
+   score cell. The middle cell carries the stage (accent eyebrow) and the game,
+   and the operator's centre line hangs under it as a narrower strip.
+
+   Everything here is emitted only by the `laggish/1` clause in
+   ShowishWeb.Overlays.Scorebug, so the `.lg-bug-*` classes need no preset
+   prefix to stay out of the other looks. The baseball scorebug's rules are at
+   the bottom. */
+
+.lg-bug {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lg-bug-bar {
+  display: flex;
+  align-items: stretch;
+  height: 84px;
+}
+
+/* Plates and the middle cell are panels; the score cells between them are
+   solid team colour, so the hairline belongs to the panels alone. */
+.lg-bug-team,
+.lg-bug-mid,
+.lg-bug-info,
+.lg-bug-status {
+  background: var(--lg-panel);
+  border: 1px solid var(--lg-line);
+}
+
+.lg-bug-team {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  width: 420px;
+  padding: 0 22px 0 34px;
+  border-right: 0;
+  border-radius: var(--lg-radius) 0 0 var(--lg-radius);
+}
+
+.lg-bug-team-right {
+  flex-direction: row-reverse;
+  padding: 0 34px 0 22px;
+  border-right: 1px solid var(--lg-line);
+  border-left: 0;
+  border-radius: 0 var(--lg-radius) var(--lg-radius) 0;
+}
+
+/* The rail: the team's colour, along the edge the plate faces away from. */
+.lg-bug-team::before {
+  content: "";
+  position: absolute;
+  inset: -1px auto -1px -1px;
+  width: var(--lg-rail);
+  background: var(--team-primary);
+}
+
+.lg-bug-team-right::before {
+  inset: -1px -1px -1px auto;
+}
+
+.lg-bug-team-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+}
+
+.lg-bug-team-right .lg-bug-team-text {
+  align-items: flex-start;
+}
+
+.lg-bug-team-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lg-bug-team-meta {
+  display: flex;
+  align-items: center;
+  color: var(--lg-label);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* " · " between record and side, from CSS so either can stand alone. The line
+   reads left to right on both plates; only its alignment mirrors. */
+.lg-bug-team-meta > * + *::before {
+  content: "·";
+  margin-inline: 0.5em;
+  color: var(--lg-faint);
+}
+
+.lg-bug-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 92px;
+  background: var(--team-primary);
+  font-size: 50px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lg-bug-mid {
+  display: flex;
+  width: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-inline: 0;
+}
+
+.lg-bug-game {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+/* The centre line: a quieter strip under the middle, read after the score. */
+.lg-bug-info {
+  max-width: 820px;
+  min-width: 404px;
+  margin-top: -1px;
+  padding: 11px 28px;
+  overflow: hidden;
+  border-radius: 0 0 var(--lg-radius) var(--lg-radius);
+  color: var(--lg-muted);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Status slots: a panel with the accent rail on its inner edge, the guide's
+   "this one" marker, pinned to the top corners. */
+.lg-bug-status {
+  position: absolute;
+  top: 28px;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: var(--lg-radius);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lg-bug-status-left {
+  left: 48px;
+  border-left: var(--lg-rail) solid var(--lg-accent);
+}
+
+.lg-bug-status-right {
+  right: 48px;
+  border-right: var(--lg-rail) solid var(--lg-accent);
+}
+
+/* Baseball
+   ---------------------------------------------------------------------------
+   The default card's facts in the default card's corner, from the same parts:
+   rows with a team rail and a team-colour runs cell, the situation in a column
+   to the right, and the pitcher and batter as labelled lines under both. Bases
+   and outs are the guide's squares: a hairline when empty, filled when not. */
+
+.lg-bb {
+  position: absolute;
+  top: 40px;
+  left: 48px;
+  width: 560px;
+  overflow: hidden;
+  background: var(--lg-panel);
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius);
+}
+
+.lg-bb-top {
+  display: grid;
+  grid-template-columns: 1fr 172px;
+  border-bottom: 1px solid var(--lg-line);
+}
+
+.lg-bb-team {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 64px;
+  padding-left: calc(var(--lg-rail) + 14px);
+}
+
+.lg-bb-team + .lg-bb-team {
+  border-top: 1px solid var(--lg-line);
+}
+
+.lg-bb-team::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--lg-rail);
+  background: var(--team-primary);
+}
+
+.lg-bb-code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lg-bb-runs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 84px;
+  background: var(--team-primary);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lg-bb-state {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  border-left: 1px solid var(--lg-line);
+}
+
+.lg-bb-situation,
+.lg-bb-counts {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lg-bb-situation {
+  gap: 16px;
+}
+
+.lg-bb-counts {
+  gap: 18px;
+  border-top: 1px solid var(--lg-line);
+}
+
+.lg-bb-bases {
+  position: relative;
+  width: 62px;
+  height: 44px;
+}
+
+.lg-bb-base {
+  position: absolute;
+  width: 17px;
+  height: 17px;
+  rotate: 45deg;
+  border: 2px solid var(--lg-line-strong);
+}
+
+.lg-bb-second {
+  top: 3px;
+  left: 22.5px;
+}
+
+.lg-bb-third {
+  bottom: 3px;
+  left: 4px;
+}
+
+.lg-bb-first {
+  right: 4px;
+  bottom: 3px;
+}
+
+.lg-bb-base-on {
+  background: var(--lg-accent);
+  border-color: var(--lg-accent);
+}
+
+.lg-bb-inning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lg-bb-half {
+  color: var(--lg-label);
+  font-size: 15px;
+}
+
+.lg-bb-count {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lg-bb-outs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.lg-bb-out {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--lg-line-strong);
+}
+
+.lg-bb-out-on {
+  background: var(--lg-ink);
+  border-color: var(--lg-ink);
+}
+
+.lg-bb-outs-label {
+  margin-left: 4px;
+  color: var(--lg-label);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lg-bb-line {
+  display: grid;
+  grid-template-columns: 54px 1fr auto;
+  align-items: center;
+  height: 52px;
+  padding-right: 20px;
+}
+
+.lg-bb-line + .lg-bb-line {
+  border-top: 1px solid var(--lg-line);
+}
+
+.lg-bb-line-label {
+  padding-left: calc(var(--lg-rail) + 14px);
+  color: var(--lg-faint);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.lg-bb-line-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lg-bb-line-stat {
+  padding-left: 16px;
+  color: var(--lg-muted);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+}

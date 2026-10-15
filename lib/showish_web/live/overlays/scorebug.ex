@@ -30,7 +30,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
       |> assign(:batter_order, active_index + 1)
       |> assign(:pitcher, state["pitchers"][fielding_position])
 
-    baseball(assigns)
+    render_baseball(assigns)
   end
 
   def render(assigns) do
@@ -38,6 +38,11 @@ defmodule ShowishWeb.Overlays.Scorebug do
 
     render_preset(assigns)
   end
+
+  # Baseball has its own card, so it forks per preset separately from the
+  # esports bar below. Looks without their own card keep the default one.
+  defp render_baseball(%{show: %{preset: "laggish"}} = assigns), do: laggish_baseball(assigns)
+  defp render_baseball(assigns), do: baseball(assigns)
 
   defp baseball(assigns) do
     ~H"""
@@ -177,6 +182,110 @@ defmodule ShowishWeb.Overlays.Scorebug do
     ]
   end
 
+  # The same facts as the default card, rebuilt from the Laggish parts: black
+  # rows with each team's rail, runs in its colour, and the game state as
+  # hairline diamonds and squares in the show's accent.
+  defp laggish_baseball(assigns) do
+    ~H"""
+    <.stage preset={@show.preset} accent={@show.accent_color}>
+      <div id="baseball-scorebug" class="lg-bb overlay-in-left">
+        <div class="lg-bb-top">
+          <div class="lg-bb-teams">
+            <.lg_baseball_team team={@away} position={1} runs={score(@away)} />
+            <.lg_baseball_team team={@home} position={2} runs={score(@home)} />
+          </div>
+
+          <div class="lg-bb-state">
+            <div class="lg-bb-situation">
+              <.lg_baseball_bases bases={@state["bases"]} />
+              <div id="baseball-overlay-inning" class="lg-bb-inning tabular">
+                <span class="lg-bb-half">{if(@state["half"] == "top", do: "▲", else: "▼")}</span>
+                <span>{@state["inning"]}</span>
+              </div>
+            </div>
+
+            <div class="lg-bb-counts">
+              <div id="baseball-overlay-count" class="lg-bb-count tabular">
+                {@state["balls"]}-{@state["strikes"]}
+              </div>
+              <div id="baseball-overlay-outs" class="lg-bb-outs">
+                <span
+                  :for={out <- 1..2}
+                  class={["lg-bb-out", out <= @state["outs"] && "lg-bb-out-on"]}
+                >
+                </span>
+                <span class="lg-bb-outs-label">
+                  {if(@state["outs"] == 1, do: "out", else: "outs")}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <.lg_baseball_line
+          id="baseball-overlay-pitcher"
+          label="P"
+          name={player_name(@pitcher, "PITCHER")}
+          stat={"P: #{@pitcher["pitch_count"]}"}
+        />
+        <.lg_baseball_line
+          id="baseball-overlay-batter"
+          label="AB"
+          name={batter_name(@batter_order, @batter)}
+          stat={batter_line(@batter)}
+        />
+      </div>
+    </.stage>
+    """
+  end
+
+  attr :team, :any, required: true
+  attr :position, :integer, required: true
+  attr :runs, :integer, required: true
+
+  defp lg_baseball_team(assigns) do
+    ~H"""
+    <div class="lg-bb-team" style={team_vars(@team)}>
+      <.team_logo team={@team} size={40} />
+      <span class="lg-bb-code">{team_code(@team)}</span>
+      <span
+        id={"baseball-overlay-runs-#{@position}"}
+        class="lg-bb-runs tabular"
+        style={"color: #{contrast(@team)};"}
+      >
+        {@runs}
+      </span>
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :name, :string, required: true
+  attr :stat, :string, required: true
+
+  defp lg_baseball_line(assigns) do
+    ~H"""
+    <div id={@id} class="lg-bb-line">
+      <span class="lg-bb-line-label">{@label}</span>
+      <span class="lg-bb-line-name">{@name}</span>
+      <span class="lg-bb-line-stat tabular">{@stat}</span>
+    </div>
+    """
+  end
+
+  attr :bases, :map, required: true
+
+  defp lg_baseball_bases(assigns) do
+    ~H"""
+    <div id="baseball-overlay-bases" class="lg-bb-bases">
+      <span class={["lg-bb-base lg-bb-second", @bases["second"] && "lg-bb-base-on"]}></span>
+      <span class={["lg-bb-base lg-bb-third", @bases["third"] && "lg-bb-base-on"]}></span>
+      <span class={["lg-bb-base lg-bb-first", @bases["first"] && "lg-bb-base-on"]}></span>
+    </div>
+    """
+  end
+
   defp team_code(nil), do: "TBD"
 
   defp team_code(team) do
@@ -205,6 +314,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
   # presets, so it dispatches on the show's preset rather than leaning on
   # scoped CSS the way the other six do.
   defp render_preset(%{show: %{preset: "tranquility"}} = assigns), do: tranquility(assigns)
+  defp render_preset(%{show: %{preset: "laggish"}} = assigns), do: laggish(assigns)
   defp render_preset(assigns), do: broadcast(assigns)
 
   defp broadcast(assigns) do
@@ -307,6 +417,103 @@ defmodule ShowishWeb.Overlays.Scorebug do
       </div>
     </.stage>
     """
+  end
+
+  # Flat black bar hung just below the top edge: each team's colour lives in a
+  # rail at its outer edge and in its score cell, and nowhere else. The pieces
+  # are revealed from the middle outward.
+  defp laggish(assigns) do
+    ~H"""
+    <.stage preset={@show.preset} accent={@show.accent_color}>
+      <div class="lg-bug">
+        <div class="lg-bug-bar">
+          <.lg_team
+            team={@left}
+            side="left"
+            show_sides={@show.show_sides}
+            enter="overlay-in-right"
+          />
+          <div class="lg-bug-score tabular overlay-in-pop" style={lg_score_style(@left)}>
+            {score(@left)}
+          </div>
+
+          <div class="lg-bug-mid overlay-in-pop">
+            <.eyebrow :if={stage_label(@show) != ""} color={@show.accent_color}>
+              {stage_label(@show)}
+            </.eyebrow>
+            <div class="lg-bug-game">{game_label(@show)}</div>
+          </div>
+
+          <div class="lg-bug-score tabular overlay-in-pop" style={lg_score_style(@right)}>
+            {score(@right)}
+          </div>
+          <.lg_team
+            team={@right}
+            side="right"
+            show_sides={@show.show_sides}
+            enter="overlay-in-left"
+          />
+        </div>
+
+        <div
+          :if={@center_line != ""}
+          class="lg-bug-info overlay-in-down"
+          style="--overlay-delay: 220ms"
+        >
+          {@center_line}
+        </div>
+      </div>
+
+      <div
+        :if={@show.show_status_left and @show.status_left != ""}
+        class="lg-bug-status lg-bug-status-left overlay-in-left"
+        style="--overlay-delay: 300ms"
+      >
+        {@show.status_left}
+      </div>
+
+      <div
+        :if={@show.show_status_right and @show.status_right != ""}
+        class="lg-bug-status lg-bug-status-right overlay-in-right"
+        style="--overlay-delay: 300ms"
+      >
+        {@show.status_right}
+      </div>
+    </.stage>
+    """
+  end
+
+  attr :team, :any, required: true
+  attr :side, :string, required: true
+  attr :show_sides, :boolean, default: false
+  attr :enter, :string, default: nil
+
+  defp lg_team(assigns) do
+    ~H"""
+    <div
+      class={["lg-bug-team", @side == "right" && "lg-bug-team-right", @enter]}
+      style={"#{team_vars(@team)} --overlay-delay: 120ms;"}
+    >
+      <div class="lg-bug-team-text">
+        <div class="lg-bug-team-name">{short_name(@team)}</div>
+        <div
+          :if={
+            @team &&
+              (Text.present?(@team.record) or (@show_sides and Text.present?(@team.side)))
+          }
+          class="lg-bug-team-meta"
+        >
+          <span :if={Text.present?(@team.record)} class="tabular">{@team.record}</span>
+          <span :if={@show_sides and Text.present?(@team.side)}>{@team.side}</span>
+        </div>
+      </div>
+      <.team_logo team={@team} size={54} />
+    </div>
+    """
+  end
+
+  defp lg_score_style(team) do
+    "#{team_vars(team)} color: #{contrast(team)}; --overlay-delay: 60ms;"
   end
 
   attr :team, :any, required: true

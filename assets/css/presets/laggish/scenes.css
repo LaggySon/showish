@@ -1,0 +1,129 @@
+/* Laggish: every other scene
+   ---------------------------------------------------------------------------
+   Scenes that keep their default geometry, restyled through the class hooks
+   they already emit (see docs/overlays.md). tokens.css has done most of the
+   work: panels, corners, grays, type. What is left is the furniture that
+   has no token: rails, chips, frames and the baseball field. */
+
+/* People: the accent moves from an underline to a rail on the leading edge. */
+.preset-laggish .overlay-talent {
+  border-bottom: 1px solid var(--lg-line);
+  border-left: var(--lg-rail) solid var(--talent-accent, var(--lg-accent));
+}
+
+/* Camera windows: a frame of hairline weight, not a glowing bezel. */
+.preset-laggish .overlay-cam-window {
+  border: 2px solid var(--lg-line-strong);
+  border-radius: var(--lg-radius);
+  box-shadow: none;
+}
+
+/* Full-frame headings sit on a band of their own, so they read over a bright
+   day game as well as a dark arena. */
+.preset-laggish .overlay-heading {
+  padding: 22px 28px;
+  background: var(--lg-panel);
+  border: 1px solid var(--lg-line);
+  border-radius: var(--lg-radius);
+}
+
+/* The pitcher in the game: the guide's "this one" rail, in the team's colour. */
+.preset-laggish .overlay-inset {
+  background: var(--lg-band);
+  border: 1px solid var(--lg-line);
+  border-left: var(--lg-rail) solid var(--team-primary);
+  border-radius: var(--lg-radius);
+}
+
+/* Status chips become the guide's status words: a square and a word, coloured
+   only when the word is one the guide has a state for. */
+.preset-laggish .overlay-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  color: var(--lg-label);
+}
+
+.preset-laggish .overlay-chip::before {
+  content: "";
+  width: 0.7em;
+  height: 0.7em;
+  background: currentColor;
+}
+
+.preset-laggish .overlay-chip[data-status="ready"] {
+  color: var(--lg-success);
+}
+
+.preset-laggish .overlay-chip:is([data-status="warming"], [data-status="warming up"]) {
+  color: var(--lg-warning);
+}
+
+/* The defensive alignment, drawn as a diagram: hairline infield and mound on
+   a black ground, with each fielder on a flat tag. */
+.preset-laggish .overlay-field {
+  background: var(--lg-panel);
+}
+
+.preset-laggish .overlay-field-grass {
+  background: none;
+}
+
+.preset-laggish .overlay-field-infield {
+  background: var(--lg-hatch);
+  border: 2px solid var(--lg-line-strong);
+}
+
+.preset-laggish .overlay-field-mound {
+  background: var(--lg-solid);
+  border: 2px solid var(--lg-line);
+}
+
+.preset-laggish .overlay-tag {
+  background: var(--lg-solid);
+  border-color: var(--lg-line-strong);
+  border-radius: var(--lg-radius);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.preset-laggish .overlay-tag > :first-child {
+  color: var(--lg-accent);
+  font-family: var(--lg-mono);
+}
+
+/* Decoration with no information in it goes. */
+.preset-laggish .overlay-ornament {
+  display: none;
+}
+
+/* Stat cells fill their grid rather than floating in the middle of it. */
+.preset-laggish .overlay-statgrid {
+  align-content: stretch;
+}
+
+/* A cam plate is centred under its window, so its rail runs along the top
+   rather than down one side. */
+.preset-laggish .overlay-cam-plate {
+  border-top: var(--lg-rail) solid var(--talent-accent, var(--lg-accent));
+  border-left: 1px solid var(--lg-line);
+}
+
+/* Full-frame cards (standby, break) dim whatever is behind them, so their
+   type reads over a bright venue feed as well as a dark one. */
+.preset-laggish .overlay-backdrop {
+  background: rgba(10, 10, 10, 0.88);
+}
+
+/* Big scores are ink, each over a rail in its team's colour: the colour still
+   says whose number it is, and a dark team colour can no longer sink into a
+   black panel. */
+.preset-laggish .overlay-scoreplate {
+  display: inline-block;
+  padding: 0 0.12em 0.1em;
+  border-bottom: var(--lg-rail) solid var(--score-color, var(--lg-line));
+  color: var(--lg-ink);
+}

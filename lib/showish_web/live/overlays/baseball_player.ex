@@ -17,7 +17,7 @@ defmodule ShowishWeb.Overlays.BaseballPlayer do
           <div class="h-3" style={"background: #{@show.accent_color}"}></div>
           <div class="grid min-h-[650px] grid-cols-[0.8fr_1.2fr]">
             <div class="relative flex flex-col justify-end overflow-hidden bg-slate-900 p-12">
-              <div class="absolute -right-28 -top-24 size-[480px] rounded-full border-[90px] border-white/5">
+              <div class="overlay-ornament absolute -right-28 -top-24 size-[480px] rounded-full border-[90px] border-white/5">
               </div>
               <p
                 class="relative text-[15px] font-black uppercase tracking-[0.24em]"
@@ -32,7 +32,7 @@ defmodule ShowishWeb.Overlays.BaseballPlayer do
                 {display(@graphic["detail"], @show.title)}
               </p>
             </div>
-            <div class="grid content-center grid-cols-2 gap-px bg-white/10 p-px">
+            <div class="overlay-statgrid grid content-center grid-cols-2 gap-px bg-white/10 p-px">
               <div
                 :for={stat <- @graphic["stats"]}
                 class="flex min-h-[180px] flex-col items-center justify-center bg-slate-950 px-6 text-center"

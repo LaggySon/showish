@@ -1,0 +1,18 @@
+/* Preset: Laggish — index
+   ---------------------------------------------------------------------------
+   The Laggish design guide (the control room's own design) carried over to air:
+   flat black panels, hairlines, 2px corners, Geist and Geist Mono, colour only
+   for identity and state. Imported into `@layer presets` (see app.css), so its
+   rules win on layer order; every rule is still scoped under `.preset-laggish`
+   or an `.lg-*` class only this look emits.
+
+   `tokens.css` MUST import first: it overrides the `--overlay-*` token contract
+   and defines the `--lg-*` properties the scene files read.
+
+   The scorebug (both sports) and series scenes change geometry under this
+   preset: they dispatch on `@show.preset` and emit `.lg-*` classes. Every other
+   scene keeps its default geometry and is restyled by tokens.css and scenes.css. */
+@import "./tokens.css";
+@import "./scorebug.css";
+@import "./series.css";
+@import "./scenes.css";
