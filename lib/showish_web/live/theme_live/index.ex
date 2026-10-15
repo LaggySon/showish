@@ -25,7 +25,7 @@ defmodule ShowishWeb.ThemeLive.Index do
      |> assign(:form, new_form(socket))
      |> stream(:themes, themes)
      |> allow_upload(:theme_file,
-       accept: ~w(.json),
+       accept: ~w(.json .css),
        max_entries: 1,
        max_file_size: @max_file_bytes,
        auto_upload: true,
@@ -44,6 +44,9 @@ defmodule ShowishWeb.ThemeLive.Index do
         Themes
         <:aside>
           <span class="ui-mono">{count(@theme_count)}</span>
+          <.button id="download-template" href={~p"/theme-template.css"} variant="quiet">
+            Download template
+          </.button>
           <form id="import-theme-form" phx-change="validate_import" class="app-import">
             <label class="ui-button" for={@uploads.theme_file.ref}>Import file…</label>
             <.live_file_input upload={@uploads.theme_file} class="ui-sr-only" />
@@ -102,7 +105,8 @@ defmodule ShowishWeb.ThemeLive.Index do
 
       <div :if={@theme_count == 0} id="themes-empty" class="ui-empty">
         No themes yet. Create a theme to give your overlays your own colors, fonts and corners,
-        or import a theme file someone shared with you.
+        import a theme file someone shared with you, or download the template, edit it and
+        import it.
         <.button :if={@live_action != :new} patch={~p"/themes/new"} variant="primary">
           + New theme
         </.button>
@@ -195,7 +199,14 @@ defmodule ShowishWeb.ThemeLive.Index do
       contents =
         consume_uploaded_entry(socket, entry, fn %{path: path} -> {:ok, File.read!(path)} end)
 
-      case Themes.import_file(socket.assigns.current_scope, contents) do
+      scope = socket.assigns.current_scope
+
+      result =
+        if String.downcase(Path.extname(entry.client_name)) == ".css",
+          do: Themes.import_css(scope, entry.client_name, contents),
+          else: Themes.import_file(scope, contents)
+
+      case result do
         {:ok, theme} ->
           {:noreply,
            socket
@@ -219,7 +230,7 @@ defmodule ShowishWeb.ThemeLive.Index do
 
     case upload_errors do
       [:too_large | _] -> "The file is larger than #{div(@max_file_bytes, 1_000_000)} MB."
-      [:not_accepted | _] -> "Theme files end in .json."
+      [:not_accepted | _] -> "Import a theme file (.json) or a CSS file (.css)."
       [_ | _] -> "The file could not be uploaded."
       [] -> error
     end

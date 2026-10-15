@@ -71,6 +71,13 @@ defmodule Showish.ThemesTest do
       assert {:error, _} = CustomCSS.check("</style><script>alert(1)</script>")
     end
 
+    test "the template follows the rules, and only comments" do
+      template = Themes.template()
+
+      assert CustomCSS.check(template) == :ok
+      assert template |> String.replace(~r{/\*.*?\*/}s, "") |> String.trim() == ""
+    end
+
     test "may embed data URLs" do
       css =
         ~s|@font-face { font-family: X; src: url("data:font/woff2;base64,d09GMgAB") format("woff2"); }

@@ -164,6 +164,44 @@ defmodule Showish.Themes do
     end
   end
 
+  @doc """
+  Makes a new theme from a CSS file, such as an edited copy of `template/0`.
+
+  It is built on the default look and named after the file; both can be
+  changed in the editor afterwards.
+  """
+  def import_css(%Scope{} = scope, file_name, contents) when is_binary(contents) do
+    name = file_name |> Path.basename() |> String.replace(~r/(\.showish-theme)?\.css$/i, "")
+    name = name |> String.replace(~r/[-_]+/, " ") |> String.trim()
+
+    # "acme_esports.css" reads better as "Acme Esports"; a name the author
+    # already cased ("ACME eSports") is left alone.
+    name =
+      if name == String.downcase(name),
+        do: name |> String.split(" ", trim: true) |> Enum.map_join(" ", &String.capitalize/1),
+        else: name
+
+    name = if name == "", do: "Imported theme", else: name
+
+    create_theme(scope, %{"name" => free_name(scope, name), "css" => contents})
+  end
+
+  # Read from the source tree at compile time, so a release carries it inside
+  # the module and needs no file at run time.
+  @template_path Path.expand("../../priv/themes/template.css", __DIR__)
+  @external_resource @template_path
+  @template File.read!(@template_path)
+
+  @doc """
+  A commented CSS file listing everything a theme's CSS can reach, for people
+  to download, edit and upload. As downloaded it changes nothing.
+  """
+  def template, do: @template
+
+  @doc "A file name for a theme's custom CSS."
+  def css_filename(%Theme{} = theme),
+    do: String.replace_suffix(export_filename(theme), ".json", ".css")
+
   defp decode(contents) do
     case Jason.decode(contents) do
       {:ok, %{} = decoded} -> {:ok, decoded}

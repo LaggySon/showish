@@ -472,8 +472,9 @@ so overlays render correctly on a venue machine with no internet.
 
 For a look of your own, open **Themes** in the top bar. A theme starts from one
 of the three looks and changes its colors, borders, corners, shadows, fonts and
-entrances, with your own CSS on top if you need it. Upload your own font files
-and they travel inside the theme.
+entrances. For anything else, download the CSS template, edit it, and upload it
+to a theme or import it as a new one. Upload your own font files and they
+travel inside the theme.
 
 Themes are saved to your account and appear in every show's **Look** menu. Share
 one with a link or as a downloadable file; either way the other person gets

@@ -78,17 +78,69 @@ defmodule ShowishWeb.ThemeLiveTest do
       assert Themes.get_theme!(scope, theme.id).tokens == %{"radius" => 12, "shadow" => "hard"}
     end
 
-    test "the editor refuses CSS that reaches the network, and keeps the last good version",
+    test "CSS arrives as an uploaded file, and replaces the theme's", %{conn: conn, scope: scope} do
+      theme = theme_fixture(scope, %{"css" => "a { color: red; }"})
+      {:ok, view, _html} = live(conn, ~p"/themes/#{theme.id}")
+
+      upload_css(view, "acme.css", ".overlay-panel { border-radius: 0; }")
+
+      assert Themes.get_theme!(scope, theme.id).css == ".overlay-panel { border-radius: 0; }"
+      assert has_element?(view, "#theme-css", "border-radius: 0")
+      refute has_element?(view, "#css-error")
+    end
+
+    test "CSS that reaches the network is refused, and the theme keeps its own",
          %{conn: conn, scope: scope} do
       theme = theme_fixture(scope, %{"css" => "a { color: red; }"})
       {:ok, view, _html} = live(conn, ~p"/themes/#{theme.id}")
 
-      view
-      |> form("#theme-form", theme: %{css: "a { background: url(https://example.com/x) }"})
-      |> render_change()
+      upload_css(view, "evil.css", "a { background: url(https://example.com/x) }")
 
-      assert has_element?(view, "#theme-save-failed")
+      assert has_element?(view, "#css-error", "may only use url()")
       assert Themes.get_theme!(scope, theme.id).css == "a { color: red; }"
+    end
+
+    test "a file that is not UTF-8 text is refused", %{conn: conn, scope: scope} do
+      theme = theme_fixture(scope)
+      {:ok, view, _html} = live(conn, ~p"/themes/#{theme.id}")
+
+      upload_css(view, "binary.css", <<0xFF, 0xFE, 0, 1>>)
+
+      assert has_element?(view, "#css-error", "save it as UTF-8")
+    end
+
+    test "CSS can be removed and downloaded", %{conn: conn, scope: scope} do
+      theme = theme_fixture(scope, %{"name" => "Acme", "css" => "a { color: red; }"})
+
+      download = get(conn, ~p"/themes/#{theme.id}/custom.css")
+      assert response(download, 200) == "a { color: red; }"
+      assert get_resp_header(download, "content-disposition") |> hd() =~ "acme.showish-theme.css"
+
+      {:ok, view, _html} = live(conn, ~p"/themes/#{theme.id}")
+      view |> element("#remove-css") |> render_click()
+
+      assert Themes.get_theme!(scope, theme.id).css == ""
+      refute has_element?(view, "#theme-css")
+    end
+
+    test "the template downloads, changes nothing as it is, and imports as a theme",
+         %{conn: conn, scope: scope} do
+      template = conn |> get(~p"/theme-template.css") |> response(200)
+      assert template == Themes.template()
+
+      {:ok, view, _html} = live(conn, ~p"/themes")
+      assert has_element?(view, ~s{#download-template[href="/theme-template.css"]})
+
+      upload =
+        file_input(view, "#import-theme-form", :theme_file, [
+          %{name: "acme_esports.css", content: template, type: "text/css"}
+        ])
+
+      assert {:error, {:live_redirect, %{to: "/themes/" <> id}}} =
+               render_upload(upload, "acme_esports.css")
+
+      assert %{name: "Acme Esports", base: "broadcast", css: css} = Themes.get_theme!(scope, id)
+      assert css == String.trim(template)
     end
 
     test "a color is set and cleared with buttons", %{conn: conn, scope: scope} do
@@ -175,6 +227,14 @@ defmodule ShowishWeb.ThemeLiveTest do
       assert %{theme_id: theme_id, preset: "laggish"} = Broadcasts.get_show!(scope, show.id)
       assert theme_id == theme.id
     end
+  end
+
+  defp upload_css(view, name, content) do
+    view
+    |> file_input("#css-upload-form", :css_file, [
+      %{name: name, content: content, type: "text/css"}
+    ])
+    |> render_upload(name)
   end
 
   test "the theme pages need a sign-in", %{conn: conn} do

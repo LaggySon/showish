@@ -22,8 +22,8 @@ show is on air in another look.
 - **Fonts** takes a font file for words and one for numbers. The file is stored
   inside the theme, so overlays never fetch a font from anywhere else, and a
   venue machine with no internet still draws it. Uploading a font picks it.
-- **Custom CSS** is for anything the tokens do not cover. See
-  [Custom CSS](#custom-css).
+- **Custom CSS** is for anything the tokens do not cover. It is a `.css` file
+  you upload, starting from the template. See [Custom CSS](#custom-css).
 
 ## Sharing
 
@@ -104,6 +104,21 @@ license lets you embed and redistribute.
 
 ## Custom CSS
 
+A theme's CSS is a file, not something typed into the app:
+
+1. **Download template** (on the Themes page, or in the editor's Custom CSS
+   panel) gives you `showish-theme-template.css`. It lists every variable and
+   class a theme can reach, each with an example, all commented out, so as
+   downloaded it changes nothing. The same file is
+   [`priv/themes/template.css`](../priv/themes/template.css) in this repository.
+2. Uncomment the parts you want and change the values, in any editor.
+3. Upload it: **Upload CSS file…** in a theme's Custom CSS panel replaces that
+   theme's CSS, or **Themes → Import file…** makes a new theme from it, named
+   after the file and built on Broadcast.
+
+*Download CSS* gives the current file back to edit again. The panel shows the
+CSS it holds, read-only.
+
 The theme's CSS loads after everything else, on that theme's overlays only, and
 outside the cascade layers the built-in looks use, so a plain selector wins over
 them. Scope rules to your theme with `.overlay-stage` if you like; it is not
@@ -119,10 +134,14 @@ not reach the network at all:
 - no `url()` except an embedded `data:` URL (images and fonts travel inside the
   theme);
 - no `image-set()` or `src()`;
-- no `<` and no `\` (a backslash escape could spell a forbidden word).
+- no `<` and no `\` (a backslash escape could spell a forbidden word), comments
+  included.
 
-A save that breaks a rule is refused with the reason, and overlays keep the last
-version that saved. Custom CSS is limited to 200 KB.
+A file that breaks a rule is refused whole, with the reason, and the theme and
+its overlays keep the CSS they had. The file must be UTF-8 text, up to 200 KB.
+
+A setting under **Design** wins over the same variable in the file; leave it
+blank there to control it from the CSS.
 
 Inline colors set from the control room (a team's colors, the show's accent) are
 written on the element, so a rule changing them needs `!important`.

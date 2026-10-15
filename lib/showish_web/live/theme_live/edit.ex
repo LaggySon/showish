@@ -62,6 +62,7 @@ defmodule ShowishWeb.ThemeLive.Edit do
       |> assign(:saved_at, nil)
       |> assign(:save_failed, false)
       |> assign(:font_error, nil)
+      |> assign(:css_error, nil)
       # Signed once: a token carries its signing time, so signing on every
       # render would change the preview URL and reload the frame each second.
       |> assign(:preview_token, ThemePreview.sign(theme))
@@ -77,6 +78,15 @@ defmodule ShowishWeb.ThemeLive.Edit do
           progress: &handle_progress/3
         )
       end)
+
+    socket =
+      allow_upload(socket, :css_file,
+        accept: ~w(.css),
+        max_entries: 1,
+        max_file_size: CustomCSS.max_bytes(),
+        auto_upload: true,
+        progress: &handle_progress/3
+      )
 
     {:ok, socket}
   end
@@ -182,27 +192,67 @@ defmodule ShowishWeb.ThemeLive.Edit do
                 />
               </div>
             </.collapsible_panel>
-
-            <.collapsible_panel id="theme-css-panel" title="Custom CSS">
-              <:aside>{css_summary(@theme)}</:aside>
-              <div class="app-fields">
-                <.input
-                  field={@form[:css]}
-                  type="textarea"
-                  rows="12"
-                  label="CSS"
-                  spellcheck="false"
-                  phx-debounce="800"
-                  class="app-field-full"
-                  placeholder=".overlay-panel { border-radius: 0; }"
-                  hint={"Loaded after everything else, on this theme's overlays only. No @import and no url() except data: URLs. Up to #{div(CustomCSS.max_bytes(), 1000)} KB."}
-                />
-              </div>
-              <p class="ui-hint app-block-hint">
-                The classes worth targeting are listed in the overlay guide under "Reaching what tokens cannot".
-              </p>
-            </.collapsible_panel>
           </.form>
+
+          <.collapsible_panel id="theme-css-panel" title="Custom CSS" open={@theme.css != ""}>
+            <:aside>{css_summary(@theme)}</:aside>
+            <p class="ui-hint app-block-hint">
+              For anything Design does not cover. Download the template, uncomment the parts you
+              want, change the values and upload the file here. It loads after everything else, on
+              this theme's overlays only. Nothing in it may load from the internet: images and fonts
+              go in as data: URLs. Up to {div(CustomCSS.max_bytes(), 1000)} KB.
+            </p>
+            <div
+              :if={@css_error}
+              id="css-error"
+              class="ui-notice"
+              data-status="failure"
+              role="alert"
+            >
+              Not uploaded: the CSS {@css_error}. The theme keeps its current CSS.
+            </div>
+            <pre :if={@theme.css != ""} id="theme-css" class="ui-pre app-css-view">{@theme.css}</pre>
+            <form
+              id="css-upload-form"
+              phx-change="validate_css"
+              class="ui-button-group app-form-actions"
+            >
+              <label class="ui-button ui-button--small" for={@uploads.css_file.ref}>
+                {if @theme.css == "", do: "Upload CSS file…", else: "Replace CSS file…"}
+              </label>
+              <.live_file_input upload={@uploads.css_file} class="ui-sr-only" />
+              <.button
+                id="download-template"
+                href={~p"/theme-template.css"}
+                size="small"
+                variant="quiet"
+              >
+                Download template
+              </.button>
+              <.button
+                :if={@theme.css != ""}
+                id="download-css"
+                href={~p"/themes/#{@theme.id}/custom.css"}
+                size="small"
+                variant="quiet"
+              >
+                Download CSS
+              </.button>
+              <.button
+                :if={@theme.css != ""}
+                id="remove-css"
+                type="button"
+                size="small"
+                variant="ghost"
+                phx-click="remove_css"
+                data-confirm="Remove this theme's CSS?"
+                data-confirm-body="Overlays drawn in the theme lose it at once. Download it first to keep a copy."
+                data-confirm-action="Remove CSS"
+              >
+                Remove
+              </.button>
+            </form>
+          </.collapsible_panel>
 
           <.collapsible_panel id="theme-fonts-panel" title="Fonts" open={@theme.fonts != %{}}>
             <:aside>{font_summary(@theme)}</:aside>
@@ -500,6 +550,24 @@ defmodule ShowishWeb.ThemeLive.Edit do
     {:noreply, assign(socket, :font_error, upload_error(socket))}
   end
 
+  def handle_event("validate_css", _params, socket) do
+    upload = socket.assigns.uploads.css_file
+
+    error =
+      case Enum.flat_map(upload.entries, &upload_errors(upload, &1)) ++ upload_errors(upload) do
+        [:too_large | _] -> "is larger than #{div(CustomCSS.max_bytes(), 1000)} KB"
+        [:not_accepted | _] -> "must be a .css file"
+        [_ | _] -> "could not be uploaded"
+        [] -> nil
+      end
+
+    {:noreply, assign(socket, :css_error, error)}
+  end
+
+  def handle_event("remove_css", _params, socket) do
+    save(socket, %{"css" => ""}, :css_error)
+  end
+
   def handle_event("remove_font", %{"role" => role}, socket) do
     save(socket, %{"fonts" => Map.delete(socket.assigns.theme.fonts, role)})
   end
@@ -527,6 +595,20 @@ defmodule ShowishWeb.ThemeLive.Edit do
      socket
      |> put_flash(:info, "Deleted #{theme.name}.")
      |> push_navigate(to: ~p"/themes")}
+  end
+
+  # The CSS file replaces the theme's CSS the moment it finishes uploading. A
+  # file that breaks a rule is refused whole, with the reason, and the theme
+  # keeps what it had.
+  defp handle_progress(:css_file, entry, socket) do
+    if entry.done? do
+      contents =
+        consume_uploaded_entry(socket, entry, fn %{path: path} -> {:ok, File.read!(path)} end)
+
+      save(assign(socket, :css_error, nil), %{"css" => contents}, :css_error)
+    else
+      {:noreply, socket}
+    end
   end
 
   # A font is stored the moment it finishes uploading, and picked straight away
@@ -567,8 +649,9 @@ defmodule ShowishWeb.ThemeLive.Edit do
   end
 
   # Saves a change that did not come from the form itself (a button, an
-  # upload), with the same feedback as typing in a field.
-  defp save(socket, attrs) do
+  # upload), with the same feedback as typing in a field. A refusal is shown in
+  # the panel the change came from, under `error_key`.
+  defp save(socket, attrs, error_key \\ :font_error) do
     case Themes.update_theme(socket.assigns.current_scope, socket.assigns.theme, attrs) do
       {:ok, theme} ->
         {:noreply,
@@ -583,7 +666,7 @@ defmodule ShowishWeb.ThemeLive.Edit do
           |> Enum.flat_map(fn {_field, messages} -> messages end)
           |> Enum.join(" · ")
 
-        {:noreply, assign(socket, :font_error, message)}
+        {:noreply, assign(socket, error_key, message)}
     end
   end
 
@@ -648,10 +731,13 @@ defmodule ShowishWeb.ThemeLive.Edit do
   defp css_summary(%Theme{css: ""}), do: "None"
 
   defp css_summary(%Theme{css: css}) do
-    case css |> String.split("\n") |> length() do
-      1 -> "1 line"
-      n -> "#{n} lines"
-    end
+    lines =
+      case css |> String.split("\n") |> length() do
+        1 -> "1 line"
+        n -> "#{n} lines"
+      end
+
+    "#{lines} · #{max(round(byte_size(css) / 1000), 1)} KB"
   end
 
   defp font_summary(%Theme{fonts: fonts}) when map_size(fonts) == 0, do: "None"

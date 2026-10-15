@@ -44,6 +44,9 @@ defmodule Showish.Themes.CustomCSS do
       byte_size(css) > @max_bytes ->
         {:error, "is longer than #{div(@max_bytes, 1000)} KB"}
 
+      not String.valid?(css) or String.contains?(css, <<0>>) ->
+        {:error, "is not a text file; save it as UTF-8"}
+
       String.contains?(css, "<") ->
         {:error, "may not contain <"}
 

@@ -62,6 +62,8 @@ defmodule ShowishWeb.Router do
 
     get "/shows/:slug/obs.json", ObsController, :download
     get "/themes/:id/download", ThemeController, :download
+    get "/themes/:id/custom.css", ThemeController, :custom_css
+    get "/theme-template.css", ThemeController, :template
   end
 
   scope "/", ShowishWeb do
