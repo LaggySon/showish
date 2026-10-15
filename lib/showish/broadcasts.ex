@@ -39,6 +39,8 @@ defmodule Showish.Broadcasts do
   alias Showish.Broadcasts.Team
   alias Showish.Broadcasts.TeamProfile
   alias Showish.Repo
+  alias Showish.Themes
+  alias Showish.Themes.Theme
 
   @pubsub Showish.PubSub
 
@@ -118,7 +120,7 @@ defmodule Showish.Broadcasts do
   defp preload_maybe(nil), do: nil
   defp preload_maybe(%Show{} = show), do: show |> Repo.preload(preloads()) |> hydrate_baseball()
 
-  defp preloads, do: [:teams, :games, :talents, baseball_game: Baseball.preloads()]
+  defp preloads, do: [:teams, :games, :talents, :theme, baseball_game: Baseball.preloads()]
 
   @doc "Reloads a show along with all of its children."
   def reload(%Show{} = show) do
@@ -147,12 +149,51 @@ defmodule Showish.Broadcasts do
     |> after_write()
   end
 
-  @doc "Updates a show and everything nested under it."
+  @doc """
+  Updates a show and everything nested under it.
+
+  A `"look"` attribute is the control room's Look menu, which lists the built-in
+  looks and the account's own themes together: a preset key picks a built-in
+  look, and `"theme-<id>"` one of the scope's themes. A theme that is not the
+  scope's own is ignored.
+  """
   def update_show(%Scope{} = scope, %Show{} = show, attrs) do
+    show = owned!(show, scope)
+    {attrs, theme} = resolve_look(scope, stringify_keys(attrs))
+
     show
-    |> owned!(scope)
-    |> write_show(attrs)
+    |> Show.changeset(attrs)
+    |> put_theme(theme)
+    |> Repo.update()
+    |> after_write()
   end
+
+  # A themed show also takes its theme's base as its preset, so the scenes
+  # rebuild themselves for that base, and so deleting the theme leaves the show
+  # on the look the theme was built on.
+  defp resolve_look(scope, %{"look" => "theme-" <> id} = attrs) do
+    case Themes.get_own_theme(scope, id) do
+      %Theme{} = theme -> {Map.put(attrs, "preset", theme.base), {:set, theme.id}}
+      nil -> {attrs, :keep}
+    end
+  end
+
+  defp resolve_look(_scope, %{"look" => look} = attrs) when is_binary(look) and look != "",
+    do: {Map.put(attrs, "preset", look), {:set, nil}}
+
+  defp resolve_look(_scope, attrs), do: {attrs, :keep}
+
+  defp put_theme(changeset, :keep), do: changeset
+  defp put_theme(changeset, {:set, id}), do: Ecto.Changeset.put_change(changeset, :theme_id, id)
+
+  @doc """
+  The Look menu's value for a show: its theme, or its built-in look.
+
+      iex> Showish.Broadcasts.look(%Showish.Broadcasts.Show{preset: "laggish", theme_id: nil})
+      "laggish"
+  """
+  def look(%Show{theme_id: nil, preset: preset}), do: preset
+  def look(%Show{theme_id: id}), do: "theme-#{id}"
 
   @doc "Deletes a show and, by way of the database, its children."
   def delete_show(%Scope{} = scope, %Show{} = show) do

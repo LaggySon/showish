@@ -8,11 +8,13 @@ defmodule ShowishWeb.OverlayComponents do
   """
 
   use Phoenix.Component
+  use ShowishWeb, :verified_routes
 
   alias Showish.Broadcasts.Preset
   alias Showish.Broadcasts.Team
   alias Showish.Colors
   alias Showish.Text
+  alias Showish.Themes
 
   @doc """
   The 1920x1080 canvas every scene is drawn on.
@@ -24,14 +26,25 @@ defmodule ShowishWeb.OverlayComponents do
   attr :id, :string, default: "overlay-stage"
   attr :preset, :string, default: nil
   attr :accent, :string, default: nil
+
+  attr :theme, :any,
+    default: nil,
+    doc: "an account's own theme, drawn over the preset (which is the theme's base)"
+
   slot :inner_block, required: true
 
   def stage(assigns) do
     ~H"""
+    <link
+      :if={@theme}
+      id="overlay-theme"
+      rel="stylesheet"
+      href={~p"/overlay/themes/#{@theme.id}/#{Themes.version(@theme)}"}
+    />
     <div
       id={@id}
       phx-hook="OverlayScale"
-      class={["overlay-stage", stage_class(@preset), @class]}
+      class={["overlay-stage", stage_class(@preset), @theme && Themes.stage_class(@theme), @class]}
       style={@accent && "--overlay-accent: #{@accent};"}
     >
       {render_slot(@inner_block)}

@@ -49,6 +49,10 @@ defmodule ShowishWeb.Router do
       live "/shows/new", ShowLive.Index, :new
       live "/shows/:slug", ShowLive.Detail, :show
       live "/shows/:slug/control", ShowLive.Control, :control
+      live "/themes", ThemeLive.Index, :index
+      live "/themes/new", ThemeLive.Index, :new
+      live "/themes/shared/:code", ThemeLive.Shared, :show
+      live "/themes/:id", ThemeLive.Edit, :edit
     end
   end
 
@@ -57,6 +61,7 @@ defmodule ShowishWeb.Router do
     pipe_through [:download, :require_authenticated_user]
 
     get "/shows/:slug/obs.json", ObsController, :download
+    get "/themes/:id/download", ThemeController, :download
   end
 
   scope "/", ShowishWeb do
@@ -87,6 +92,11 @@ defmodule ShowishWeb.Router do
     pipe_through :browser
 
     delete "/users/log-out", UserSessionController, :delete
+  end
+
+  # The stylesheet of an account's theme, loaded by the overlays drawn in it.
+  scope "/overlay", ShowishWeb do
+    get "/themes/:id/:version", ThemeCSSController, :show
   end
 
   scope "/overlay", ShowishWeb.Overlays do

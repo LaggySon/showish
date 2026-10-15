@@ -13,7 +13,7 @@ defmodule ShowishWeb.Overlays.Credits do
     assigns = assign(assigns, :groups, group_by_role(Show.talents(assigns.show)))
 
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class="overlay-in-fade absolute inset-0 bg-slate-950/90"></div>
 
       <div class="absolute inset-0 overflow-hidden">

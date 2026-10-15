@@ -13,7 +13,7 @@ defmodule ShowishWeb.Overlays.Ticker do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class="overlay-ticker absolute inset-x-0 bottom-0 flex h-[84px] items-stretch overlay-in-up">
         <div
           class="overlay-in-left flex items-center gap-4 px-8"

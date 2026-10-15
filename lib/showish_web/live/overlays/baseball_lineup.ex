@@ -16,7 +16,7 @@ defmodule ShowishWeb.Overlays.BaseballLineup do
       |> assign(:teams, Enum.map([1, 2], &Show.team(assigns.show, &1)))
 
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div id="baseball-lineup-scene" class="absolute inset-x-[120px] top-[84px] bottom-[84px]">
         <header class="overlay-heading overlay-in-down flex items-end justify-between border-b border-white/20 pb-5">
           <div>

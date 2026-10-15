@@ -32,7 +32,7 @@ defmodule ShowishWeb.Overlays.BaseballDefense do
       |> assign(:positions, @positions)
 
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div id="baseball-defense-scene" class="absolute inset-x-[170px] top-[72px] bottom-[60px]">
         <header class="overlay-heading overlay-in-down flex items-center justify-between">
           <div class="flex items-center gap-5">

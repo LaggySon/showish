@@ -147,7 +147,7 @@ defmodule ShowishWeb.Overlays.Standings do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class="overlay-standings overlay-panel overlay-in-up">
         <%!-- rows reading @show data --%>
       </div>
@@ -161,9 +161,10 @@ end
   slug, subscribe, tick every second). You only write `render/1`.
 - It also hands you the assigns every scene turned out to need: `@show`, `@left`
   and `@right` (the two teams with `swap_sides` already applied — either may be
-  `nil`), and `@now`.
-- Wrap the scene in `<.stage>` and pass `@show.preset`. The stage stamps the
-  `preset-<key>` class, so the preset system applies automatically.
+  `nil`), `@now`, and `@theme` (the account theme the show is drawn in, or `nil`).
+- Wrap the scene in `<.stage>` and pass `@show.preset`, `@show.accent_color` and
+  `@theme`. The stage stamps the `preset-<key>` class, so the preset system
+  applies automatically, and loads the theme's stylesheet when there is one.
 - Reuse the shared primitives — the components in `overlay_components.ex`
   (`<.team_logo>`, `<.talent_details>`, `<.marquee>`, `<.empty_notice>`), the
   `overlay-panel` recipe, the `overlay-in-*` entrances — wherever they fit, and
@@ -244,6 +245,10 @@ new scene through the tokens it already sets.
 
 ## 2. Add a preset
 
+> A preset is a look built into the code, for every account. For a look that
+> belongs to one account, made and shared without touching the repo, use a
+> theme instead: see [docs/themes.md](themes.md).
+
 First decide which kind it is:
 
 - **Reskin** — it only changes colour, radius, shadow, spacing, or type. → §2a,
@@ -315,7 +320,7 @@ defp render_preset(assigns), do: default(assigns)
 
 defp midnight(assigns) do
   ~H"""
-  <.stage preset={@show.preset} accent={@show.accent_color}>
+  <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
     <%!-- the restructured element tree for this look --%>
   </.stage>
   """
