@@ -233,30 +233,6 @@ defmodule ShowishWeb.OverlayComponents do
   end
 
   @doc """
-  The band across the bottom of a full-frame card that the ticker runs in.
-
-  Draws nothing at all when the operator has left the ticker empty, rather than
-  leaving an empty stripe across the bottom of the frame.
-  """
-  attr :text, :string, default: nil
-  attr :delay, :integer, default: 0
-
-  def ticker_bar(assigns) do
-    ~H"""
-    <div
-      :if={Text.present?(@text)}
-      class="overlay-in-up absolute inset-x-0 bottom-0 overflow-hidden border-t border-white/10 bg-slate-950/90 py-5"
-      style={"--overlay-delay: #{@delay}ms"}
-    >
-      <.marquee
-        text={@text}
-        class="text-[22px] font-medium uppercase tracking-[0.2em] text-slate-300"
-      />
-    </div>
-    """
-  end
-
-  @doc """
   The card a scene draws when it has nothing to draw.
 
   An overlay with a hole in it looks like a broken overlay, so a scene with no

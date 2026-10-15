@@ -52,8 +52,6 @@ defmodule ShowishWeb.Overlays.Break do
           <.break_side team={@right} align="left" />
         </div>
       </div>
-
-      <.ticker_bar text={@show.ticker} delay={480} />
     </.stage>
     """
   end

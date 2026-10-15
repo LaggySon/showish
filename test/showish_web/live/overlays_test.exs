@@ -252,6 +252,16 @@ defmodule ShowishWeb.OverlaysTest do
     assert html =~ ~r/0[01]:\d\d/
   end
 
+  test "only the ticker scene draws the ticker", %{conn: conn, show: show} do
+    for scene <- Scenes.for_sport(show.sport), scene.key != "ticker" do
+      {:ok, view, _html} = live(conn, Scenes.path(show.slug, scene.key))
+      refute has_element?(view, ".overlay-marquee"), "#{scene.key} drew its own ticker"
+    end
+
+    {:ok, view, _html} = live(conn, Scenes.path(show.slug, "ticker"))
+    assert has_element?(view, ".overlay-ticker .overlay-marquee")
+  end
+
   test "unknown shows 404 rather than rendering an empty overlay", %{conn: conn} do
     assert_raise Ecto.NoResultsError, fn ->
       live(conn, Scenes.path("no-such-show", "scorebug"))
