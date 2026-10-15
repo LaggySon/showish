@@ -43,7 +43,9 @@ sign-in) holding two example shows: **Showish Invitational** (`demo`), an
 esports best-of-five with two teams, a series three games in and a crew already
 filled in, and **Harbour Series** (`demo-baseball`), a baseball game with both
 lineups and bullpens and two men on. Sign in, open a control room and drag the
-scorebug URL into OBS to see the whole loop working in about a minute.
+scorebug URL into OBS to see the whole loop working in about a minute. Two
+example themes, **Acme Esports** and **Ballpark**, are waiting under Themes and
+in every show's Look menu.
 
 Running the seeds again resets both examples to how they ship. Every PR preview
 on Railway seeds itself after its migrations (`bin/seed`, see `railway.json`),
