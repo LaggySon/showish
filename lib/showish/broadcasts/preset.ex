@@ -36,6 +36,12 @@ defmodule Showish.Broadcasts.Preset do
       key: "tranquility",
       name: "Tranquility",
       summary: "Flat rectangles, hard edges and condensed uppercase type."
+    },
+    %{
+      key: "laggish",
+      name: "Laggish",
+      summary:
+        "Flat black panels, hairlines and monospaced numbers, after the Laggish design guide."
     }
   ]
 

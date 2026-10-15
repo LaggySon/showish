@@ -1,0 +1,219 @@
+/* Laggish: tokens and stage-wide treatment
+   ---------------------------------------------------------------------------
+   The Laggish design guide (DESIGN.md, the control room's own design) carried
+   over to air, loosely: the guide is for screens people read at a desk, and an
+   overlay is read at a glance over moving video. What carries over:
+
+     - flat near-black panels with 1px hairlines, 2px corners, no blur or shadow;
+     - grayscale chrome; colour only where something has an identity or a state
+       (a team's colour, the show's accent, a winner);
+     - Geist for words, Geist Mono for every number that changes or lines up;
+     - uppercase micro labels, " · " separators, "—" for missing;
+     - the brand mark: a small square, here in the show's accent;
+     - the state rail: a coloured edge that says "this one", here 2x the
+       guide's width so it reads at 1080p from across a room.
+
+   What does not: the guide lets nothing move, and an overlay that snaps on
+   looks broken on air, so pieces wipe on from the edge they live against
+   (nothing travels; the panel is revealed in place). Type is broadcast-sized,
+   not dense.
+
+   This file overrides the --overlay-* token contract (every .overlay-panel and
+   .overlay-round-* corner follows) and sets the stage-wide type. Scene files
+   import after it and read the --lg-* properties defined here. */
+
+/* Self-hosted like the other overlay fonts, and with font-display: block: a
+   browser source on an offline venue machine must not flash a fallback face on
+   air. The control room loads the same files under its own family names. */
+@font-face {
+  font-family: "Laggish Sans";
+  src: url("/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Laggish Mono";
+  src: url("/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+
+.preset-laggish {
+  /* The guide's dark-mode values, as fixed colours: output has no light mode. */
+  --lg-ink: #ededed;
+  --lg-muted: #c9c9c9;
+  --lg-label: #a6a6a6;
+  --lg-faint: #6b6b6b;
+  --lg-solid: #0a0a0a;
+  --lg-panel: #0a0a0a;
+  --lg-raised: #171717;
+  --lg-band: rgba(237, 237, 237, 0.07);
+  --lg-line: rgba(237, 237, 237, 0.18);
+  --lg-line-strong: rgba(237, 237, 237, 0.42);
+  --lg-radius: 2px;
+  --lg-rail: 6px;
+  --lg-success: #6eeb83;
+  --lg-progress: #5eb8ff;
+  --lg-warning: #ffb84d;
+  --lg-sans: "Laggish Sans", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --lg-mono: "Laggish Mono", "Geist Mono", ui-monospace, monospace;
+  --lg-accent: var(--overlay-accent, var(--lg-progress));
+  /* The 135° stripes the guide uses for "nothing here yet". */
+  --lg-hatch: repeating-linear-gradient(
+    135deg,
+    rgba(237, 237, 237, 0.04) 0 8px,
+    rgba(237, 237, 237, 0.09) 8px 16px
+  );
+
+  /* The panel and radius contract. Every .overlay-panel and .overlay-round-*
+     corner in every scene follows from these lines. */
+  --overlay-panel-bg: var(--lg-panel);
+  --overlay-panel-border: 1px solid var(--lg-line);
+  --overlay-panel-shadow: none;
+  --overlay-panel-blur: none;
+  --overlay-radius-pill: var(--lg-radius);
+  --overlay-radius-logo: var(--lg-radius);
+  --overlay-radius-card: var(--lg-radius);
+  --overlay-radius-hero: var(--lg-radius);
+
+  /* Wipes are short; the stagger delays scenes set still apply. */
+  --overlay-duration: 340ms;
+
+  /* Tailwind's slate is a blue gray; the guide's grays are neutral. Scenes
+     write text-slate-400 and bg-slate-950/90 throughout, and Tailwind reads
+     those through these variables, so redefining them here neutralises every
+     scene's grays under this preset without touching its markup. */
+  --color-slate-50: #fafafa;
+  --color-slate-100: #ededed;
+  --color-slate-200: #e0e0e0;
+  --color-slate-300: #c9c9c9;
+  --color-slate-400: #a6a6a6;
+  --color-slate-500: #808080;
+  --color-slate-600: #595959;
+  --color-slate-700: #3d3d3d;
+  --color-slate-800: #262626;
+  --color-slate-900: #171717;
+  --color-slate-950: #0a0a0a;
+  --color-emerald-400: var(--lg-success);
+
+  font-family: var(--lg-sans);
+  color: var(--lg-ink);
+}
+
+/* Entrances: a wipe from the edge a piece lives against, in place of the
+   default slide; pops become plain fades. Guarded on the motion preference
+   because this layer sorts above base.css's reduced-motion rule. */
+@keyframes lg-wipe-left {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+
+@keyframes lg-wipe-right {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+
+@keyframes lg-wipe-down {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+}
+
+@keyframes lg-wipe-up {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .preset-laggish
+    :is(.overlay-in-up, .overlay-in-down, .overlay-in-left, .overlay-in-right, .overlay-in-pop) {
+    animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .preset-laggish .overlay-in-left {
+    animation-name: lg-wipe-left;
+  }
+
+  .preset-laggish .overlay-in-right {
+    animation-name: lg-wipe-right;
+  }
+
+  .preset-laggish .overlay-in-down {
+    animation-name: lg-wipe-down;
+  }
+
+  .preset-laggish .overlay-in-up {
+    animation-name: lg-wipe-up;
+  }
+
+  .preset-laggish .overlay-in-pop {
+    animation-name: overlay-in-fade;
+  }
+}
+
+/* Values are monospaced: scores, clocks, records, counts. */
+.preset-laggish :is(.tabular, .tabular-nums, .overlay-clock) {
+  font-family: var(--lg-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* The guide's heaviest weight is 800; 900 in Geist turns blotchy at
+   broadcast sizes. */
+.preset-laggish .font-black {
+  font-weight: 800;
+}
+
+/* The default package tracks its small caps very wide (0.16em to 0.3em). The
+   guide's micro labels sit closer, so they read as labels and not as
+   decoration. Negative tracking on headings (`tracking-[-0.04em]`) is left
+   alone. */
+.preset-laggish :is([class*="tracking-[0"], .tracking-wider, .tracking-widest) {
+  letter-spacing: 0.08em;
+}
+
+/* Eyebrows (stage names, roles) keep the show's accent, and gain the brand
+   mark: the guide's square, in the same accent. */
+.preset-laggish .overlay-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  opacity: 1;
+}
+
+.preset-laggish .overlay-eyebrow::before {
+  content: "";
+  flex: none;
+  width: 0.7em;
+  height: 0.7em;
+  background: currentColor;
+}
+
+/* Clocks are values, so they are ink, not accent: the eyebrow above a clock
+   already carries the accent. */
+.preset-laggish .overlay-clock {
+  color: var(--lg-ink);
+}
+
+/* Logos are drawn as their teams made them, with no plate behind; a team
+   without one gets its colour as a flat square. */
+.preset-laggish .overlay-logo-plate {
+  background: var(--team-primary);
+}
+
+.preset-laggish .overlay-logo-image {
+  background: none;
+}
+
+/* "vs" and the dash between scores are separators, so they are faint. */
+.preset-laggish .overlay-vs {
+  color: var(--lg-faint);
+}

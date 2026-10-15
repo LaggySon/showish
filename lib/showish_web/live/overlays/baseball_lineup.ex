@@ -18,7 +18,7 @@ defmodule ShowishWeb.Overlays.BaseballLineup do
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
       <div id="baseball-lineup-scene" class="absolute inset-x-[120px] top-[84px] bottom-[84px]">
-        <header class="overlay-in-down flex items-end justify-between border-b border-white/20 pb-5">
+        <header class="overlay-heading overlay-in-down flex items-end justify-between border-b border-white/20 pb-5">
           <div>
             <.eyebrow color={@show.accent_color}>Starting nine</.eyebrow>
             <h1 class="mt-2 text-[54px] font-black uppercase leading-none tracking-[-0.04em]">

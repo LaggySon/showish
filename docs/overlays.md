@@ -330,6 +330,36 @@ Use classes only this look emits so they cannot leak into other presets.
 Scenes that keep their default geometry (typically talent, ticker, cams) need
 **nothing** beyond the token file from §2a.
 
+### 2c. Reaching what tokens cannot
+
+Some scene markup still carries Tailwind literals (the baseball scenes most of
+all). Two ways to restyle those without forking the scene:
+
+- **Remap the palette.** Tailwind v4 utilities read the theme variables, so
+  `text-slate-400` is `color: var(--color-slate-400)`. Redefining
+  `--color-slate-*` on `.preset-<key>` re-tints every scene's grays at once.
+  Laggish does this to turn the blue-gray slate into the guide's neutral grays.
+- **Use a class hook.** Elements a preset may need to restyle carry a named
+  class. Some have default paint in Broadcast (the scoreplate, the talent
+  underline, the cam frame); the rest have no rules at all until a preset
+  targets them, so adding one to a scene changes nothing on its own:
+
+| Hook | On |
+| --- | --- |
+| `overlay-eyebrow`, `overlay-teamname`, `overlay-vs`, `overlay-clock` | stage labels, team names, "vs", countdowns |
+| `overlay-scoreplate` (reads `--score-color`) | large scores on series and break |
+| `overlay-talent`, `overlay-cam-window`, `overlay-cam-plate` | name plates and caster-cam frames |
+| `overlay-ticker`, `overlay-ticker-copy`, `overlay-credit-name`, `overlay-pronouns` | ticker, credits, pronouns |
+| `overlay-heading` | a full-frame scene's title block (lineups, bullpen, defense, comparison) |
+| `overlay-backdrop` | the dimming layer behind standby and break |
+| `overlay-inset` | the in-game pitcher box on the bullpen report |
+| `overlay-chip` (with `data-status`, lowercased) | bullpen status pills |
+| `overlay-field`, `overlay-field-grass`, `overlay-field-infield`, `overlay-field-mound`, `overlay-tag` | the defensive alignment diagram and its fielder tags |
+| `overlay-statgrid`, `overlay-ornament` | the player spotlight's stat grid and its decorative ring |
+
+A new hook is one class in a scene's markup and nothing else. Name it for what
+the element *is*, not for how one preset draws it.
+
 ---
 
 ## Cost at a glance
