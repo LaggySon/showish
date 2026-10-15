@@ -176,7 +176,7 @@ end
 ```
 
 The specialized markup must still begin with `<.stage preset={@show.preset}
-...>`, reuse overlay tokens and shared components, and avoid theme-specific
+accent={@show.accent_color} theme={@theme}>`, reuse overlay tokens and shared components, and avoid theme-specific
 paint. That lets every preset continue to skin it. Only add a preset-specific
 markup fork when the preset also changes the geometry, following the structural
 preset rules in [Overlays](overlays.md#2b-a-structural-preset).

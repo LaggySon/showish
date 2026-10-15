@@ -11,7 +11,7 @@ defmodule ShowishWeb.Overlays.BaseballPlayer do
     assigns = assign(assigns, :graphic, graphic)
 
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div id="baseball-player-scene" class="absolute inset-x-[250px] top-[185px] flex justify-center">
         <section class="overlay-panel overlay-round-hero overlay-in-up w-[1280px] overflow-hidden">
           <div class="h-3" style={"background: #{@show.accent_color}"}></div>

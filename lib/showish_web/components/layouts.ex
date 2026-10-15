@@ -50,6 +50,7 @@ defmodule ShowishWeb.Layouts do
         </.link>
         <nav :if={@current_scope} class="ui-sitenav" aria-label="Site">
           <.link navigate={~p"/"} aria-current={@section == "shows" && "page"}>Shows</.link>
+          <.link navigate={~p"/themes"} aria-current={@section == "themes" && "page"}>Themes</.link>
         </nav>
         <div class="ui-topbar-aside">
           <.user_menu :if={@current_scope} current_scope={@current_scope} />

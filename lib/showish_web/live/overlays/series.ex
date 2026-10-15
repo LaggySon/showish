@@ -26,7 +26,7 @@ defmodule ShowishWeb.Overlays.Series do
 
   defp broadcast(assigns) do
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class="absolute inset-x-0 top-[120px] flex flex-col items-center gap-10">
         <div class="flex flex-col items-center gap-3 overlay-in-down">
           <.eyebrow color={@show.accent_color}>
@@ -98,7 +98,7 @@ defmodule ShowishWeb.Overlays.Series do
   # bottom of a game that has been played.
   defp laggish(assigns) do
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class="lg-series">
         <div class="lg-series-head">
           <.eyebrow color={@show.accent_color} class="overlay-in-fade">
@@ -210,7 +210,7 @@ defmodule ShowishWeb.Overlays.Series do
   # and the finished ones desaturated behind their winner's colour.
   defp tranquility(assigns) do
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class="tranq-mapinfo">
         <.tranq_map_team team={@left} enter="overlay-in-left" />
 

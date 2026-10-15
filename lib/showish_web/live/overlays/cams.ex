@@ -32,7 +32,7 @@ defmodule ShowishWeb.Overlays.Cams do
       |> assign(:second_row?, length(talents) > @windows_per_row)
 
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class={["overlay-cams", @second_row? && "overlay-cams-wrap"]}>
         <div
           :for={{talent, index} <- Enum.with_index(@talents)}

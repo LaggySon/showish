@@ -11,7 +11,7 @@ defmodule ShowishWeb.Overlays.Break do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class="overlay-backdrop absolute inset-0 bg-slate-950/88 overlay-in-fade"></div>
 
       <div class="absolute inset-0 flex flex-col items-center justify-center gap-14">

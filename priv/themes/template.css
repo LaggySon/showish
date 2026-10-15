@@ -1,0 +1,296 @@
+/* Showish theme template
+   ==========================================================================
+   Edit this file, then either:
+     - Themes → Import file… to make a new theme from it, or
+     - open an existing theme → Custom CSS → Upload CSS file…
+
+   It is loaded after everything else, on the overlays of the theme that
+   carries it, and outside the cascade layers the built-in looks use. A plain
+   selector here wins over the base look without any extra specificity.
+
+   Everything below is commented out, so the file as downloaded changes
+   nothing. Uncomment what you want and change the values.
+
+   Two rules, because a theme can be shared with other people:
+     - nothing may load from the internet: no imports and no web addresses.
+       Images and fonts are embedded as data: addresses (see FONTS below), or
+       uploaded under Fonts in the theme editor;
+     - no less-than signs and no backslashes anywhere, comments included.
+   Up to 200 KB.
+
+   The full guide is docs/themes.md in the Showish repository.
+   ========================================================================== */
+
+
+/* --------------------------------------------------------------------------
+   1. THE STAGE
+   Every scene is drawn on .overlay-stage, a 1920×1080 canvas. Setting a
+   variable here restyles every scene that reads it.
+
+   A setting made under Design in the theme editor wins over the same
+   variable here. Leave it blank there to control it from this file.
+
+     --overlay-panel-bg       the fill of every card, plate and bar
+     --overlay-panel-border   the line around them
+     --overlay-panel-shadow   the shadow under them
+     --overlay-panel-blur     frosting behind a see-through panel
+     --overlay-radius-pill    corners of side and status indicators
+     --overlay-radius-logo    corners of team logo plates
+     --overlay-radius-card    corners of talent plates and series cards
+     --overlay-radius-hero    corners of full-frame cards
+     --overlay-duration       how long each piece takes to arrive
+     color, font-family       the main ink and the face for words
+   -------------------------------------------------------------------------- */
+
+/*
+.overlay-stage {
+  --overlay-panel-bg: rgba(10, 16, 40, 0.94);
+  --overlay-panel-border: 2px solid #ffd400;
+  --overlay-panel-shadow: 6px 6px 0 rgba(0, 0, 0, 0.85);
+  --overlay-panel-blur: none;
+  --overlay-radius-pill: 2px;
+  --overlay-radius-logo: 4px;
+  --overlay-radius-card: 6px;
+  --overlay-radius-hero: 10px;
+  --overlay-duration: 300ms;
+  color: #ffffff;
+  font-family: "Oswald", "Arial Narrow", sans-serif;
+}
+*/
+
+/* Built-in fonts you can name without uploading anything:
+     "Laggish Sans" (Geist), "Laggish Mono" (Geist Mono), "Heebo", "Oswald",
+     and the system stack: ui-sans-serif, system-ui, sans-serif.
+
+   The show's Accent color arrives as --overlay-accent, set on the stage by
+   the control room. Read it with var(--overlay-accent); setting it here has
+   no effect, because the show's own value is written on the element. */
+
+
+/* --------------------------------------------------------------------------
+   2. GRAYS
+   Secondary text and dividers use Tailwind's slate grays, read through these
+   variables. Change them all to re-tint every gray in every scene.
+   -------------------------------------------------------------------------- */
+
+/*
+.overlay-stage {
+  --color-slate-50: #fafafa;
+  --color-slate-100: #f4f4f5;
+  --color-slate-200: #e4e4e7;
+  --color-slate-300: #d4d4d8;
+  --color-slate-400: #a1a1aa;
+  --color-slate-500: #71717a;
+  --color-slate-600: #52525b;
+  --color-slate-700: #3f3f46;
+  --color-slate-800: #27272a;
+  --color-slate-900: #18181b;
+  --color-slate-950: #09090b;
+}
+*/
+
+
+/* --------------------------------------------------------------------------
+   3. NUMBERS
+   Scores, clocks, records and counts.
+   -------------------------------------------------------------------------- */
+
+/*
+.overlay-stage :is(.tabular, .tabular-nums, .overlay-clock) {
+  font-family: "Laggish Mono", ui-monospace, monospace;
+}
+*/
+
+
+/* --------------------------------------------------------------------------
+   4. PIECES
+   Classes every look puts on the same parts of every scene. Target these;
+   other classes in the markup belong to one look and may change.
+   -------------------------------------------------------------------------- */
+
+/* Small uppercase labels: stage names, roles. */
+/*
+.overlay-eyebrow {
+  letter-spacing: 0.12em;
+}
+*/
+
+/* Team names on the full-frame cards (series, standby, break). */
+/*
+.overlay-teamname {
+  color: var(--team-primary);
+}
+*/
+
+/* Big scores on series and break. --score-color is that team's color. */
+/*
+.overlay-scoreplate {
+  color: var(--score-color);
+}
+*/
+
+/* "vs" and the dash between two scores. */
+/*
+.overlay-vs {
+  color: var(--overlay-accent);
+}
+*/
+
+/* Countdowns on standby and break. */
+/*
+.overlay-clock {
+  color: var(--overlay-accent);
+}
+*/
+
+/* Name plates (talent lower thirds and caster cams). --talent-accent is
+   the show's accent. */
+/*
+.overlay-talent {
+  border-bottom: 4px solid var(--talent-accent);
+}
+.overlay-pronouns {
+  font-style: italic;
+}
+*/
+
+/* Caster cam windows: the frame around each camera. */
+/*
+.overlay-cam-window {
+  border: 3px solid var(--overlay-accent);
+  border-radius: 0;
+  box-shadow: none;
+}
+.overlay-cam-plate {
+  border-radius: 0;
+}
+*/
+
+/* The ticker scene: the whole bar and its scrolling copy. */
+/*
+.overlay-ticker {
+  border-top: 2px solid var(--overlay-accent);
+}
+.overlay-ticker-copy {
+  font-weight: 700;
+}
+*/
+
+/* Credits: each crew member's name as it rolls. */
+/*
+.overlay-credit-name {
+  color: var(--overlay-accent);
+}
+*/
+
+/* Team logos, and the colored square drawn for a team without one. */
+/*
+.overlay-logo-plate {
+  background: var(--team-primary);
+}
+.overlay-logo-image {
+  background: none;
+}
+*/
+
+/* Entrances. Pieces arrive with these classes; to stop all movement: */
+/*
+.overlay-stage :is(.overlay-in-up, .overlay-in-down, .overlay-in-left,
+  .overlay-in-right, .overlay-in-pop, .overlay-in-fade) {
+  animation: none;
+}
+*/
+
+
+/* --------------------------------------------------------------------------
+   5. FULL-FRAME CARDS AND BASEBALL SCENES
+   -------------------------------------------------------------------------- */
+
+/* Title blocks on lineups, bullpen, defense and comparison. */
+/*
+.overlay-heading {
+  background: rgba(10, 16, 40, 0.94);
+  padding: 20px 28px;
+}
+*/
+
+/* The dimming layer behind standby and break. */
+/*
+.overlay-backdrop {
+  background: rgba(0, 0, 0, 0.8);
+}
+*/
+
+/* Bullpen: the pitcher in the game, and each reliever's status. A status
+   chip carries data-status, lowercased, for the words you want colored. */
+/*
+.overlay-inset {
+  border-left: 6px solid var(--team-primary);
+}
+.overlay-chip[data-status="ready"] {
+  color: #6eeb83;
+}
+.overlay-chip[data-status="warming"] {
+  color: #ffb84d;
+}
+*/
+
+/* Defensive alignment: the field and each fielder's tag. */
+/*
+.overlay-field-grass {
+  background: #0f3d22;
+}
+.overlay-field-infield {
+  background: #8a5a2b;
+}
+.overlay-field-mound {
+  background: #0f3d22;
+}
+.overlay-tag {
+  border-radius: 0;
+}
+*/
+
+/* Player spotlight: hide its decorative ring. */
+/*
+.overlay-ornament {
+  display: none;
+}
+*/
+
+
+/* --------------------------------------------------------------------------
+   6. ONE LOOK ONLY
+   The stage also carries the base look's class, so a rule can apply to one
+   base only: .preset-broadcast, .preset-tranquility or .preset-laggish.
+   Laggish and Tranquility keep some of their own values in variables:
+     Laggish:     --lg-panel, --lg-line, --lg-ink, --lg-radius, --lg-rail
+     Tranquility: --tranq-card, --tranq-panel, --tranq-radius, --tranq-shadow
+   -------------------------------------------------------------------------- */
+
+/*
+.preset-laggish {
+  --lg-rail: 8px;
+}
+*/
+
+
+/* --------------------------------------------------------------------------
+   7. FONTS
+   The easy way is the Fonts panel in the theme editor. To carry a font in
+   this file instead, embed it as a data: address. Base64-encode the font
+   file and paste it after "base64," in one line:
+
+@font-face {
+  font-family: "My Brand";
+  src: url(data:font/woff2;base64,PASTE-THE-BASE64-HERE) format("woff2");
+  font-weight: 100 900;
+  font-display: block;
+}
+
+   then use it:
+
+.overlay-stage {
+  font-family: "My Brand", sans-serif;
+}
+   -------------------------------------------------------------------------- */

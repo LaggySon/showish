@@ -15,7 +15,7 @@ defmodule ShowishWeb.Overlays.Talent do
     assigns = assign(assigns, :talents, Show.talents(assigns.show))
 
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class="absolute inset-x-0 bottom-[96px] flex justify-center gap-6 px-24">
         <div
           :for={{talent, index} <- Enum.with_index(@talents)}

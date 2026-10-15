@@ -49,6 +49,9 @@ defmodule Showish.Broadcasts.Show do
     field :sport_state, :map, default: %{}
 
     belongs_to :user, User
+    # Set through the control room's Look menu by `Showish.Broadcasts`, which
+    # checks the theme is the show owner's own; never cast from params.
+    belongs_to :theme, Showish.Themes.Theme
 
     has_many :teams, Team, on_replace: :delete, preload_order: [asc: :position]
     has_many :games, Game, on_replace: :delete, preload_order: [asc: :position]

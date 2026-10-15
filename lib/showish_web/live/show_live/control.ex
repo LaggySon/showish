@@ -18,6 +18,8 @@ defmodule ShowishWeb.ShowLive.Control do
   alias Showish.Broadcasts.Show
   alias Showish.Broadcasts.Sport
   alias Showish.Broadcasts.Team
+  alias Showish.Themes
+  alias Showish.Themes.Theme
   alias ShowishWeb.Scenes
   alias ShowishWeb.SportControls
   alias ShowishWeb.Status
@@ -34,6 +36,7 @@ defmodule ShowishWeb.ShowLive.Control do
      |> assign(:saved_at, nil)
      |> assign(:save_failed, false)
      |> assign(:team_profiles, Broadcasts.list_team_profiles(socket.assigns.current_scope))
+     |> assign(:themes, Themes.list_themes(socket.assigns.current_scope))
      |> assign_show(show)}
   end
 
@@ -131,10 +134,13 @@ defmodule ShowishWeb.ShowLive.Control do
                   />
                   <.input
                     field={@form[:preset]}
+                    id="show_look"
+                    name="show[look]"
+                    value={Broadcasts.look(@show)}
                     type="select"
                     label="Look"
-                    options={Preset.options()}
-                    hint={Preset.fetch(@show.preset).summary}
+                    options={look_options(@themes)}
+                    hint={look_hint(@show)}
                   />
                   <.input
                     :if={@show.sport == "esports"}
@@ -780,6 +786,21 @@ defmodule ShowishWeb.ShowLive.Control do
   end
 
   ## Helpers
+
+  # The built-in looks, then the account's own themes, in one menu.
+  defp look_options([]), do: Preset.options()
+
+  defp look_options(themes) do
+    [
+      {"Built in", Preset.options()},
+      {"Your themes", Enum.map(themes, &{&1.name, "theme-#{&1.id}"})}
+    ]
+  end
+
+  defp look_hint(%Show{theme: %Theme{} = theme}),
+    do: "Your theme, built on #{Preset.fetch(theme.base).name}. Edit it under Themes."
+
+  defp look_hint(%Show{} = show), do: Preset.fetch(show.preset).summary
 
   defp assign_show(socket, %Show{} = show) do
     socket

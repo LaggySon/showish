@@ -1,7 +1,7 @@
 defmodule Showish.Seeds do
   @moduledoc """
   Example data: one show per sport, filled in far enough that every scene has
-  something to draw.
+  something to draw, and two example themes for the Look menu.
 
   Used three ways:
 
@@ -30,6 +30,7 @@ defmodule Showish.Seeds do
   alias Showish.Accounts.Scope
   alias Showish.Broadcasts
   alias Showish.Broadcasts.Show
+  alias Showish.Themes
 
   @doc """
   Creates the example shows for the owner (see above), returning a line per
@@ -43,9 +44,12 @@ defmodule Showish.Seeds do
     email = Keyword.get_lazy(opts, :email, &owner_email/0)
     scope = email |> owner() |> Scope.for_user()
 
-    for {slug, build} <- [{"demo", &esports/1}, {"demo-baseball", &baseball/1}] do
-      seed(scope, slug, build, reset?)
-    end
+    shows =
+      for {slug, build} <- [{"demo", &esports/1}, {"demo-baseball", &baseball/1}] do
+        seed(scope, slug, build, reset?)
+      end
+
+    shows ++ Enum.map(example_themes(), &seed_theme(scope, &1, reset?))
   end
 
   @doc "The address the examples are made for. See the moduledoc."
@@ -85,6 +89,67 @@ defmodule Showish.Seeds do
       %Show{} ->
         {:kept, slug}
     end
+  end
+
+  # Themes are per account, so one with the example's name is the example: the
+  # same rules as a show, keyed by name instead of slug.
+  defp seed_theme(scope, %{"name" => name} = attrs, reset?) do
+    label = "#{name} (theme)"
+
+    case Enum.find(Themes.list_themes(scope), &(&1.name == name)) do
+      nil ->
+        {:ok, _theme} = Themes.create_theme(scope, attrs)
+        {:created, label}
+
+      theme when reset? ->
+        {:ok, _theme} = Themes.delete_theme(scope, theme)
+        {:ok, _theme} = Themes.create_theme(scope, attrs)
+        {:reset, label}
+
+      _theme ->
+        {:kept, label}
+    end
+  end
+
+  # Two themes to pick from any show's Look menu: one changing nearly every
+  # token on Broadcast, with a little custom CSS, and a quieter one on Laggish.
+  defp example_themes do
+    [
+      %{
+        "name" => "Acme Esports",
+        "base" => "broadcast",
+        "tokens" => %{
+          "panel_color" => "#101a3a",
+          "panel_opacity" => 0.96,
+          "border_color" => "#ffd400",
+          "border_width" => 2,
+          "shadow" => "hard",
+          "radius" => 0,
+          "text_color" => "#ffffff",
+          "grays" => "zinc",
+          "font" => "oswald",
+          "numbers_font" => "geist-mono",
+          "entrance" => "fade"
+        },
+        "css" => """
+        /* Name plates underline in the brand yellow rather than the accent. */
+        .overlay-talent {
+          border-bottom-color: #ffd400;
+        }
+        """
+      },
+      %{
+        "name" => "Ballpark",
+        "base" => "laggish",
+        "tokens" => %{
+          "panel_color" => "#0f2a1d",
+          "panel_opacity" => 1,
+          "radius" => 6,
+          "font" => "heebo",
+          "grays" => "stone"
+        }
+      }
+    ]
   end
 
   # A best-of-five three games in, with the whole desk and crew filled in.

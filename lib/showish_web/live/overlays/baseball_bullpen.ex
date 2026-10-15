@@ -16,7 +16,7 @@ defmodule ShowishWeb.Overlays.BaseballBullpen do
       |> assign(:teams, Enum.map([1, 2], &Show.team(assigns.show, &1)))
 
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div id="baseball-bullpen-scene" class="absolute inset-x-[150px] top-[100px]">
         <header class="overlay-heading overlay-in-down text-center">
           <.eyebrow color={@show.accent_color}>{@show.stage}</.eyebrow>

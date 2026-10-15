@@ -15,6 +15,7 @@ spreadsheet in the middle.
 - [Running a match](#running-a-match)
 - [Scene reference](#scene-reference)
 - [Looks](#looks)
+- [Themes](#themes)
 - [Things worth knowing](#things-worth-knowing)
 - [Reading a show from somewhere else](#reading-a-show-from-somewhere-else)
 - [For developers](#for-developers)
@@ -42,7 +43,9 @@ sign-in) holding two example shows: **Showish Invitational** (`demo`), an
 esports best-of-five with two teams, a series three games in and a crew already
 filled in, and **Harbour Series** (`demo-baseball`), a baseball game with both
 lineups and bullpens and two men on. Sign in, open a control room and drag the
-scorebug URL into OBS to see the whole loop working in about a minute.
+scorebug URL into OBS to see the whole loop working in about a minute. Two
+example themes, **Acme Esports** and **Ballpark**, are waiting under Themes and
+in every show's Look menu.
 
 Running the seeds again resets both examples to how they ship. Every PR preview
 on Railway seeds itself after its migrations (`bin/seed`, see `railway.json`),
@@ -475,6 +478,23 @@ Nothing about your OBS setup changes when you switch.
 Typography is self-hosted from `priv/static/fonts` rather than pulled from a CDN,
 so overlays render correctly on a venue machine with no internet.
 
+## Themes
+
+For a look of your own, open **Themes** in the top bar. A theme starts from one
+of the three looks and changes its colors, borders, corners, shadows, fonts and
+entrances. For anything else, download the CSS template, edit it, and upload it
+to a theme or import it as a new one. Upload your own font files and they
+travel inside the theme.
+
+Themes are saved to your account and appear in every show's **Look** menu. Share
+one with a link or as a downloadable file; either way the other person gets
+their own copy, which your later edits do not touch. Build one while you watch
+it on a real scene: the editor's preview draws any of your shows in the theme
+without changing that show.
+
+The file format, every setting and the rules for custom CSS are in
+[docs/themes.md](docs/themes.md).
+
 ## Things worth knowing
 
 **The control room needs a sign-in; overlays do not.** Shows belong to the account
@@ -547,11 +567,14 @@ lib/showish_web/user_auth.ex           the sign-in plugs and LiveView hooks
 lib/showish/broadcasts.ex              the context: every write and the fan-out
 lib/showish/broadcasts/                show, team, game, talent schemas
 lib/showish/broadcasts/preset.ex       the catalogue of visual presets
+lib/showish/themes.ex                  account themes: files, sharing, stylesheets
+lib/showish/themes/                    theme schema, the token list, the CSS rules
 lib/showish/colors.ex                  contrast and rgba helpers for operator colors
 lib/showish/text.ex                    what to show for a field left empty
 lib/showish_web/live/overlay_live.ex   shared mount/subscribe/tick for scenes
 lib/showish_web/live/overlays/         one LiveView per scene
 lib/showish_web/live/show_live/        index, overlay URLs, control room
+lib/showish_web/live/theme_live/       theme list, editor, share page
 lib/showish_web/scenes.ex              the scene catalogue
 lib/showish_web/status.ex              the state words the control room shows
 assets/css/tokens.css, components.css  the design guide (DESIGN.md); never edited
@@ -566,7 +589,8 @@ Three steps:
 1. A LiveView under `lib/showish_web/live/overlays/`. `use ShowishWeb.OverlayLive`
    gives you `@show` (subscribed and kept current), `@left` and `@right` (the two
    teams in the order they are drawn) and `@now` (ticking once a second); you
-   supply `render/1` and wrap it in `<.stage>`.
+   supply `render/1` and wrap it in
+   `<.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>`.
 2. A route in the `/overlay` scope.
 3. An entry in `ShowishWeb.Scenes` — the preview's scene menu, the URL list, the copy
    buttons and the downloadable OBS scene collection all come from that

@@ -46,7 +46,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
 
   defp baseball(assigns) do
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div
         id="baseball-scorebug"
         class="absolute left-12 top-10 overlay-in-left font-[Oswald] text-white"
@@ -187,7 +187,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
   # hairline diamonds and squares in the show's accent.
   defp laggish_baseball(assigns) do
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div id="baseball-scorebug" class="lg-bb overlay-in-left">
         <div class="lg-bb-top">
           <div class="lg-bb-teams">
@@ -319,7 +319,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
 
   defp broadcast(assigns) do
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class="absolute left-1/2 top-0 -translate-x-1/2">
         <div class="flex h-[92px] items-stretch">
           <.team_plate
@@ -382,7 +382,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
   # preset's middle panel, which has nowhere to live once the teams move apart.
   defp tranquility(assigns) do
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class="tranq-teams">
         <.tranq_team
           team={@left}
@@ -424,7 +424,7 @@ defmodule ShowishWeb.Overlays.Scorebug do
   # are revealed from the middle outward.
   defp laggish(assigns) do
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div class="lg-bug">
         <div class="lg-bug-bar">
           <.lg_team

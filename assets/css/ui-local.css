@@ -844,3 +844,49 @@
   font-family: var(--font-sans);
   overflow-wrap: normal;
 }
+
+/* ---------- Themes ---------- */
+
+/* "Import file…" is the label of a hidden file input, sitting in the header
+   aside like any other button. */
+.app-import {
+  display: contents;
+}
+
+/* One row per font role: what it is for, the file it carries, its buttons. */
+.app-theme-fonts {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.app-theme-font {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.app-theme-font-file {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.app-theme-font .ui-progress {
+  grid-column: 1 / -1;
+}
+
+/* A file input is hidden behind its label-button; when the input has keyboard
+   focus, the button shows the focus ring instead. */
+label.ui-button:has(+ .ui-sr-only:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* A theme's uploaded CSS, read-only, scrolling rather than growing the page. */
+.app-css-view {
+  max-height: 20rem;
+  overflow: auto;
+  white-space: pre;
+}

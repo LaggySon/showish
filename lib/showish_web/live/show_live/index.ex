@@ -12,6 +12,7 @@ defmodule ShowishWeb.ShowLive.Index do
   alias Showish.Broadcasts.Sport
   alias Showish.Broadcasts.Team
   alias Showish.Text
+  alias Showish.Themes.Theme
   alias ShowishWeb.Scenes
 
   @impl true
@@ -101,7 +102,7 @@ defmodule ShowishWeb.ShowLive.Index do
           {Sport.fetch(show.sport).name}
         </:col>
         <:col :let={{_id, show}} label="Look" class="app-wide-only">
-          {Preset.fetch(show.preset).name}
+          {look_name(show)}
         </:col>
         <:col :let={{_id, show}} label="Accent" class="app-wide-only">
           <span class="app-swatch-value">
@@ -199,6 +200,9 @@ defmodule ShowishWeb.ShowLive.Index do
       teams -> Enum.map_join(teams, " vs ", &Team.full_name/1)
     end
   end
+
+  defp look_name(%Show{theme: %Theme{name: name}}), do: name
+  defp look_name(%Show{preset: preset}), do: Preset.fetch(preset).name
 
   defp count(1, noun), do: "1 #{noun}"
   defp count(n, noun), do: "#{n} #{noun}s"

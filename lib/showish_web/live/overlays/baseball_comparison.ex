@@ -11,7 +11,7 @@ defmodule ShowishWeb.Overlays.BaseballComparison do
     assigns = assign(assigns, :graphic, graphic)
 
     ~H"""
-    <.stage preset={@show.preset} accent={@show.accent_color}>
+    <.stage preset={@show.preset} accent={@show.accent_color} theme={@theme}>
       <div id="baseball-comparison-scene" class="absolute inset-x-[220px] top-[120px]">
         <header class="overlay-heading overlay-in-down text-center">
           <.eyebrow color={@show.accent_color}>{@show.title}</.eyebrow>
