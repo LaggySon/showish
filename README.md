@@ -26,7 +26,7 @@ Requires Elixir, Erlang/OTP and PostgreSQL.
 
 ```bash
 mix setup                     # deps, database, assets
-mix run priv/repo/seeds.exs   # optional: a demo show to poke at
+mix run priv/repo/seeds.exs   # optional: example shows to poke at
 mix phx.server
 ```
 
@@ -37,10 +37,18 @@ Open [`localhost:4000`](http://localhost:4000) and sign in with Google. Shows
 belong to whoever made them, so the sign-in page is the first thing you see.
 
 If you ran the seeds, they left an account waiting for `operator@example.com`
-(override with `SEED_EMAIL` — use your own Google address and it is yours on
-first sign-in) holding a show called **Showish Invitational**, with two teams, a
-five-game series and a crew already filled in. Sign in, open its control room and
-drag the scorebug URL into OBS to see the whole loop working in about a minute.
+(override with `SEED_EMAIL`, or set `ALLOWED_GOOGLE_EMAILS` and the first
+address on it is used — use your own Google address and it is yours on first
+sign-in) holding two example shows: **Showish Invitational** (`demo`), an
+esports best-of-five with two teams, a series three games in and a crew already
+filled in, and **Harbour Series** (`demo-baseball`), a baseball game with both
+lineups and bullpens and two men on. Sign in, open a control room and drag the
+scorebug URL into OBS to see the whole loop working in about a minute.
+
+Running the seeds again resets both examples to how they ship. Every PR preview
+on Railway seeds itself after its migrations (`bin/seed`, see `railway.json`),
+for the first address on its `ALLOWED_GOOGLE_EMAILS`. That run only creates what
+is missing, so changes made while reviewing a preview survive the next push.
 
 The seeds also point at placeholder artwork in `priv/static/images` — two team
 crests and five map cards, all SVG — so the scenes that draw logos and map images
