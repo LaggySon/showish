@@ -15,7 +15,7 @@
     "pr": {
       "deploy": {
         "startCommand": "sh -c ': \"${RAILWAY_PUBLIC_DOMAIN:?RAILWAY_PUBLIC_DOMAIN is required for PR deployments}\"; export PHX_HOST=\"$RAILWAY_PUBLIC_DOMAIN\" PREVIEW_AUTH_BROKER_URL=\"https://dev.show.laggi.sh\"; exec sh /app/_build/prod/rel/showish/bin/server'",
-        "preDeployCommand": "sh -c ': \"${RAILWAY_PUBLIC_DOMAIN:?RAILWAY_PUBLIC_DOMAIN is required for PR deployments}\"; export PHX_HOST=\"$RAILWAY_PUBLIC_DOMAIN\" PREVIEW_AUTH_BROKER_URL=\"https://dev.show.laggi.sh\"; exec sh /app/_build/prod/rel/showish/bin/migrate'"
+        "preDeployCommand": "sh -c ': \"${RAILWAY_PUBLIC_DOMAIN:?RAILWAY_PUBLIC_DOMAIN is required for PR deployments}\"; export PHX_HOST=\"$RAILWAY_PUBLIC_DOMAIN\" PREVIEW_AUTH_BROKER_URL=\"https://dev.show.laggi.sh\"; sh /app/_build/prod/rel/showish/bin/migrate && exec sh /app/_build/prod/rel/showish/bin/seed'"
       }
     }
   }
