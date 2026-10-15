@@ -18,7 +18,7 @@ defmodule ShowishWeb.Overlays.BaseballBullpen do
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
       <div id="baseball-bullpen-scene" class="absolute inset-x-[150px] top-[100px]">
-        <header class="overlay-in-down text-center">
+        <header class="overlay-heading overlay-in-down text-center">
           <.eyebrow color={@show.accent_color}>{@show.stage}</.eyebrow>
           <h1 class="mt-3 text-[58px] font-black uppercase leading-none tracking-[-0.04em]">
             Bullpen report
@@ -55,7 +55,7 @@ defmodule ShowishWeb.Overlays.BaseballBullpen do
       <div class="min-h-[575px] bg-slate-950/92 p-5">
         <div
           :if={@current["name"] != ""}
-          class="mb-4 rounded-xl border border-white/15 bg-white/8 px-5 py-4"
+          class="overlay-inset mb-4 rounded-xl border border-white/15 bg-white/8 px-5 py-4"
         >
           <p class="text-[12px] font-bold uppercase tracking-[0.18em] text-slate-400">
             In game · {@current["pitch_count"]} pitches
@@ -68,8 +68,11 @@ defmodule ShowishWeb.Overlays.BaseballBullpen do
           class="flex h-[66px] items-center justify-between border-b border-white/10 px-4"
         >
           <span class="text-[24px] font-black uppercase">{pitcher["name"]}</span>
-          <span class="rounded-full bg-white/10 px-4 py-1.5 text-[13px] font-black uppercase tracking-[0.12em] text-amber-300">
-            {if(pitcher["status"] == "", do: "Available", else: pitcher["status"])}
+          <span
+            class="overlay-chip rounded-full bg-white/10 px-4 py-1.5 text-[13px] font-black uppercase tracking-[0.12em] text-amber-300"
+            data-status={String.downcase(status(pitcher))}
+          >
+            {status(pitcher)}
           </span>
         </div>
         <div :if={@entries == []} class="grid h-[360px] place-items-center text-[21px] text-slate-500">
@@ -79,4 +82,8 @@ defmodule ShowishWeb.Overlays.BaseballBullpen do
     </section>
     """
   end
+
+  # Statuses are free text; a pitcher the operator left blank is available.
+  defp status(%{"status" => ""}), do: "Available"
+  defp status(%{"status" => status}), do: status
 end

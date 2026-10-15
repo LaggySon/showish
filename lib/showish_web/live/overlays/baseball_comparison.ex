@@ -13,7 +13,7 @@ defmodule ShowishWeb.Overlays.BaseballComparison do
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
       <div id="baseball-comparison-scene" class="absolute inset-x-[220px] top-[120px]">
-        <header class="overlay-in-down text-center">
+        <header class="overlay-heading overlay-in-down text-center">
           <.eyebrow color={@show.accent_color}>{@show.title}</.eyebrow>
           <h1 class="mt-3 text-[52px] font-black uppercase leading-none">{@graphic["title"]}</h1>
         </header>

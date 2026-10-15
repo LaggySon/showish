@@ -204,6 +204,10 @@ source, so text stays crisp and the layout stays put.
 frame — they are full-frame cards, so put them in their own OBS scene rather
 than on top of a game feed.
 
+**One ticker for everything:** only the `ticker` scene draws the ticker. For a
+ticker on standby, break or anything else, add the Ticker source above that
+scene in OBS, so every scene shows the same bar.
+
 The same URLs work anywhere with a browser source: Streamlabs, vMix, Wirecast,
 XSplit, Ecamm. There is nothing OBS-specific about them.
 
@@ -261,7 +265,7 @@ refused (the field says why, and the overlays keep the last good version).
 | --- | --- |
 | **Status, left / centre / right** | Free-text slots, each with its own *Show on air* toggle |
 | **Show side labels** | Whether each team's side label appears on the scorebug |
-| **Ticker** | Scrolling copy on standby, break and ticker |
+| **Ticker** | Scrolling copy on the ticker scene |
 
 The three status slots are the escape hatch for whatever your broadcast needs
 that the schema does not have — `OVERTIME`, `TECHNICAL PAUSE`, `MAP 3 PENDING`.
@@ -363,8 +367,8 @@ buttons are greyed out until then.
 | **Series** | `/overlay/:slug/series` | Clear | Every game, its result and what is next |
 | **Talent** | `/overlay/:slug/talent` | Clear | Lower thirds — role, name, pronouns, social |
 | **Caster cams** | `/overlay/:slug/cams` | Clear | Frames and name plates for a desk of camera sources |
-| **Standby** | `/overlay/:slug/standby` | Full | Pre-show card: title, countdown, matchup, ticker |
-| **Break** | `/overlay/:slug/break` | Full | Intermission: message, clock back to air, score, ticker |
+| **Standby** | `/overlay/:slug/standby` | Full | Pre-show card: title, countdown, matchup |
+| **Break** | `/overlay/:slug/break` | Full | Intermission: message, clock back to air, score |
 | **Credits** | `/overlay/:slug/credits` | Full | Scrolling roll of the crew, grouped by role |
 | **Ticker** | `/overlay/:slug/ticker` | Clear | Bottom bar: compact score and scrolling copy |
 
@@ -393,6 +397,7 @@ redraws without a reload.
 | --- | --- |
 | **Broadcast** | The default. Sheared panels, soft shadows, rounded corners, wide-tracked labels. |
 | **Tranquility** | Flat rectangles, hard edges, condensed uppercase type. |
+| **Laggish** | Flat black panels, hairlines, Geist and Geist Mono, colour only for teams and state. The control room's own design, on air. |
 
 **Tranquility** moves the scorebug as well as restyling it. Instead of one bar
 across the middle, each team gets a flat plate pinned to its own top corner with
@@ -433,8 +438,31 @@ panels are opaque `#101010` with a hard offset shadow instead of a soft ambient
 one, and anything the original picked out in its brand yellow uses your show's
 **Accent color** instead — so the highlight is yours, not a borrowed one.
 
-Both looks use the same URLs, the same fields and the same control room. Nothing
-about your OBS setup changes when you switch.
+**Laggish** is the control room's design guide carried over to air: flat
+near-black panels with 1px hairlines and 2px corners, Geist for words and Geist
+Mono for every number, and colour only where it means something. Each team's
+colour appears as a rail along the outer edge of its plate and as the fill of
+its score cell; the show's **Accent color** marks "this one" (the game on air,
+occupied bases, the status slots) and the small square before every label.
+Pieces wipe on from the edge they sit against rather than sliding in.
+
+It rebuilds three scenes:
+
+| Scene | Under Laggish |
+| --- | --- |
+| **Scorebug** | One black bar hung below the top edge: team plates with rails, team-colour score cells, the stage and game in the middle, the centre line as a strip underneath, status slots in the corners with an accent rail |
+| **Baseball scorebug** | The same facts in the same corner: team rows with rails and team-colour runs, bases as hairline diamonds that fill in the accent, outs as squares, pitcher and batter as labelled lines |
+| **Series** | The scorebug bar at full-name size over a row of game cards, each with the control room's status word (*On air*, *Played*, *Upcoming*), an accent rail on the game on air and the winner's colour along the bottom of a played one. Played maps go gray; a game with no artwork gets a hatch |
+
+Everything else keeps its layout and takes the treatment: talent and cam plates
+get an accent rail instead of an underline, full-frame titles sit on a black
+band so they read over a bright day game, standby and break dim the feed behind
+them, large scores turn ink over a rail in their team's colour, the bullpen's
+statuses become words in the guide's state colours (*Ready* green, *Warming*
+amber), and the defensive alignment is drawn as a hairline diagram.
+
+All three looks use the same URLs, the same fields and the same control room.
+Nothing about your OBS setup changes when you switch.
 
 Typography is self-hosted from `priv/static/fonts` rather than pulled from a CDN,
 so overlays render correctly on a venue machine with no internet.

@@ -34,7 +34,7 @@ defmodule ShowishWeb.Overlays.BaseballDefense do
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
       <div id="baseball-defense-scene" class="absolute inset-x-[170px] top-[72px] bottom-[60px]">
-        <header class="overlay-in-down flex items-center justify-between">
+        <header class="overlay-heading overlay-in-down flex items-center justify-between">
           <div class="flex items-center gap-5">
             <.team_logo team={@team} size={82} />
             <div>
@@ -49,12 +49,12 @@ defmodule ShowishWeb.Overlays.BaseballDefense do
           </p>
         </header>
 
-        <div class="overlay-panel overlay-round-hero overlay-in-up relative mx-auto mt-6 h-[790px] w-[1280px] overflow-hidden bg-emerald-950">
-          <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_100%,rgba(34,197,94,0.5),rgba(6,78,59,0.85)_58%,rgba(2,44,34,0.98))]">
+        <div class="overlay-field overlay-panel overlay-round-hero overlay-in-up relative mx-auto mt-6 h-[790px] w-[1280px] overflow-hidden bg-emerald-950">
+          <div class="overlay-field-grass absolute inset-0 bg-[radial-gradient(circle_at_50%_100%,rgba(34,197,94,0.5),rgba(6,78,59,0.85)_58%,rgba(2,44,34,0.98))]">
           </div>
-          <div class="absolute left-1/2 top-[60%] size-[520px] -translate-x-1/2 -translate-y-1/2 rotate-45 border-[7px] border-white/30 bg-amber-700/35">
+          <div class="overlay-field-infield absolute left-1/2 top-[60%] size-[520px] -translate-x-1/2 -translate-y-1/2 rotate-45 border-[7px] border-white/30 bg-amber-700/35">
           </div>
-          <div class="absolute bottom-[-170px] left-1/2 size-[470px] -translate-x-1/2 rounded-full border-[7px] border-white/30 bg-emerald-800">
+          <div class="overlay-field-mound absolute bottom-[-170px] left-1/2 size-[470px] -translate-x-1/2 rounded-full border-[7px] border-white/30 bg-emerald-800">
           </div>
 
           <div
@@ -63,7 +63,7 @@ defmodule ShowishWeb.Overlays.BaseballDefense do
             class="absolute z-10 w-[220px] -translate-x-1/2 -translate-y-1/2 text-center"
             style={"left: #{x}%; top: #{y}%;"}
           >
-            <div class="mx-auto inline-flex min-w-[170px] items-center justify-center gap-3 rounded-full border border-white/20 bg-slate-950/90 px-5 py-3 shadow-2xl backdrop-blur">
+            <div class="overlay-tag mx-auto inline-flex min-w-[170px] items-center justify-center gap-3 rounded-full border border-white/20 bg-slate-950/90 px-5 py-3 shadow-2xl backdrop-blur">
               <span class="text-[16px] font-black text-emerald-300">{position}</span>
               <span class="max-w-[130px] truncate text-[20px] font-black uppercase">
                 {display(@players[position])}

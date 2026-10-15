@@ -12,7 +12,7 @@ defmodule ShowishWeb.Overlays.Break do
   def render(assigns) do
     ~H"""
     <.stage preset={@show.preset} accent={@show.accent_color}>
-      <div class="absolute inset-0 bg-slate-950/88 overlay-in-fade"></div>
+      <div class="overlay-backdrop absolute inset-0 bg-slate-950/88 overlay-in-fade"></div>
 
       <div class="absolute inset-0 flex flex-col items-center justify-center gap-14">
         <div class="flex flex-col items-center gap-5 overlay-in-down" style="--overlay-delay: 120ms">
@@ -52,8 +52,6 @@ defmodule ShowishWeb.Overlays.Break do
           <.break_side team={@right} align="left" />
         </div>
       </div>
-
-      <.ticker_bar text={@show.ticker} delay={480} />
     </.stage>
     """
   end

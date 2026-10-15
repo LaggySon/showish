@@ -1,6 +1,6 @@
 # Laggish design guide
 
-Version 1.0.0 (2026-10-14). See CHANGELOG.md.
+Version 1.1.0 (2026-10-14). See CHANGELOG.md.
 
 A design language for web apps: internal tools, dashboards, admin panels, customer-facing products, settings and account pages, and documentation. It looks like a well-made datasheet: hairline rules, small uppercase labels, monospaced values, flat surfaces, and color only where something has a state.
 
@@ -23,13 +23,13 @@ Some projects carry generic design instructions from a generator or a template, 
 ### 0.3 Steps
 
 1. Read this whole file before you write or change any UI.
-2. Copy `tokens.css` (section 2) and `components.css` (appendix A) into the project.
+2. Copy `tokens.css` (section 2) and `components.css` (appendix A) into the project, and the brand files (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, section 5.10) into its static root.
 3. Know the two layers of this guide:
    - **Fixed.** Every app follows these, so all apps look like one family: colors, fonts, type roles, shape, borders, motion, the state system, the page shell (section 5.2), the component look, words, data formats, interaction rules, and accessibility (sections 2 to 4, 5.2, 5.8, and 6 to 14). Do not change color, font, radius, or motion tokens.
    - **Free.** Each app chooses these: the layout of the content inside the shell, the page structure, which components it uses, and the density (section 5). The defaults in section 5 are the reference app's layout and density; start from them. Change the density only for a reason that section 5.1 names, through the adjustable tokens in `ui-local.css`, never by editing `components.css`.
-4. Build every screen from the components in section 7. If you need something new, build it from the tokens and the fixed rules. Put its CSS in `ui-local.css` (or `ui-local.module.css`), which loads after `components.css`.
+4. Build every screen from the components in section 7. If you need something new, build it from the tokens and the fixed rules. Put its CSS in `ui-local.css` (or `ui-local.module.css`), which loads after `components.css`. Name the app's own classes with a short app prefix (`tm-panel`, `app-console`), never `ui-`, so a reader can tell the guide's classes from the app's.
 5. When this guide does not cover a decision, pick the option that is flatter, quieter, uses fewer colors, and shows more of the user's content.
-6. Before you report a UI task as done, go through the checklist in section 16. It includes the contrast audit in appendix B, run in light and in dark mode.
+6. Before you report a UI task as done, go through the checklist in section 16. It includes the contrast audit in appendix B, run in light and in dark mode; `audit.mjs` (appendix C) runs it headless on every mode and width at once.
 
 ## 1. Character
 
@@ -221,7 +221,7 @@ The components read the adjustable tokens, so an override in `ui-local.css` chan
 ### 2.4 Light and dark mode
 
 - The default is the system setting: `color-scheme: light dark` on `:root`, and every color token is `light-dark(light, dark)`.
-- An app may offer a theme choice: a segmented control with "System", "Light", and "Dark" in the user menu or in settings. "Light" and "Dark" set `data-theme="light"` or `data-theme="dark"` on `<html>`. "System" removes the attribute. Store the choice in `localStorage` (or in the user's account) and set the attribute before the first paint, with a small script in `<head>` or from the server, so the page does not flash.
+- An app may offer a theme choice: a segmented control with "System", "Light", and "Dark". It sits in the user menu (section 7.15). An app without a user menu puts it on its settings page. It never sits directly in the top bar, which stays the brand, the nav, and the aside. "Light" and "Dark" set `data-theme="light"` or `data-theme="dark"` on `<html>`. "System" removes the attribute. Store the choice in `localStorage` (or in the user's account) and set the attribute before the first paint, with a small script in `<head>` or from the server, so the page does not flash.
 - Never write a separate dark-mode rule for a component. If a new color needs a dark value, it is a token with `light-dark()`.
 - Set `<meta name="theme-color">` to `#ffffff` for light and `#0a0a0a` for dark.
 - `light-dark()` needs Chrome 123, Edge 123, Firefox 120, or Safari 17.5 (all released in 2024) or later.
@@ -384,11 +384,14 @@ Rules for any density:
 Every app uses this frame. It is the strongest part of the family look:
 
 1. A skip link, then a top bar with a hairline bottom border. It holds the brand (a 9px square mark plus the app name in mono caps), the site nav, and an aside on the right for global items (the age of live data, the user menu).
-2. `main` with `--page-pad-y` / `--page-pad-x` padding.
-3. A page header: the `h1` on the left, a muted aside on the right (counts, time range, last update), baseline-aligned.
-4. If the section has sub-pages, a row of chips under the header (sub-nav). The current one is inverted.
-5. A toolbar (filters, view switch, bulk actions) with a hairline under it, when the page has data to filter.
-6. The content.
+2. App-wide notices, under the top bar and outside `main`: the lost-connection banner (section 12.1), a maintenance or read-only banner, and the app's flash messages (section 7.12).
+3. `main` with `--page-pad-y` / `--page-pad-x` padding.
+4. A page header: the `h1` on the left, a muted aside on the right (counts, time range, last update), baseline-aligned.
+5. If the section has sub-pages, a row of chips under the header (sub-nav). The current one is inverted.
+6. A toolbar (filters, view switch, bulk actions) with a hairline under it, when the page has data to filter.
+7. The content.
+
+The browser tab shows the brand mark too (section 5.10).
 
 Site nav links are micro labels with an underline. Hover turns them `--link`. The current page is `--foreground` with no underline. An app with more than 6 sections keeps the top bar and adds a left side nav under it: the same micro-label links, one per line, in a 12rem to 16rem column with a hairline on its right. The top bar then holds only the brand, the 3 to 6 main areas, and the aside.
 
@@ -510,14 +513,30 @@ Start from the closest recipe. Each is a default, not a rule.
 4. Headings have anchor links that show "#" on hover.
 
 **Control room** (a page that a person operates during a live event). Scrolling page.
-1. Page header: title, the "Live" connection badge in the aside, and a link to the output URLs.
-2. The live controls strip (section 7.27), sticky at the top.
-3. Two columns at 1280px and wider: editing panels on the left (fields that save as you type), the output preview on the right (section 7.29), sticky. Under 1280px the preview moves above the panels.
+1. Page header: title, then sub-nav chips for the control room and the output URLs.
+2. The live controls strip (section 7.27), sticky at the top. When the event has more to drive than a strip holds (a scoring console), the console takes the top of the editing column instead (section 7.27).
+3. Two columns at 1280px and wider: editing panels on the left (fields that save as you type), the output preview on the right (section 7.29), sticky. Under 1280px the preview moves above the panels. Panels the operator rarely needs during the event may fold away (`ui-panel--collapsible`, section 7.6).
 4. Lists inside the panels (teams, games, crew) use reorder buttons (section 7.28), "+ Add …" buttons, and a danger remove button per item that asks first.
 
 **First run** (an app with no data yet). The page the user will use every day, empty.
 1. Do not build a separate welcome screen. Show the normal page with an empty state in the data region.
 2. The empty state says what this page shows and gives the one action that creates the first item: "No projects yet. Create a project to start." and "+ Create project".
+
+### 5.10 Brand files and head tags (fixed)
+
+Every app's tab and home-screen icon is the same brand mark as the top bar: the square, one color, on nothing. Copy the three files from the guide (`favicon.svg` is appendix D; `favicon.ico` and `apple-touch-icon.png` sit next to it in the guide's repository) into the app's static root, and put these tags in every page's `<head>`:
+
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+```
+
+Output pages (section 0.1) carry their own brand, or none, and skip these.
 
 ## 6. Surfaces, borders, and depth
 
@@ -558,6 +577,8 @@ Section 7.30 lists every class in `components.css`.
 | compact | 25.6px tall by default | Buttons in a toolbar next to compact inputs |
 | small | 24px tall by default | Row and card actions |
 | link | Underlined `--link` text | An action inside a sentence |
+| toggle | Any kind with `aria-pressed`. Inverts while on | A control that is on or off: "⇄ Swap sides", a base in a scoring console |
+| tap | `ui-button--tap`, 44px tall | The one-tap actions of a console (section 7.27) |
 
 Rules:
 
@@ -567,7 +588,8 @@ Rules:
 4. A disabled button keeps its place and explains why in `title`: "No failed jobs in this view". A `title` is not reachable by keyboard or touch, so when the reason blocks a task (a form that cannot be sent), also show it as text (`ui-blockers`, section 7.7).
 5. The danger button sits last in a group, or apart from the others with `margin-left: auto`.
 6. An icon-only button (✕, ↻) has an `aria-label`.
-7. A copy button is a ghost small button labeled "Copy". After a copy, the label is "Copied" for 2 seconds.
+7. A copy button is a ghost small button labeled "Copy". After a copy, the label is "Copied" for 2 seconds. If the button has an `aria-label`, change it to "Copied" too, or a screen reader never hears it.
+8. A toggle keeps its label ("Swap sides", not "Sides swapped"); `aria-pressed="true"` inverts it, so its state shows without moving or renaming anything.
 
 ### 7.2 Chip (toggle)
 
@@ -635,6 +657,17 @@ A badge shows a state word. It is uppercase, on a light tint of its state (`--ba
 
 The panel title is a micro label, not a large heading. Put a short note (`ui-panel-title-aside`, sentence case) or controls that belong to the panel on the right side of the title row.
 
+A panel that folds away is a `<details>` with the title as its `<summary>`. It shows ▸ or ▾ in front of the title:
+
+```html
+<details class="ui-panel ui-panel--collapsible" id="teams-panel">
+  <summary class="ui-panel-title">Teams <span class="ui-panel-title-aside">saved 2s ago</span></summary>
+  ...
+</details>
+```
+
+Use it for a page of many panels where most are needed rarely (the settings of a control room). Keep open by default the panels the page exists for. In a framework that patches the DOM, keep the `open` state (section 7.15).
+
 ### 7.7 Toolbar and fields
 
 ```html
@@ -649,7 +682,7 @@ The panel title is a micro label, not a large heading. Put a short note (`ui-pan
 ```
 
 - In forms, the label sits above the field. In toolbars and filter rows, the label sits left of the field (`ui-field--inline`) and the control is compact.
-- Input values are mono. A field for prose (a comment, a description, a person's name) may add `font-family: var(--font-sans)` in `ui-local.css`.
+- Input values are mono. A field for prose (a comment, a description, a person's name) adds `ui-input--prose`, which sets it in the sans face.
 - Placeholders show an example of the format only ("2026-10-14"), never an instruction that the user must keep.
 - A required field has a `*` in `--failure-text` with `aria-hidden="true"`, plus `aria-required="true"` on the input.
 - A hint sits under the field in `--text-xs`. A warning hint uses `--warning-text`. An error hint uses `--failure-text`, and the input gets `aria-invalid="true"` and `aria-describedby` pointing at the hint.
@@ -658,6 +691,13 @@ The panel title is a micro label, not a large heading. Put a short note (`ui-pan
 - When a form cannot be submitted, list the blockers in a `ul.ui-blockers` under the primary button and point the button's `aria-describedby` at the list. Do not hide the button.
 - Checkboxes and radio buttons are native inputs (`accent-color: var(--foreground)` is set in `components.css`), with the label to the right.
 - Free-form query input (for example a SQL `where` clause) is a mono textarea with a one-line example under it.
+- A color the user picks (section 3.6) is a native color input styled as a swatch, with its value in mono beside it:
+
+```html
+<label class="ui-field"><span class="ui-field-label">Primary color</span>
+  <span class="ui-color-field"><input type="color" class="ui-color-input" value="#c8102e"><span class="ui-mono">#C8102E</span></span>
+</label>
+```
 
 ### 7.8 Table
 
@@ -784,7 +824,15 @@ A **compact tile** (`ui-tile`) is the dense version for a grid of many objects: 
 - A notice has a state rail, a 14% tint, and `-text` color.
 - Errors use `role="alert"` and a dismiss button. Info uses `role="status"`.
 - Put the notice at the top of the region it is about, not in a global corner. There are no toasts and no `alert()`.
-- A notice for the whole app (planned maintenance, a read-only mode) sits under the top bar, full width, on every page, until the condition ends.
+- A notice for the whole app (a lost connection, planned maintenance, a read-only mode) is a banner: `ui-notice ui-notice--banner`, full width under the top bar, outside `main`, on every page, until the condition ends. It has a hairline under it instead of a box, and its text lines up with the page.
+- Flash messages (the result of the last action, when the page has no better region for it) sit under the top bar too, outside `main`, as ordinary notices with the page's side padding. They stay until dismissed or until the user navigates.
+
+```html
+<header class="ui-topbar">...</header>
+<div class="ui-notice ui-notice--banner" data-status="warning" role="alert">Connection lost. Reconnecting…</div>
+<div class="ui-notice" data-status="progress" role="status" style="margin: var(--space-4) var(--page-pad-x) 0">Saved Harbour Kings to the team library.</div>
+<main class="ui-main" id="main">...</main>
+```
 
 ### 7.13 Empty state
 
@@ -805,7 +853,7 @@ Static placeholder bars in `--hover-surface` are allowed. They do not shimmer or
 
 ### 7.15 Disclosure and menu
 
-- A collapsible section is `<details class="ui-disclosure">` with a micro-label `<summary>` and a ▸ / ▾ glyph. Use it for advanced options, raw JSON, request payloads.
+- A collapsible section is `<details class="ui-disclosure">` with a micro-label `<summary>` and a ▸ / ▾ glyph. Use it for advanced options, raw JSON, request payloads. A short note on the right of the summary is `ui-disclosure-aside`. A section of a long panel (the parts of a console) adds `ui-disclosure--section`: a hairline above it and room under its summary.
 - A menu (column picker, more actions, the user menu) is a `<details class="ui-menu">` with a `ui-menu-panel`: absolutely placed, `--background`, a strong border, 2px corners, no shadow. `<details>` does not close by itself, so add this once per page:
 
 ```js
@@ -824,6 +872,7 @@ document.addEventListener("keydown", (event) => {
 ```
 
 - A disclosure that is a button (not `<details>`) uses `aria-expanded` and can show a count: "Advanced options (3 set)".
+- A framework that patches the DOM from the server (Phoenix LiveView, htmx, Turbo, morphdom) puts back the markup it rendered, and that markup has no `open` attribute. Without care, every update folds an open panel, disclosure, or menu shut while the user works in it. Tell the framework to keep the browser's `open`: in LiveView, `phx-mounted={JS.ignore_attributes(["open"])}` on every `<details>` (section 15.5). Check it: open one, cause an update from another tab, and see that it stays open.
 
 ### 7.16 Dialog
 
@@ -970,7 +1019,26 @@ A page that a person operates during a live event (a broadcast, a match, an inci
 - Live controls use the default control height (`--control-h`), also in a toolbar, and at least 44px on a touch screen.
 - A change applies at once. A destructive or hard-to-undo control (reset, end the show) asks first (section 12.5).
 - A counter is a stepper: − and + buttons around the value in large mono. The value is a live region so a screen reader hears the change.
-- The page shows that it is connected, and so on air, with a static dot and the word "Live" (`ui-badge` with `data-status="progress"` and a `ui-dot`). It never pulses.
+- A control that is on or off (swap sides) is a toggle button (section 7.1). A − that would go below zero, or a "Next game" on the last game, is disabled with its reason in `title`; the server clamps the value as well.
+- An operator works on touch screens with no hover, so a press needs an answer that does not move: set `data-acknowledged` on the button for 300ms and `components.css` shows it pressed. A value the press will change may update at once and let the server's answer correct it.
+- While the connection is down, the controls that need the server look and act disabled (section 12.1).
+
+```js
+document.addEventListener("click", (event) => {
+  const button = event.target.closest(".ui-button")
+  if (!button || button.disabled) return
+  button.setAttribute("data-acknowledged", "")
+  setTimeout(() => button.removeAttribute("data-acknowledged"), 300)
+})
+```
+
+**Consoles.** Some events have more to drive than a strip holds: a scoring console for baseball has pitch results, plate-appearance outcomes, runs, the count, runners, substitutions, and lineups. Then:
+
+1. The console takes the top of the editing column, beside the output preview. Its parts are `ui-disclosure ui-disclosure--section` blocks; the ones used on every pitch are open by default.
+2. A first band (`--hover-surface`, a hairline border) states where the event stands: "Top 3 · Harbour Kings batting", then the count and outs in large mono.
+3. Outcomes are a `ui-action-grid` of grayscale buttons. The few the operator hits most are `ui-button--tap`. Buttons are never colored by outcome: a hit is not green and an out is not red (section 3.4).
+4. An outcome that cannot happen now (a sacrifice fly with nobody on third) is disabled with the reason in `title` ("Needs a runner on third and fewer than 2 outs").
+5. Undo reverses the whole last action, and is disabled when there is nothing to undo.
 
 ### 7.28 Reordering a list
 
@@ -994,7 +1062,7 @@ A page that edits output (section 0.1) shows a live preview of it.
 ```
 
 - The frame has the output's aspect ratio (`--preview-ratio`), a hairline border, and the checkerboard behind it when the output is transparent.
-- `components.css` sets `color-scheme: normal` on the preview iframe. Keep it: a browser paints an iframe opaque when the iframe's color scheme differs from the page inside it, so without it a transparent output turns white in dark mode.
+- `components.css` sets `color-scheme: light` on the preview iframe. Keep it: a browser paints an iframe opaque when the iframe's color scheme differs from the page inside it, so without it a transparent output turns white in dark mode. It must be `light`, not `normal`: `normal` on the iframe follows the app's `<meta name="color-scheme" content="light dark">` (section 5.10) and resolves to dark, while the output page, with no such meta, resolves to light. Any other iframe of a transparent page in the app needs the same rule. Check the preview in dark mode.
 - The output inside the frame keeps its own design. Do not restyle it to match the app.
 - Put a selector for the variants (scenes, pages, sizes) above the frame as a segmented control, or as a select when there are more than 4.
 - On a wide screen the preview panel is sticky at the top of its column, so it stays in view while the user edits the fields beside it.
@@ -1007,17 +1075,17 @@ A page that edits output (section 0.1) shows a live preview of it.
 | Text | `ui-label`, `ui-mono`, `ui-num`, `ui-muted`, `ui-sep`, `ui-truncate`, `ui-clamp` (lines in `--clamp-lines`), `ui-sr-only`, `ui-age` (`data-stale` for old data), `ui-expiring` |
 | Links | `ui-link`, `ui-id-link`, `ui-quiet-link`, `ui-alt-target` (with `data-alt-held` on `<html>`) |
 | State | `data-status`, `data-outcome`, `ui-tint`, `ui-rail` |
-| Panels | `ui-panel`, `ui-panel--strong` (a selected or focused panel only), `ui-panel-title`, `ui-panel-title-aside` |
-| Buttons | `ui-button` with `--primary`, `--danger`, `--quiet`, `--ghost`, `--compact`, `--small`; `ui-button-link`, `ui-button-group` |
+| Panels | `ui-panel`, `ui-panel--strong` (a selected or focused panel only), `ui-panel--collapsible` (on `<details>`), `ui-panel-title`, `ui-panel-title-aside` |
+| Buttons | `ui-button` with `--primary`, `--danger`, `--quiet`, `--ghost`, `--compact`, `--small`, `--tap`; `aria-pressed` for a toggle, `data-acknowledged` for a press; `ui-button-link`, `ui-button-group`, `ui-action-grid` |
 | Toggles | `ui-chip`, `ui-segmented`, `ui-tabs`, `ui-tab`, `ui-tab-count` |
 | Status | `ui-badge`, `ui-badge--data`, `ui-dot` |
 | Numbers | `ui-stats`, `ui-stat`, `ui-stat-value`, `ui-stat-label`, `ui-stat-divider`, `ui-hero`, `ui-hero-value`, `ui-verdict` |
-| Forms | `ui-field`, `ui-field--inline`, `ui-field-row`, `ui-field-label`, `ui-required`, `ui-input`, `ui-input--compact`, `ui-select`, `ui-textarea`, `ui-hint`, `ui-hint--warning`, `ui-hint--error`, `ui-blockers`, `ui-filter-rows`, `ui-filter-row` |
-| Feedback | `ui-notice`, `ui-notice-end`, `ui-empty`, `ui-loading`, `ui-region`, `ui-region-overlay`, `ui-placeholder-bar`, `ui-page-state`, `ui-page-state-title` |
+| Forms | `ui-field`, `ui-field--inline`, `ui-field-row`, `ui-field-label`, `ui-required`, `ui-input`, `ui-input--compact`, `ui-input--prose`, `ui-select`, `ui-textarea`, `ui-color-field`, `ui-color-input`, `ui-hint`, `ui-hint--warning`, `ui-hint--error`, `ui-blockers`, `ui-filter-rows`, `ui-filter-row` |
+| Feedback | `ui-notice`, `ui-notice--banner`, `ui-notice-end`, `ui-empty`, `ui-loading`, `ui-region`, `ui-region-overlay`, `ui-placeholder-bar`, `ui-page-state`, `ui-page-state-title` |
 | Tables | `ui-table-wrap`, `ui-table-wrap--fill`, `ui-table`, `ui-table--fixed`, `ui-cell-num`, `ui-cell-mono`, `ui-cell-wrap`, `ui-row-name`, `ui-sort`, `ui-th-resizable`, `ui-resize-handle`, `ui-past`, `ui-flag`, `ui-group-row`, `ui-pagination`, `ui-pagination-status` |
 | Progress | `ui-progress`, `ui-progress--labeled`, `ui-progress-fill`, `ui-progress-label`, `ui-progress-label--on-fill` (value in `--value`) |
 | Cards | `ui-cards`, `ui-card`, `ui-card-header`, `ui-card-id`, `ui-card-body`, `ui-card-title`, `ui-card-meta`, `ui-card-progress`, `ui-card-progress-head`, `ui-card-footer`, `ui-tiles`, `ui-tile`, `ui-spec`, `ui-kv` |
-| Overlays | `ui-disclosure`, `ui-menu`, `ui-menu-panel`, `ui-dialog`, `ui-dialog-header`, `ui-dialog-title`, `ui-dialog-body`, `ui-dialog-footer` |
+| Overlays | `ui-disclosure`, `ui-disclosure--section`, `ui-disclosure-aside`, `ui-menu`, `ui-menu-panel`, `ui-dialog`, `ui-dialog-header`, `ui-dialog-title`, `ui-dialog-body`, `ui-dialog-footer` |
 | Logs and code | `ui-log`, `ui-log-toolbar`, `ui-log-meta`, `ui-log-body`, `ui-log-line`, `ui-log-line--highlight`, `ui-log-line--dim`, `ui-log-empty`, `ui-pre`, `ui-actionbar`, `ui-actionbar-end` |
 | Live and output | `ui-stepper`, `ui-stepper-value`, `ui-preview` (ratio in `--preview-ratio`), `ui-checker`, `ui-color-swatch` (color in `--swatch`) |
 | Charts | `ui-chart-wrap`, `ui-chart`, `ui-chart-grid`, `ui-chart-guide`, `ui-chart-line`, `ui-chart-area`, `ui-chart-dot`, `ui-chart-dot--empty`, `ui-chart-bar`, `ui-tooltip`, `ui-tooltip-row`, `ui-legend`, `ui-legend-item`, `ui-swatch`, `ui-swatch--line`, `ui-hatch`, `ui-heatmap`, `ui-heat-cell`, `ui-rank`, `ui-rank-track` |
@@ -1027,7 +1095,8 @@ A page that edits output (section 0.1) shows a live preview of it.
 1. Color, background color, border color, and opacity may change over `--duration-color` (120ms, `ease`). That is the only transition.
 2. Nothing moves, grows, slides, spins, pulses, or fades in on load. No `transform` transitions, no width or height transitions, no keyframe animations. This includes page transitions and route changes.
 3. A progress bar jumps to its new width.
-4. Include the `prefers-reduced-motion` block from appendix A anyway. It removes the color fades too.
+4. A press is acknowledged with color, never with a bounce or a scale: `data-acknowledged` shows the button pressed for 300ms (section 7.27).
+5. Include the `prefers-reduced-motion` block from appendix A anyway. It removes the color fades too.
 
 Static transforms are allowed when they are not motion, for example `writing-mode: vertical-rl` with `rotate(180deg)` for vertical column headers.
 
@@ -1125,7 +1194,7 @@ Format dates and numbers in one module, through `Intl.DateTimeFormat` and `Intl.
 2. Stop refreshing an object when it reaches a final state.
 3. Keep the previous data on screen while new data loads (SWR `keepPreviousData` or the same idea). Never unmount the page to show a loader.
 4. A page that refreshes shows the age of its data ("updated 3s ago") in the page header or the top bar.
-5. When the server pushes changes (WebSocket, Server-Sent Events, Phoenix LiveView), do not poll and do not show an age. Show the connection instead: "Live" with a static dot while connected. While disconnected, show an app-wide warning notice ("Connection lost. Reconnecting…") under the top bar, and disable the controls that need the server.
+5. When the server pushes changes (WebSocket, Server-Sent Events, Phoenix LiveView), do not poll and do not show an age. While disconnected, show the banner "Connection lost. Reconnecting…" (`ui-notice ui-notice--banner` with `data-status="warning"`, section 7.12) under the top bar, and make the controls that need the server look and act disabled. An app may also show that it is connected with a static "Live" badge (`ui-badge`, `data-status="progress"`, a `ui-dot`) in the top-bar aside, only while connected. It never pulses.
 
 ### 12.2 State in the URL
 
@@ -1210,7 +1279,7 @@ Link `tokens.css`, then `components.css`, then `ui-local.css`, then your page CS
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700;800&family=Geist+Mono:wght@400;600;700&display=swap">
 ```
 
-Set `<meta name="theme-color">` to `#ffffff` for light and `#0a0a0a` for dark.
+Add the head tags and brand files from section 5.10.
 
 ### 15.2 React with CSS Modules
 
@@ -1253,6 +1322,26 @@ Keep `tokens.css` as the source of truth and expose it to Tailwind:
 }
 
 @theme {
+  /* tokens.css defines --font-sans and --font-mono, which are also Tailwind's
+     theme variables, so Tailwind's default page font would become Geist.
+     Pin Tailwind's default to its own stack; the app's body gets Geist from
+     components.css, which leaves output pages (section 0.1) unchanged. */
+  --default-font-family:
+    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+    "Noto Color Emoji";
+  --default-mono-font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+```
+
+Import `components.css` into the components layer, so a utility class can still adjust a `ui-*` component: `@import "./components.css" layer(components);`. Prefer the `ui-*` classes from `components.css` for buttons, badges, and tables over long utility strings, so the rules stay in one place. Use utilities for layout (flex, grid, gaps), never for color, type, borders, or corners.
+
+Some token names are also Tailwind's theme variables, by accident rather than design: `--font-sans`, `--font-mono`, and `--text-xs`, `--text-sm`, `--text-lg`, `--text-xl` exist in both, and the tokens win. So in an app with `tokens.css`, the `text-sm` utility is 12.5px, not Tailwind's 14px. That is right for the app's own pages; an output page should size its text with arbitrary values (`text-[22px]`), as broadcast graphics do anyway.
+
+If **no output surface shares the bundle**, also remove Tailwind's corner, shadow, and animation scales, so a stray `rounded-lg` or `shadow-md` cannot creep into the app:
+
+```css
+@theme {
   --radius-*: initial;
   --radius-sm: 2px;
   --shadow-*: initial;
@@ -1262,7 +1351,7 @@ Keep `tokens.css` as the source of truth and expose it to Tailwind:
 }
 ```
 
-Import `components.css` into the components layer, so a utility class can still adjust a `ui-*` component: `@import "./components.css" layer(components);`. Use `rounded-sm` for every corner. Prefer the `ui-*` classes from `components.css` for buttons, badges, and tables over long utility strings, so the rules stay in one place.
+If output shares the bundle, keep those scales: output pages draw with `rounded-full`, `shadow-2xl`, and keyframes, and removing them breaks them without an error. Then rely on review (section 16) to keep them out of the app's pages.
 
 ### 15.4 Component libraries (MUI, shadcn/ui, Radix, and others)
 
@@ -1293,12 +1382,62 @@ A `phx.new` project starts with daisyUI themes, Heroicons, a corner-toast flash,
 2. Remove the daisyUI plugin and both `daisyui-theme` blocks. Map the classes: `btn` to `ui-button`, `btn-primary` to `ui-button--primary`, `btn-ghost` to `ui-button--ghost`, `btn-sm` and `btn-xs` to `ui-button--small`, `badge` to `ui-badge`, `table` to `ui-table`, `alert` to `ui-notice`, `input` and `select` to `ui-input` and `ui-select`, `rounded-box border border-base-300 p-4` to `ui-panel`, `text-base-content/60` to `ui-muted`.
 3. Rewrite `core_components.ex` so `<.button>`, `<.input>`, `<.table>`, `<.header>`, `<.list>`, and `<.flash>` render the `ui-*` classes. Templates then keep using the core components, as the Phoenix AGENTS.md asks.
 4. Keep the `<.icon>` component name, but make it render the glyphs in section 9: `hero-x-mark` ✕, `hero-arrow-up-mini` ↑, `hero-arrow-down-mini` ↓, `hero-arrows-right-left-mini` ⇄, `hero-arrow-path` ↻, `hero-pencil` ✎. For `hero-plus-mini`, write "+ " in the button label instead. Remove the Heroicons plugin when no icon is left.
-5. `<.flash_group>` renders `ui-notice` elements at the top of `main` (info to `progress`, error to `failure`), not toasts in a corner. They stay until the user dismisses them or navigates.
-6. Remove `topbar.js` (an animated loading bar). For a slow navigation, set `aria-busy="true"` on the content region and show the region overlay (section 7.14).
+5. `<.flash_group>` renders `ui-notice` elements under the top bar, outside `main` (info to `progress`, error to `failure`), not toasts in a corner. They stay until the user dismisses them or navigates. Remove the generated `client-error` and `server-error` flashes: their `JS.remove_attribute("hidden")` has no `to:`, so the "server error" notice also appears on every plain disconnect. Use the connection banner in step 11 instead.
+6. Remove `topbar.js` (an animated loading bar). For a slow navigation, set `aria-busy="true"` on the content region and show the region overlay (section 7.14). Listen to `phx:page-loading-start`, wait 300ms, and react only to `event.detail.kind` of `"redirect"` or `"patch"`: LiveView sends the same event with `"error"` when the connection drops, and an overlay then hides the connection banner.
 7. In-flight buttons use `phx-disable-with="Saving…"`. The `phx-click-loading` variants may change a color or the text, never add motion. Remove `animate-*` utilities.
 8. The theme script in `root.html.heex` already sets `data-theme` on `<html>`, and the tokens read it (section 2.4). Keep it.
 9. A layout that renders output for another audience (an overlay, a widget) gets `data-surface="output"` on its `<html>` (section 0.1), and its own CSS keeps its own design.
-10. Tell the user about the AGENTS.md lines that conflict with this guide (section 0.2): "subtle micro-interactions", "smooth transitions", "smooth page transitions", "always use the `<.icon>` component for hero icons".
+10. Tell the user about the AGENTS.md lines that conflict with this guide (section 0.2): "visually stunning", "world-class", "subtle micro-interactions", "smooth transitions", "smooth page transitions", "delightful details", "always use the `<.icon>` component for hero icons", and "if you override the default input classes … your custom classes must fully style the input". Offer to replace them with this guide's rules for the same topics, not just a pointer.
+11. Connection state is CSS on the classes LiveView puts on its root element, with no JS commands. Put the banner right after the top bar in `Layouts.app`:
+
+    ```heex
+    <div id="connection-lost" class="ui-notice ui-notice--banner app-connection" data-status="warning" role="alert">
+      Connection lost. Reconnecting…
+    </div>
+    ```
+
+    ```css
+    /* ui-local.css */
+    .app-connection { display: none; }
+    :is(.phx-client-error, .phx-server-error) .app-connection { display: flex; }
+    :is(.phx-client-error, .phx-server-error) :is(.ui-button, .ui-chip)[phx-click] {
+      opacity: 0.45;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    ```
+
+    An optional "Live" badge (section 12.1) uses the same idea: hidden by default, `display: inline-flex` under `.phx-connected`.
+12. Every `<details>` that LiveView renders (a collapsible panel, a disclosure, a menu) gets `phx-mounted={JS.ignore_attributes(["open"])}`. Without it, the next patch (another operator's change) folds it shut while the user works in it (section 7.15).
+13. Phoenix's `data-confirm` calls `window.confirm()`. Answer it with the confirmation dialog of section 7.16 instead. Put the `<dialog id="confirm-dialog" class="ui-dialog">` in `root.html.heex`, outside the LiveView, so no patch can close it, and add this once to `app.js`. `data-confirm` holds the question, `data-confirm-body` the consequence, and `data-confirm-action` the verb on the danger button:
+
+    ```js
+    // phoenix_html asks window.confirm() for every [data-confirm]; answer first, in the capture phase.
+    const dialog = document.getElementById("confirm-dialog")
+    let opener = null, confirmed = null
+    window.addEventListener("phoenix.link.click", (event) => {
+      const control = event.target
+      const question = control.getAttribute && control.getAttribute("data-confirm")
+      if (!question) return
+      event.stopImmediatePropagation()           // phoenix_html would ask a second time
+      if (control === confirmed) { confirmed = null; return }   // the confirmed click goes through
+      event.preventDefault()
+      opener = control
+      dialog.querySelector("h2").textContent = question
+      dialog.querySelector("p").textContent = control.dataset.confirmBody || ""
+      dialog.querySelector(".ui-button--danger").textContent = control.dataset.confirmAction || "Confirm"
+      dialog.showModal()
+    }, true)
+    dialog.querySelector(".ui-button--danger").addEventListener("click", () => {
+      dialog.close()
+      if (opener && opener.isConnected) { confirmed = opener; opener.click() }
+    })
+    dialog.querySelector("[autofocus]").addEventListener("click", () => dialog.close())
+    dialog.addEventListener("close", () => { if (opener && opener.isConnected) opener.focus(); opener = null })
+    ```
+14. In a stream container (`phx-update="stream"`), every child needs an `id`, the empty state included, or LiveView 1.1 rejects the render: `<div id="tasks-empty" class="ui-empty hidden only:flex">`.
+15. In `core_components.ex`, a component's `class` attribute is for layout only (on `<.input>`, it lands on the field wrapper). The look comes from the `ui-*` classes and is never restyled with utilities. Give `<.input>` a `prose` attribute that adds `ui-input--prose`.
+16. `Phoenix.LiveViewTest` refuses to click a disabled button. A test of a limit (a score that stops at zero) asserts the button is disabled, then sends the event itself (`render_click(view, "score", %{...})`) to prove the server clamps too.
 
 ### 15.6 Terminal output and text reports
 
@@ -1315,15 +1454,18 @@ Run this before you report a UI task as done.
 
 **Files**
 - [ ] `tokens.css` and `components.css` are unchanged copies. Project CSS is in `ui-local.css` or page modules.
-- [ ] The page shell matches section 5.2: top bar with the square brand mark and mono caps name, micro-label nav, page header with an aside.
+- [ ] The page shell matches section 5.2: top bar with the square brand mark and mono caps name, micro-label nav, app-wide notices under the top bar, page header with an aside.
+- [ ] The brand files and head tags from section 5.10 are in place: the tab shows the square mark.
+- [ ] App classes in `ui-local.css` have the app's prefix, not `ui-`.
 - [ ] The density is the default, or the override in `ui-local.css` changes only adjustable tokens (section 2.2) and has a comment with one of the reasons in section 5.1. No color, font, radius, or motion token is overridden.
 
 **Scope**
 - [ ] Output for another audience (overlays, documents, emails, widgets) keeps its own design and has `data-surface="output"` if it shares the CSS bundle.
+- [ ] If output shares the bundle, it looks the same as before the change. Screenshot every output page with the old CSS and the new, with animations paused at the same moment, and compare the pixels. Compare the new CSS with itself too: clocks and image re-rendering differ between any two shots, and only differences beyond that are regressions.
 - [ ] Project instructions that conflict with this guide are reported to the user.
 
 **Tokens and color**
-- [ ] No hex, rgb, or named color outside `tokens.css` and page-level token blocks. Allowed elsewhere: `transparent`, `currentColor`, and the `theme-color` meta tag.
+- [ ] No hex, rgb, or named color outside `tokens.css` and page-level token blocks. Allowed elsewhere: `transparent`, `currentColor`, the `theme-color` meta tag, and `favicon.svg`.
 - [ ] No component-level dark-mode rule. Every color token is `light-dark()`. A theme toggle, if any, sets `data-theme` on `<html>`.
 - [ ] A user-chosen color appears only as a `ui-color-swatch`, never in the chrome.
 - [ ] Every hue on screen is a state, a link, or focus.
@@ -1346,7 +1488,9 @@ Run this before you report a UI task as done.
 **Behavior**
 - [ ] Filters, sort, and page are in the URL. Back works.
 - [ ] A refresh does not blank or move the screen.
-- [ ] Every destructive action asks first and names the count.
+- [ ] Every destructive action asks first and names the count, in the dialog of section 7.16, not `window.confirm()`.
+- [ ] An open disclosure, collapsible panel, or menu stays open when the page updates from the server (section 7.15).
+- [ ] A lost connection shows the banner, and the controls that need the server are disabled (section 12.1).
 - [ ] Disabled controls explain themselves in `title`.
 
 **Accessibility**
@@ -1356,7 +1500,7 @@ Run this before you report a UI task as done.
 - [ ] Progress bars, charts, and live regions have their roles and labels.
 - [ ] Targets are at least 24px (44px on touch-first screens).
 - [ ] The page works in light and dark mode (check both).
-- [ ] The contrast audit (appendix B) returns `[]` in light mode and in dark mode.
+- [ ] The contrast audit (appendix B) returns `[]` in light mode and in dark mode, and with `data-theme` set against the OS. `node audit.mjs <url>…` (appendix C) runs all of these, at 1440px and 375px, in one go.
 - [ ] No horizontal page scroll at 375px wide. Wide tables scroll inside `ui-table-wrap`.
 
 ## Appendix A. components.css
@@ -1812,6 +1956,36 @@ input[type="radio"] {
   color: var(--muted-foreground);
 }
 
+/* A panel that folds away: <details class="ui-panel ui-panel--collapsible">
+   with the ui-panel-title as its <summary> */
+.ui-panel--collapsible > summary {
+  justify-content: flex-start;
+  min-height: 1.5rem;
+  margin-bottom: 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+.ui-panel--collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ui-panel--collapsible > summary::before {
+  content: "\25B8" / "";
+}
+
+.ui-panel--collapsible[open] > summary::before {
+  content: "\25BE" / "";
+}
+
+.ui-panel--collapsible > summary:hover {
+  color: var(--foreground);
+}
+
+.ui-panel--collapsible[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
 /* ---------- Buttons ---------- */
 
 .ui-button {
@@ -1917,6 +2091,41 @@ input[type="radio"] {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
+}
+
+/* A toggle that is on inverts, like a pressed chip */
+.ui-button[aria-pressed="true"] {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.ui-button[aria-pressed="true"]:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+/* A press, answered with color for 300ms: no hover on a touch screen */
+.ui-button[data-acknowledged]:not(:disabled) {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.ui-button--primary[data-acknowledged]:not(:disabled) {
+  opacity: 0.85;
+}
+
+/* The one-tap actions of a console: 44px targets */
+.ui-button--tap {
+  min-height: 2.75rem;
+}
+
+.ui-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: 0.35rem;
+}
+
+.ui-action-grid > .ui-button {
+  white-space: normal;
 }
 
 /* ---------- Chips and segmented control ---------- */
@@ -2204,6 +2413,11 @@ a.ui-badge:hover {
   padding: 0.15rem 0.35rem;
 }
 
+/* A field for prose (a comment, a name) */
+.ui-input--prose {
+  font-family: var(--font-sans);
+}
+
 .ui-hint {
   font-size: var(--text-xs);
   color: var(--muted-foreground);
@@ -2234,6 +2448,16 @@ a.ui-badge:hover {
 
 .ui-notice-end {
   margin-left: auto;
+}
+
+/* A notice for the whole app: full width under the top bar, text lined up
+   with the page, a hairline under it instead of a box */
+.ui-notice--banner {
+  flex-shrink: 0;
+  padding-right: var(--page-pad-x);
+  padding-left: var(--page-pad-x);
+  border-width: 0 0 1px;
+  border-radius: 0;
 }
 
 .ui-empty {
@@ -2715,6 +2939,24 @@ a.ui-card-title:hover {
   color: var(--foreground);
 }
 
+.ui-disclosure-aside {
+  margin-left: auto;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted-foreground);
+}
+
+/* A part of a long panel (a console): a hairline above, room under the summary */
+.ui-disclosure--section {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.ui-disclosure--section[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
 .ui-menu {
   position: relative;
   display: inline-block;
@@ -2872,6 +3114,13 @@ a.ui-card-title:hover {
   background: var(--hover-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+/* A one-line code value: .ui-pre wraps, so truncation has to win here */
+.ui-pre.ui-truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* ---------- Sticky action bar ---------- */
@@ -3296,9 +3545,10 @@ a.ui-card-title:hover {
 }
 
 /* A browser paints an iframe opaque when its color scheme differs from the page inside it.
-   Output pages use the default scheme, so the frame must too, or dark mode hides the transparency. */
+   Output pages use the default scheme, light, so the frame must too, or dark mode hides the
+   transparency. Not `normal`: on the iframe, that follows the app's color-scheme meta tag. */
 .ui-preview > iframe {
-  color-scheme: normal;
+  color-scheme: light;
 }
 
 .ui-checker {
@@ -3316,6 +3566,44 @@ a.ui-card-title:hover {
   background: var(--swatch, transparent);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
+}
+
+/* A color the user picks: the native input drawn as a swatch, its value beside it */
+.ui-color-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ui-color-input {
+  flex: none;
+  width: 2.5rem;
+  height: var(--control-h);
+  padding: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.ui-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.ui-color-input::-webkit-color-swatch {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.ui-color-input::-moz-color-swatch {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.ui-color-input:focus-visible {
+  border-color: var(--foreground);
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 
 /* ---------- State rail (last, so it wins over panel, card, and tile borders) ---------- */
@@ -3452,4 +3740,116 @@ It does not check text on images or gradients, `::placeholder` text, text that o
   freeze.remove()
   return failures
 })()
+```
+
+## Appendix C. audit.mjs
+
+Runs the contrast audit (appendix B) headless on every page you name: in light mode, in dark mode, with `data-theme="dark"` under a light OS and `data-theme="light"` under a dark OS, at 1440px and at 375px, where it also checks that the page does not scroll sideways. Keep it next to `contrast-audit.js`.
+
+<!-- file: audit.mjs -->
+```js
+// Laggish design guide: run contrast-audit.js headless on every mode and width the checklist names.
+//   npm install --no-save puppeteer      (or puppeteer-core, and set CHROME_PATH)
+//   node audit.mjs http://localhost:4000/ http://localhost:4000/settings
+// Environment:
+//   CHROME_PATH   a Chrome or Chromium to use instead of puppeteer's own
+//   COOKIE        "name=value" sent with every page, to audit signed-in pages
+//   DENSITY       "comfortable" applies the section 5.1 example override first
+//   NO_SANDBOX    "1" in a container that cannot run Chrome's sandbox
+// Prints one line per page, mode, and width, and exits 1 if anything fails.
+import { readFileSync } from "node:fs"
+
+const urls = process.argv.slice(2)
+if (urls.length === 0) {
+  console.error("usage: node audit.mjs <url> [<url> ...]")
+  process.exit(2)
+}
+
+const audit = readFileSync(new URL("./contrast-audit.js", import.meta.url), "utf8")
+let puppeteer
+try {
+  puppeteer = (await import("puppeteer")).default
+} catch {
+  puppeteer = (await import("puppeteer-core")).default
+}
+
+const comfortable = ":root {\n--text-xs: 0.75rem;\n--text-sm: 0.875rem;\n--text-md: 1rem;\n--text-lg: clamp(1.15rem, 2.4vw, 1.4rem);\n--control-h: 2.25rem;\n--control-h-compact: 2rem;\n--control-h-sm: 1.75rem;\n--row-h: 2.5rem;\n--topbar-height: 3rem;\n--page-pad-x: clamp(0.75rem, 2vw, 1.5rem);\n--page-pad-y: 1rem;\n}"
+const modes = [
+  { name: "light", scheme: "light" },
+  { name: "dark", scheme: "dark" },
+  { name: "data-theme dark, light OS", scheme: "light", theme: "dark" },
+  { name: "data-theme light, dark OS", scheme: "dark", theme: "light" },
+]
+const widths = [1440, 375]
+
+const browser = await puppeteer.launch({
+  executablePath: process.env.CHROME_PATH || undefined,
+  headless: true,
+  args: process.env.NO_SANDBOX === "1" ? ["--no-sandbox"] : [],
+})
+
+let failed = 0
+for (const url of urls) {
+  for (const width of widths) {
+    for (const mode of modes) {
+      const page = await browser.newPage()
+      await page.setViewport({ width, height: 900 })
+      await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: mode.scheme }])
+      if (process.env.COOKIE) {
+        const [name, ...value] = process.env.COOKIE.split("=")
+        await page.setCookie({ name, value: value.join("="), url })
+      }
+      await page.goto(url, { waitUntil: "networkidle2" })
+      await page.evaluate(
+        async (theme, css) => {
+          if (theme) document.documentElement.setAttribute("data-theme", theme)
+          if (css) {
+            const style = document.createElement("style")
+            style.textContent = css
+            document.head.append(style)
+          }
+          await document.fonts.ready
+        },
+        mode.theme ?? null,
+        process.env.DENSITY === "comfortable" ? comfortable : null,
+      )
+      // Let the 120ms color fades settle before reading colors.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+
+      const failures = await page.evaluate(audit)
+      const overflow = width === 375
+        ? await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+        : 0
+      const label = `${url} · ${width}px · ${mode.name}`
+
+      if (failures.length > 0 || overflow > 0) {
+        failed += 1
+        console.log(`FAIL ${label}`)
+        for (const f of failures) console.log(`  ${f.ratio}:1, needs ${f.needed}: "${f.text}" (${f.className})`)
+        if (overflow > 0) console.log(`  scrolls ${overflow}px sideways`)
+      } else {
+        console.log(`ok   ${label}`)
+      }
+      await page.close()
+    }
+  }
+}
+
+await browser.close()
+process.exit(failed > 0 ? 1 : 0)
+```
+
+## Appendix D. favicon.svg
+
+The brand mark for the browser tab (section 5.10): the top bar's square in `--foreground`, light gray when the browser is dark. `favicon.ico` (48px) and `apple-touch-icon.png` (180px) are the same square on transparent, in the guide's repository next to this file.
+
+<!-- file: favicon.svg -->
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    rect { fill: #171717; }
+    @media (prefers-color-scheme: dark) { rect { fill: #ededed; } }
+  </style>
+  <rect x="8" y="8" width="48" height="48" rx="2"/>
+</svg>
 ```
