@@ -40,6 +40,23 @@ defmodule Showish.Release do
     end
   end
 
+  @doc """
+  Creates the example shows where they are missing (see `Showish.Seeds`).
+
+  Every PR preview runs it after its migrations, through `bin/seed`. It never
+  resets an example that exists, so it is safe on every deploy.
+  """
+  def seed do
+    load_app()
+    {:ok, _apps} = Application.ensure_all_started(@app)
+
+    for result <- Showish.Seeds.run() do
+      IO.puts("seed: #{inspect(result)}")
+    end
+
+    :ok
+  end
+
   defp repos do
     Application.fetch_env!(@app, :ecto_repos)
   end

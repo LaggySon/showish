@@ -1,155 +1,30 @@
-# Seeds a demo show so there is something on screen the first time you open the
-# control room.
+# Example data: an esports show and a baseball show, so there is something on
+# screen the first time you open the control room.
 #
 #     mix run priv/repo/seeds.exs
+#
+# Here the examples are reset to how they ship. See Showish.Seeds for who owns
+# them (SEED_EMAIL, else the first ALLOWED_GOOGLE_EMAILS address, else
+# operator@example.com) and for how PR previews seed themselves.
 
-alias Showish.Accounts
-alias Showish.Accounts.Scope
-alias Showish.Broadcasts
+results = Showish.Seeds.run(reset: true)
+email = Showish.Seeds.owner_email()
 
-# Shows belong to an account now, so the demo needs someone to own it. Sign-in
-# is Google's job, so the account is provisioned by address: the first time you
-# sign in with that Google address, this row — and the demo show — become yours.
-email = System.get_env("SEED_EMAIL") || "operator@example.com"
+for result <- results do
+  case result do
+    {:skipped, slug, :owned_by_someone_else} ->
+      IO.puts("Skipped #{slug}: that slug belongs to another account.")
 
-user =
-  case Accounts.get_user_by_email(email) do
-    nil ->
-      {:ok, user} = Accounts.provision_user(%{"email" => email})
-      user
-
-    user ->
-      user
+    {what, slug} ->
+      IO.puts("#{what |> Atom.to_string() |> String.capitalize()} #{slug}.")
   end
-
-scope = Scope.for_user(user)
-
-slug = "demo"
-
-if show = Broadcasts.get_public_show_by_slug(slug) do
-  {:ok, _show} = Broadcasts.delete_show(scope, show)
 end
-
-{:ok, show} =
-  Broadcasts.create_show(scope, %{
-    "slug" => slug,
-    "title" => "Showish Invitational",
-    "subtitle" => "Week 5",
-    "stage" => "Grand Finals",
-    "best_of" => 5,
-    "accent_color" => "#22d3ee",
-    "ticker" => "Welcome to the Showish Invitational · Grand Finals · Best of 5",
-    "break_message" => "Back after a short break",
-    "starts_at" => DateTime.add(DateTime.utc_now(), 15 * 60, :second),
-    "show_sides" => true,
-    "teams" => [
-      %{
-        "position" => 1,
-        "name" => "Harbour Kings",
-        "short_name" => "Kings",
-        "code" => "HRB",
-        "record" => "12-2",
-        "score" => 2,
-        "side" => "Attack",
-        "primary_color" => "#2563eb",
-        "secondary_color" => "#f8fafc",
-        "logo_url" => "/images/teams/harbour-kings.svg"
-      },
-      %{
-        "position" => 2,
-        "name" => "Ridgeline Foxes",
-        "short_name" => "Foxes",
-        "code" => "RDG",
-        "record" => "10-4",
-        "score" => 1,
-        "side" => "Defense",
-        "primary_color" => "#e11d48",
-        "secondary_color" => "#fff7ed",
-        "logo_url" => "/images/teams/ridgeline-foxes.svg"
-      }
-    ],
-    "games" => [
-      %{
-        "name" => "Old Harbour",
-        "mode" => "Control",
-        "image_url" => "/images/maps/old-harbour.svg",
-        "winner" => "a",
-        "completed" => true,
-        "score_a" => 2,
-        "score_b" => 1
-      },
-      %{
-        "name" => "Sable Flats",
-        "mode" => "Escort",
-        "image_url" => "/images/maps/sable-flats.svg",
-        "winner" => "b",
-        "completed" => true,
-        "score_a" => 1,
-        "score_b" => 3
-      },
-      %{
-        "name" => "Ninth Ward",
-        "mode" => "Hybrid",
-        "image_url" => "/images/maps/ninth-ward.svg",
-        "winner" => "a",
-        "completed" => true,
-        "score_a" => 3,
-        "score_b" => 2
-      },
-      %{"name" => "Cinder Bay", "mode" => "Push", "image_url" => "/images/maps/cinder-bay.svg"},
-      %{
-        "name" => "Glass Quarter",
-        "mode" => "Control",
-        "image_url" => "/images/maps/glass-quarter.svg"
-      }
-    ],
-    # The host and casters are on camera; the observer and producer are on the
-    # crew but not on the desk, which is what `on_cam` is for.
-    "talents" => [
-      %{
-        "role" => "Host",
-        "name" => "Ada Whitlock",
-        "pronouns" => "she/her",
-        "social" => "@adawhit",
-        "on_cam" => true
-      },
-      %{
-        "role" => "Caster",
-        "name" => "Bo Ferreira",
-        "pronouns" => "he/him",
-        "social" => "@bocasts",
-        "on_cam" => true
-      },
-      %{
-        "role" => "Caster",
-        "name" => "Sam Okoye",
-        "pronouns" => "they/them",
-        "social" => "@samok",
-        "on_cam" => true
-      },
-      %{
-        "role" => "Observer",
-        "name" => "Nina Alvarez",
-        "pronouns" => "she/her",
-        "social" => "@ninaobs"
-      },
-      %{
-        "role" => "Producer",
-        "name" => "Kit Larsen",
-        "pronouns" => "they/them",
-        "social" => "@kitprod"
-      }
-    ]
-  })
-
-{:ok, _show} = Broadcasts.set_current_game(show, 4)
 
 IO.puts("""
 
-Seeded the "#{slug}" show, owned by #{user.email}.
+The examples belong to #{email}. Sign in with Google as #{email} to claim them.
 
-  Sign in with Google as #{user.email} to claim it.
-
-  Control room: #{ShowishWeb.Endpoint.url()}/shows/#{slug}/control
-  Scorebug:     #{ShowishWeb.Endpoint.url()}/overlay/#{slug}/scorebug
+  Control room: #{ShowishWeb.Endpoint.url()}/shows/demo/control
+  Scorebug:     #{ShowishWeb.Endpoint.url()}/overlay/demo/scorebug
+  Baseball:     #{ShowishWeb.Endpoint.url()}/shows/demo-baseball/control
 """)
